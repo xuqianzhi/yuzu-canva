@@ -1,0 +1,71 @@
+# seedance-canvas
+
+A canvas for AI generation. Each node takes a prompt and generates text, an
+image or a video, and can reference other nodes' outputs.
+
+- Text and images: OpenAI. Video: Seedance (Volcengine Ark).
+
+```
+seedance-canvas/
+├── contract/   openapi.json, generated from the backend models
+├── backend/    FastAPI, runs in Docker on 127.0.0.1:8788
+└── frontend/   React canvas (coming next), opens in Chrome; typed API client
+```
+
+## Status
+
+The canvas works: add, move, name and delete nodes, upload your own images
+and videos as nodes (per project, or as global assets every new project
+starts with), connect one node's output into another, generate
+images and videos, and see the result; everything saves, and ⌘Z undoes it.
+
+- **Workflows**: designed once on the landing page (a list of steps, each a
+  name and what it makes) and copied by every new project. In a project,
+  each step runs with a prompt and a number: with the project instruction
+  and the step before's results, the AI writes that many results (text) or
+  prompts (images, videos, generated at once). See frontend/README.md.
+- **Text nodes** (OpenAI `OPENAI_TEXT_MODEL`, default gpt-5-mini).
+- **Image nodes** (OpenAI): text to image with no inputs, image edit with
+  one or more image inputs ("image 1", "image 2" in the prompt).
+- **Video nodes** (Seedance 2.0 on Volcengine Ark): text to video, with up
+  to 9 image and 3 video inputs ("图片1", "视频1" in the prompt). Video jobs
+  survive an API restart: polling resumes on the same Ark task.
+
+Uploads to Ark (Beijing) can be very slow from outside China (a few KB/s).
+As in seedance-ui, reference images are therefore sent as JPEG, at most
+1024 px on the long edge at quality 80 (the node keeps its full-size file).
+This applies to every provider, OpenAI included: providers only get
+reference files through `RefFile.load()`, which compresses images. One Ark
+request may take up to `SEEDANCE_HTTP_TIMEOUT` (default 900s).
+If a create request is lost mid-upload, the backend checks Ark for the task
+(by its seed) before reporting a failure, so you are never charged twice.
+
+Everything is stored in SQLite and files under `data/`. Poll
+`GET /api/jobs/{id}` for progress.
+
+Not yet: the WebSocket event stream (the UI polls), streaming chat answers.
+
+## Backend
+
+Needs Docker Desktop.
+
+```bash
+cd backend
+make setup      # creates .env -- add OPENAI_API_KEY and ARK_API_KEY
+make up         # API on http://127.0.0.1:8788, docs at /docs
+make test       # tests in Docker
+make down
+```
+
+## Changing the contract
+
+Edit the models in `backend/src/canvas_api/contract/`, then:
+
+```bash
+cd backend && make contract   # regenerates contract/openapi.json and the TS types
+```
+
+Needs Node.js for the TypeScript step (`cd frontend && npm install` once).
+Export in Docker (as `make contract` does), not a local Python: status-code
+wording differs between Python versions and would fail the drift test.
+See [contract/README.md](contract/README.md).

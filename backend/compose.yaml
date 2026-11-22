@@ -1,0 +1,58 @@
+# Values resolve as: shell environment > .env > the default here. There is
+# deliberately no `env_file:` key, so a missing .env is not an error.
+
+# Explicit, so it never collides with another repo's `backend/` folder.
+name: seedance-canvas
+
+x-base-image: &base-image ${BASE_IMAGE:-python:3.12-slim}
+
+x-env: &env
+  - OPENAI_API_KEY=${OPENAI_API_KEY-}
+  - OPENAI_BASE_URL=${OPENAI_BASE_URL-}
+  - OPENAI_IMAGE_MODEL=${OPENAI_IMAGE_MODEL-}
+  - OPENAI_TEXT_MODEL=${OPENAI_TEXT_MODEL-}
+  - OPENAI_TIMEOUT_S=${OPENAI_TIMEOUT_S-}
+  - ARK_API_KEY=${ARK_API_KEY-}
+  - ARK_BASE_URL=${ARK_BASE_URL-}
+  - SEEDANCE_MODEL=${SEEDANCE_MODEL-}
+  - SEEDANCE_POLL_INTERVAL=${SEEDANCE_POLL_INTERVAL-}
+  - SEEDANCE_POLL_TIMEOUT=${SEEDANCE_POLL_TIMEOUT-}
+  - SEEDANCE_HTTP_TIMEOUT=${SEEDANCE_HTTP_TIMEOUT-}
+  - CANVAS_WORKER_CONCURRENCY=${CANVAS_WORKER_CONCURRENCY-}
+  - CANVAS_FAKE_GENERATORS=${CANVAS_FAKE_GENERATORS-}
+
+services:
+  # The API behind the canvas. Published on loopback only.
+  # Port 8788, so it can run next to seedance-ui's API on 8787.
+  api:
+    build:
+      context: .
+      target: base
+      args:
+        BASE_IMAGE: *base-image
+    image: seedance-canvas/backend:dev
+    environment: *env
+    ports:
+      - "127.0.0.1:8788:8788"
+    # --reload plus the source mount: edits apply without rebuilding.
+    command: ["uvicorn", "canvas_api.app:app", "--host", "0.0.0.0", "--port", "8788", "--reload", "--reload-dir", "/app/src"]
+    volumes:
+      - ./src:/app/src:ro
+      - ../data:/app/data
+
+  # Unit tests and contract export. Dummy keys: nothing here touches the network.
+  test:
+    build:
+      context: .
+      target: dev
+      args:
+        BASE_IMAGE: *base-image
+    image: seedance-canvas/backend:test
+    environment:
+      OPENAI_API_KEY: test-key-not-real
+      ARK_API_KEY: test-key-not-real
+    volumes:
+      - ./src:/app/src:ro
+      - ./tests:/app/tests:ro
+      - ./pyproject.toml:/app/pyproject.toml:ro
+      - ../contract:/contract:ro

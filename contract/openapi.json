@@ -1,0 +1,4379 @@
+{
+  "components": {
+    "schemas": {
+      "AppSettings": {
+        "additionalProperties": false,
+        "description": "App-wide settings, chosen on the landing page.",
+        "properties": {
+          "language": {
+            "$ref": "#/components/schemas/Language",
+            "default": "en"
+          }
+        },
+        "required": [
+          "language"
+        ],
+        "title": "AppSettings",
+        "type": "object"
+      },
+      "AppSettingsUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "language": {
+            "$ref": "#/components/schemas/Language"
+          }
+        },
+        "required": [
+          "language"
+        ],
+        "title": "AppSettingsUpdate",
+        "type": "object"
+      },
+      "Asset": {
+        "additionalProperties": false,
+        "description": "A stored media file. Fetch the bytes from ``url``.",
+        "properties": {
+          "bytes": {
+            "minimum": 0.0,
+            "title": "Bytes",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "duration_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration S"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "id": {
+            "examples": [
+              "ast_k4z9"
+            ],
+            "pattern": "^ast_[A-Za-z0-9]+$",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/MediaKind"
+          },
+          "mime": {
+            "title": "Mime",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "mime",
+          "url",
+          "bytes",
+          "width",
+          "height",
+          "duration_s",
+          "created_at"
+        ],
+        "title": "Asset",
+        "type": "object"
+      },
+      "Body_uploadGlobalAsset": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 80,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file",
+          "name"
+        ],
+        "title": "Body_uploadGlobalAsset",
+        "type": "object"
+      },
+      "Body_uploadMaterial": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_uploadMaterial",
+        "type": "object"
+      },
+      "ChatMessage": {
+        "additionalProperties": false,
+        "description": "One message of a node's chat. An assistant message may carry a\n``proposal``: a complete new version of the node's text, which\n``applyProposal`` turns into a take.",
+        "properties": {
+          "applied_output_id": {
+            "anyOf": [
+              {
+                "examples": [
+                  "out_x0p2"
+                ],
+                "pattern": "^out_[A-Za-z0-9]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applied Output Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "pattern": "^msg_[A-Za-z0-9]+$",
+            "title": "Id",
+            "type": "string"
+          },
+          "node_id": {
+            "examples": [
+              "nod_a91x"
+            ],
+            "pattern": "^nod_[A-Za-z0-9]+$",
+            "title": "Node Id",
+            "type": "string"
+          },
+          "proposal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposal"
+          },
+          "role": {
+            "$ref": "#/components/schemas/ChatRole"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "node_id",
+          "role",
+          "text",
+          "proposal",
+          "applied_output_id",
+          "created_at"
+        ],
+        "title": "ChatMessage",
+        "type": "object"
+      },
+      "ChatRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "ChatRequest",
+        "type": "object"
+      },
+      "ChatRole": {
+        "enum": [
+          "user",
+          "assistant"
+        ],
+        "title": "ChatRole",
+        "type": "string"
+      },
+      "Edge": {
+        "additionalProperties": false,
+        "description": "``target_node_id`` references ``source_node_id``: the source's selected\noutput is one of the target's inputs.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "examples": [
+              "edg_3m7q"
+            ],
+            "pattern": "^edg_[A-Za-z0-9]+$",
+            "title": "Id",
+            "type": "string"
+          },
+          "project_id": {
+            "examples": [
+              "prj_8f2k1"
+            ],
+            "pattern": "^prj_[A-Za-z0-9]+$",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "source_node_id": {
+            "examples": [
+              "nod_a91x"
+            ],
+            "pattern": "^nod_[A-Za-z0-9]+$",
+            "title": "Source Node Id",
+            "type": "string"
+          },
+          "target_node_id": {
+            "examples": [
+              "nod_a91x"
+            ],
+            "pattern": "^nod_[A-Za-z0-9]+$",
+            "title": "Target Node Id",
+            "type": "string"
+          },
+          "workflow": {
+            "default": false,
+            "title": "Workflow",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "source_node_id",
+          "target_node_id",
+          "workflow",
+          "created_at"
+        ],
+        "title": "Edge",
+        "type": "object"
+      },
+      "EdgeCreate": {
+        "additionalProperties": false,
+        "description": "Fails with ``self_reference``, ``duplicate_edge``, ``cycle``, or\n``no_id`` when the source has no ID.\n\nLinks follow prompts: creating one appends the source's ID to the\ntarget's prompt (and deleting one removes the mentions).",
+        "properties": {
+          "source_node_id": {
+            "examples": [
+              "nod_a91x"
+            ],
+            "pattern": "^nod_[A-Za-z0-9]+$",
+            "title": "Source Node Id",
+            "type": "string"
+          },
+          "target_node_id": {
+            "examples": [
+              "nod_a91x"
+            ],
+            "pattern": "^nod_[A-Za-z0-9]+$",
+            "title": "Target Node Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_node_id",
+          "target_node_id"
+        ],
+        "title": "EdgeCreate",
+        "type": "object"
+      },
+      "ErrorCode": {
+        "enum": [
+          "not_found",
+          "validation_error",
+          "cycle",
+          "duplicate_edge",
+          "self_reference",
+          "missing_ref_output",
+          "unsupported_ref",
+          "too_many_refs",
+          "job_in_progress",
+          "job_finished",
+          "provider_error",
+          "duplicate_name",
+          "no_id",
+          "not_generatable",
+          "unsupported_media",
+          "too_large",
+          "workflow_locked",
+          "workflow_blocked"
+        ],
+        "title": "ErrorCode",
+        "type": "string"
+      },
+      "ErrorDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/ErrorCode"
+          },
+          "context": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Context",
+            "type": "object"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "context"
+        ],
+        "title": "ErrorDetail",
+        "type": "object"
+      },
+      "ErrorResponse": {
+        "additionalProperties": false,
+        "description": "Body of every non-2xx response.",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorDetail"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "title": "ErrorResponse",
+        "type": "object"
+      },
+      "GenerateRequest": {
+        "additionalProperties": false,
+        "description": "Body of ``POST /api/nodes/{id}/generate``. Empty for now: the node's\nsaved prompt and params are used, so save before generating.",
+        "properties": {},
+        "title": "GenerateRequest",
+        "type": "object"
+      },
+      "GlobalAsset": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "minimum": 0.0,
+            "title": "Bytes",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "duration_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration S"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "id": {
+            "examples": [
+              "gas_k2m9"
+            ],
+            "pattern": "^gas_[A-Za-z0-9]+$",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/MediaKind"
+          },
+          "mime": {
+            "title": "Mime",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "mime",
+          "url",
+          "bytes",
+          "width",
+          "height",
+          "duration_s",
+          "created_at"
+        ],
+        "title": "GlobalAsset",
+        "type": "object"
+      },
+      "GlobalAssetUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "GlobalAssetUpdate",
+        "type": "object"
+      },
+      "GlobalInstruction": {
+        "additionalProperties": false,
+        "properties": {
+          "instruction": {
+            "title": "Instruction",
+            "type": "string"
+          }
+        },
+        "required": [
+          "instruction"
+        ],
+        "title": "GlobalInstruction",
+        "type": "object"
+      },
+      "GlobalInstructionUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "instruction": {
+            "maxLength": 20000,
+            "title": "Instruction",
+            "type": "string"
+          }
+        },
+        "required": [
+          "instruction"
+        ],
+        "title": "GlobalInstructionUpdate",
+        "type": "object"
+      },
+      "Health": {
+        "additionalProperties": false,
+        "properties": {
+          "app": {
+            "const": "seedance-canvas",
+            "default": "seedance-canvas",
+            "title": "App",
+            "type": "string"
+          },
+          "status": {
+            "const": "ok",
+            "default": "ok",
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "app",
+          "status",
+          "version"
+        ],
+        "title": "Health",
+        "type": "object"
+      },
+      "ImageParams": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "image",
+            "default": "image",
+            "title": "Kind",
+            "type": "string"
+          },
+          "quality": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "low",
+              "medium",
+              "high"
+            ],
+            "title": "Quality",
+            "type": "string"
+          },
+          "size": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "1024x1024",
+              "1536x1024",
+              "1024x1536"
+            ],
+            "title": "Size",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "size",
+          "quality"
+        ],
+        "title": "ImageParams",
+        "type": "object"
+      },
+      "Job": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "examples": [
+              "job_77ab"
+            ],
+            "pattern": "^job_[A-Za-z0-9]+$",
+            "title": "Id",
+            "type": "string"
+          },
+          "input": {
+            "$ref": "#/components/schemas/JobInput"
+          },
+          "node_id": {
+            "examples": [
+              "nod_a91x"
+            ],
+            "pattern": "^nod_[A-Za-z0-9]+$",
+            "title": "Node Id",
+            "type": "string"
+          },
+          "operation": {
+            "$ref": "#/components/schemas/Operation"
+          },
+          "output_id": {
+            "anyOf": [
+              {
+                "examples": [
+                  "out_x0p2"
+                ],
+                "pattern": "^out_[A-Za-z0-9]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Id"
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress"
+          },
+          "project_id": {
+            "examples": [
+              "prj_8f2k1"
+            ],
+            "pattern": "^prj_[A-Za-z0-9]+$",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/Provider"
+          },
+          "provider_task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Task Id"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "$ref": "#/components/schemas/JobStatus"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "node_id",
+          "status",
+          "provider",
+          "operation",
+          "input",
+          "progress",
+          "error",
+          "output_id",
+          "provider_task_id",
+          "created_at",
+          "started_at",
+          "finished_at"
+        ],
+        "title": "Job",
+        "type": "object"
+      },
+      "JobInput": {
+        "additionalProperties": false,
+        "description": "Exactly what a job was run with, so any take can be reproduced.",
+        "properties": {
+          "language": {
+            "$ref": "#/components/schemas/Language",
+            "default": "en"
+          },
+          "params": {
+            "discriminator": {
+              "mapping": {
+                "image": "#/components/schemas/ImageParams",
+                "text": "#/components/schemas/TextParams",
+                "video": "#/components/schemas/VideoParams"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TextParams"
+              },
+              {
+                "$ref": "#/components/schemas/ImageParams"
+              },
+              {
+                "$ref": "#/components/schemas/VideoParams"
+              }
+            ],
+            "title": "Params"
+          },
+          "prompt": {
+            "title": "Prompt",
+            "type": "string"
+          },
+          "refs": {
+            "items": {
+              "$ref": "#/components/schemas/ResolvedRef"
+            },
+            "title": "Refs",
+            "type": "array"
+          },
+          "system": {
+            "default": "",
+            "title": "System",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt",
+          "params",
+          "refs",
+          "system",
+          "language"
+        ],
+        "title": "JobInput",
+        "type": "object"
+      },
+      "JobStatus": {
+        "enum": [
+          "queued",
+          "running",
+          "succeeded",
+          "failed",
+          "canceled"
+        ],
+        "title": "JobStatus",
+        "type": "string"
+      },
+      "JobUpdatedEvent": {
+        "additionalProperties": false,
+        "description": "Sent on every job status or progress change.",
+        "properties": {
+          "job": {
+            "$ref": "#/components/schemas/Job"
+          },
+          "type": {
+            "const": "job.updated",
+            "default": "job.updated",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "job"
+        ],
+        "title": "JobUpdatedEvent",
+        "type": "object"
+      },
+      "Language": {
+        "description": "The app's language: the UI's, and that of every prompt the backend\nwrites for the models (the user's own text is sent as written).",
+        "enum": [
+          "en",
+          "zh"
+        ],
+        "title": "Language",
+        "type": "string"
+      },
+      "Material": {
+        "additionalProperties": false,
+        "properties": {
+          "asset": {
+            "$ref": "#/components/schemas/Asset"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "examples": [
+              "mat_q2w8"
+            ],
+            "pattern": "^mat_[A-Za-z0-9]+$",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "project_id": {
+            "examples": [
+              "prj_8f2k1"
+            ],
+            "pattern": "^prj_[A-Za-z0-9]+$",
+            "title": "Project Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "name",
+          "asset",
+          "created_at"
+        ],
+        "title": "Material",
+        "type": "object"
+      },
+      "MaterialPlace": {
+        "additionalProperties": false,
+        "description": "Body of ``POST /api/materials/{id}/place``.",
+        "properties": {
+          "position": {
+            "$ref": "#/components/schemas/Position"
+          }
+        },
+        "required": [
+          "position"
+        ],
+        "title": "MaterialPlace",
+        "type": "object"
+      },
+      "MediaKind": {
+        "description": "What a node produces, and what kind of thing an output is.",
+        "enum": [
+          "text",
+          "image",
+          "video"
+        ],
+        "title": "MediaKind",
+        "type": "string"
+      },
+      "Node": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "examples": [
+              "nod_a91x"
+            ],
+            "pattern": "^nod_[A-Za-z0-9]+$",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/MediaKind"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "params": {
+            "discriminator": {
+              "mapping": {
+                "image": "#/components/schemas/ImageParams",
+                "text": "#/components/schemas/TextParams",
+                "video": "#/components/schemas/VideoParams"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TextParams"
+              },
+              {
+                "$ref": "#/components/schemas/ImageParams"
+              },
+              {
+                "$ref": "#/components/schemas/VideoParams"
+              }
+            ],
+            "title": "Params"
+          },
+          "position": {
+            "$ref": "#/components/schemas/Position"
+          },
+          "project_id": {
+            "examples": [
+              "prj_8f2k1"
+            ],
+            "pattern": "^prj_[A-Za-z0-9]+$",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "prompt": {
+            "default": "",
+            "title": "Prompt",
+            "type": "string"
+          },
+          "selected_output_id": {
+            "anyOf": [
+              {
+                "examples": [
+                  "out_x0p2"
+                ],
+                "pattern": "^out_[A-Za-z0-9]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected Output Id"
+          },
+          "size": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Size"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "$ref": "#/components/schemas/NodeSource",
+            "default": "generate"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "workflow_item": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workflow Item"
+          },
+          "workflow_step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workflow Step"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "kind",
+          "name",
+          "source",
+          "position",
+          "size",
+          "prompt",
+          "params",
+          "selected_output_id",
+          "workflow_step",
+          "workflow_item",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Node",
+        "type": "object"
+      },
+      "NodeCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/MediaKind"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "params": {
+            "anyOf": [
+              {
+                "discriminator": {
+                  "mapping": {
+                    "image": "#/components/schemas/ImageParams",
+                    "text": "#/components/schemas/TextParams",
+                    "video": "#/components/schemas/VideoParams"
+                  },
+                  "propertyName": "kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/TextParams"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ImageParams"
+                  },
+                  {
+                    "$ref": "#/components/schemas/VideoParams"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Params"
+          },
+          "position": {
+            "$ref": "#/components/schemas/Position"
+          },
+          "prompt": {
+            "default": "",
+            "maxLength": 20000,
+            "title": "Prompt",
+            "type": "string"
+          },
+          "size": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Size"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "position"
+        ],
+        "title": "NodeCreate",
+        "type": "object"
+      },
+      "NodeSource": {
+        "description": "Where a node's outputs come from.",
+        "enum": [
+          "generate",
+          "upload"
+        ],
+        "title": "NodeSource",
+        "type": "string"
+      },
+      "NodeUpdate": {
+        "additionalProperties": false,
+        "description": "Partial update: omitted fields are left as they are.\n\n``kind`` can change; when it does and ``params`` is omitted, params reset\nto the new kind's defaults. Existing outputs stay attached to the node,\nbut ``selected_output_id`` is cleared if it no longer matches the kind.\nUploaded nodes cannot change kind or params.",
+        "properties": {
+          "kind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MediaKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "params": {
+            "anyOf": [
+              {
+                "discriminator": {
+                  "mapping": {
+                    "image": "#/components/schemas/ImageParams",
+                    "text": "#/components/schemas/TextParams",
+                    "video": "#/components/schemas/VideoParams"
+                  },
+                  "propertyName": "kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/TextParams"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ImageParams"
+                  },
+                  {
+                    "$ref": "#/components/schemas/VideoParams"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Params"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Position"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "prompt": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt"
+          },
+          "selected_output_id": {
+            "anyOf": [
+              {
+                "examples": [
+                  "out_x0p2"
+                ],
+                "pattern": "^out_[A-Za-z0-9]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected Output Id"
+          },
+          "size": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Size"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "NodeUpdate",
+        "type": "object"
+      },
+      "Operation": {
+        "description": "Which provider call a job makes. Chosen by the backend from the node's\nkind and the kinds of its references; the client never picks it.",
+        "enum": [
+          "text_generate",
+          "image_generate",
+          "image_edit",
+          "video_generate"
+        ],
+        "title": "Operation",
+        "type": "string"
+      },
+      "Output": {
+        "additionalProperties": false,
+        "description": "One take produced by a node. Text outputs carry ``text``; image and\nvideo outputs carry ``asset``. Uploaded nodes' takes have no job.",
+        "properties": {
+          "asset": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Asset"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "examples": [
+              "out_x0p2"
+            ],
+            "pattern": "^out_[A-Za-z0-9]+$",
+            "title": "Id",
+            "type": "string"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "examples": [
+                  "job_77ab"
+                ],
+                "pattern": "^job_[A-Za-z0-9]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/MediaKind"
+          },
+          "node_id": {
+            "examples": [
+              "nod_a91x"
+            ],
+            "pattern": "^nod_[A-Za-z0-9]+$",
+            "title": "Node Id",
+            "type": "string"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          }
+        },
+        "required": [
+          "id",
+          "node_id",
+          "job_id",
+          "kind",
+          "text",
+          "asset",
+          "created_at"
+        ],
+        "title": "Output",
+        "type": "object"
+      },
+      "OutputCreatedEvent": {
+        "additionalProperties": false,
+        "description": "Sent when a job succeeds, before its final ``job.updated``.",
+        "properties": {
+          "node_id": {
+            "examples": [
+              "nod_a91x"
+            ],
+            "pattern": "^nod_[A-Za-z0-9]+$",
+            "title": "Node Id",
+            "type": "string"
+          },
+          "output": {
+            "$ref": "#/components/schemas/Output"
+          },
+          "type": {
+            "const": "output.created",
+            "default": "output.created",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "output",
+          "node_id"
+        ],
+        "title": "OutputCreatedEvent",
+        "type": "object"
+      },
+      "OutputUse": {
+        "enum": [
+          "independent",
+          "one_to_one"
+        ],
+        "title": "OutputUse",
+        "type": "string"
+      },
+      "Position": {
+        "additionalProperties": false,
+        "description": "Top-left corner of a node, in canvas (world) coordinates.",
+        "properties": {
+          "x": {
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y"
+        ],
+        "title": "Position",
+        "type": "object"
+      },
+      "Project": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "examples": [
+              "prj_8f2k1"
+            ],
+            "pattern": "^prj_[A-Za-z0-9]+$",
+            "title": "Id",
+            "type": "string"
+          },
+          "instruction": {
+            "title": "Instruction",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "viewport": {
+            "$ref": "#/components/schemas/Viewport"
+          },
+          "workflow": {
+            "$ref": "#/components/schemas/WorkflowDefinition"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "viewport",
+          "instruction",
+          "workflow",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Project",
+        "type": "object"
+      },
+      "ProjectCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "instruction": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instruction"
+          },
+          "name": {
+            "default": "Untitled",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "workflow_template_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workflow Template Id"
+          }
+        },
+        "title": "ProjectCreate",
+        "type": "object"
+      },
+      "ProjectGraph": {
+        "additionalProperties": false,
+        "description": "Everything the canvas needs to open a project, in one response.",
+        "properties": {
+          "active_jobs": {
+            "items": {
+              "$ref": "#/components/schemas/Job"
+            },
+            "title": "Active Jobs",
+            "type": "array"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/Edge"
+            },
+            "title": "Edges",
+            "type": "array"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/Node"
+            },
+            "title": "Nodes",
+            "type": "array"
+          },
+          "outputs": {
+            "items": {
+              "$ref": "#/components/schemas/Output"
+            },
+            "title": "Outputs",
+            "type": "array"
+          },
+          "project": {
+            "$ref": "#/components/schemas/Project"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/StepRun"
+            },
+            "title": "Runs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "project",
+          "nodes",
+          "edges",
+          "outputs",
+          "active_jobs",
+          "runs"
+        ],
+        "title": "ProjectGraph",
+        "type": "object"
+      },
+      "ProjectSummary": {
+        "additionalProperties": false,
+        "description": "A project as listed on the landing page.",
+        "properties": {
+          "cover": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Asset"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "examples": [
+              "prj_8f2k1"
+            ],
+            "pattern": "^prj_[A-Za-z0-9]+$",
+            "title": "Id",
+            "type": "string"
+          },
+          "image_count": {
+            "default": 0,
+            "title": "Image Count",
+            "type": "integer"
+          },
+          "instruction": {
+            "title": "Instruction",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "node_count": {
+            "default": 0,
+            "title": "Node Count",
+            "type": "integer"
+          },
+          "running_count": {
+            "default": 0,
+            "title": "Running Count",
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "video_count": {
+            "default": 0,
+            "title": "Video Count",
+            "type": "integer"
+          },
+          "viewport": {
+            "$ref": "#/components/schemas/Viewport"
+          },
+          "workflow": {
+            "$ref": "#/components/schemas/WorkflowDefinition"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "viewport",
+          "instruction",
+          "workflow",
+          "created_at",
+          "updated_at",
+          "node_count",
+          "image_count",
+          "video_count",
+          "running_count",
+          "cover"
+        ],
+        "title": "ProjectSummary",
+        "type": "object"
+      },
+      "ProjectUpdate": {
+        "additionalProperties": false,
+        "description": "Partial update: omitted fields are left as they are.",
+        "properties": {
+          "instruction": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instruction"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "viewport": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Viewport"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "ProjectUpdate",
+        "type": "object"
+      },
+      "Provider": {
+        "enum": [
+          "openai",
+          "seedance"
+        ],
+        "title": "Provider",
+        "type": "string"
+      },
+      "ResolvedRef": {
+        "additionalProperties": false,
+        "description": "A reference as it was used by a job.",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/MediaKind"
+          },
+          "node_id": {
+            "examples": [
+              "nod_a91x"
+            ],
+            "pattern": "^nod_[A-Za-z0-9]+$",
+            "title": "Node Id",
+            "type": "string"
+          },
+          "output_id": {
+            "examples": [
+              "out_x0p2"
+            ],
+            "pattern": "^out_[A-Za-z0-9]+$",
+            "title": "Output Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "node_id",
+          "output_id",
+          "kind"
+        ],
+        "title": "ResolvedRef",
+        "type": "object"
+      },
+      "RestoreRequest": {
+        "additionalProperties": false,
+        "description": "Bring back soft-deleted nodes and edges (undo of a delete).",
+        "properties": {
+          "edge_ids": {
+            "items": {
+              "examples": [
+                "edg_3m7q"
+              ],
+              "pattern": "^edg_[A-Za-z0-9]+$",
+              "type": "string"
+            },
+            "title": "Edge Ids",
+            "type": "array"
+          },
+          "node_ids": {
+            "items": {
+              "examples": [
+                "nod_a91x"
+              ],
+              "pattern": "^nod_[A-Za-z0-9]+$",
+              "type": "string"
+            },
+            "title": "Node Ids",
+            "type": "array"
+          }
+        },
+        "title": "RestoreRequest",
+        "type": "object"
+      },
+      "RestoreResult": {
+        "additionalProperties": false,
+        "description": "What came back: nodes (with their outputs) and edges.\n\nAn edge is left deleted if one of its nodes is still deleted, an identical\nconnection exists again, or it would now make a loop.",
+        "properties": {
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/Edge"
+            },
+            "title": "Edges",
+            "type": "array"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/Node"
+            },
+            "title": "Nodes",
+            "type": "array"
+          },
+          "outputs": {
+            "items": {
+              "$ref": "#/components/schemas/Output"
+            },
+            "title": "Outputs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "nodes",
+          "edges",
+          "outputs"
+        ],
+        "title": "RestoreResult",
+        "type": "object"
+      },
+      "ServerEvent": {
+        "discriminator": {
+          "mapping": {
+            "job.updated": "#/components/schemas/JobUpdatedEvent",
+            "output.created": "#/components/schemas/OutputCreatedEvent"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/JobUpdatedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/OutputCreatedEvent"
+          }
+        ]
+      },
+      "Size": {
+        "additionalProperties": false,
+        "description": "Node size in canvas coordinates. Null on a node means \"auto\".",
+        "properties": {
+          "height": {
+            "exclusiveMinimum": 0.0,
+            "title": "Height",
+            "type": "number"
+          },
+          "width": {
+            "exclusiveMinimum": 0.0,
+            "title": "Width",
+            "type": "number"
+          }
+        },
+        "required": [
+          "width",
+          "height"
+        ],
+        "title": "Size",
+        "type": "object"
+      },
+      "StepRun": {
+        "additionalProperties": false,
+        "description": "The last run of a step in a project: what it was asked for.",
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "prompt": {
+            "title": "Prompt",
+            "type": "string"
+          },
+          "step": {
+            "title": "Step",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "step",
+          "prompt",
+          "count",
+          "updated_at"
+        ],
+        "title": "StepRun",
+        "type": "object"
+      },
+      "StepRunRequest": {
+        "additionalProperties": false,
+        "description": "``prompt`` may be empty only for an image or video step fed one-to-one\nby text (each text is the prompt). ``count`` is ignored after a\none-to-one step, and required otherwise.",
+        "properties": {
+          "count": {
+            "anyOf": [
+              {
+                "maximum": 20.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
+          },
+          "prompt": {
+            "default": "",
+            "maxLength": 4000,
+            "title": "Prompt",
+            "type": "string"
+          }
+        },
+        "title": "StepRunRequest",
+        "type": "object"
+      },
+      "TakeCreate": {
+        "additionalProperties": false,
+        "description": "A text take written by hand (or applied from elsewhere).",
+        "properties": {
+          "text": {
+            "maxLength": 100000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "TakeCreate",
+        "type": "object"
+      },
+      "TextParams": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "text",
+            "default": "text",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "TextParams",
+        "type": "object"
+      },
+      "VideoParams": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_s": {
+            "default": 4,
+            "maximum": 15.0,
+            "minimum": 4.0,
+            "title": "Duration S",
+            "type": "integer"
+          },
+          "generate_audio": {
+            "default": true,
+            "title": "Generate Audio",
+            "type": "boolean"
+          },
+          "kind": {
+            "const": "video",
+            "default": "video",
+            "title": "Kind",
+            "type": "string"
+          },
+          "ratio": {
+            "default": "9:16",
+            "enum": [
+              "21:9",
+              "16:9",
+              "4:3",
+              "1:1",
+              "3:4",
+              "9:16"
+            ],
+            "title": "Ratio",
+            "type": "string"
+          },
+          "resolution": {
+            "default": "480p",
+            "enum": [
+              "480p",
+              "720p",
+              "1080p"
+            ],
+            "title": "Resolution",
+            "type": "string"
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "maximum": 4294967295.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed"
+          }
+        },
+        "required": [
+          "kind",
+          "resolution",
+          "ratio",
+          "duration_s",
+          "generate_audio",
+          "seed"
+        ],
+        "title": "VideoParams",
+        "type": "object"
+      },
+      "Viewport": {
+        "additionalProperties": false,
+        "description": "Saved pan and zoom of a project's canvas.",
+        "properties": {
+          "x": {
+            "default": 0,
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "default": 0,
+            "title": "Y",
+            "type": "number"
+          },
+          "zoom": {
+            "default": 1,
+            "exclusiveMinimum": 0.0,
+            "title": "Zoom",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "zoom"
+        ],
+        "title": "Viewport",
+        "type": "object"
+      },
+      "WorkflowDefinition": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/WorkflowStep"
+            },
+            "maxItems": 30,
+            "minItems": 1,
+            "title": "Steps",
+            "type": "array"
+          },
+          "version": {
+            "default": 1,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "name",
+          "steps"
+        ],
+        "title": "WorkflowDefinition",
+        "type": "object"
+      },
+      "WorkflowStep": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "pattern": "^[a-z][a-z0-9_]{0,39}$",
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/MediaKind"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "output": {
+            "$ref": "#/components/schemas/OutputUse",
+            "default": "independent"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "kind",
+          "output"
+        ],
+        "title": "WorkflowStep",
+        "type": "object"
+      },
+      "WorkflowTemplate": {
+        "additionalProperties": false,
+        "description": "A workflow as designed: new projects copy the default one.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "definition": {
+            "$ref": "#/components/schemas/WorkflowDefinition"
+          },
+          "id": {
+            "pattern": "^wft_[A-Za-z0-9]+$",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_default": {
+            "default": false,
+            "title": "Is Default",
+            "type": "boolean"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "definition",
+          "is_default",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "WorkflowTemplate",
+        "type": "object"
+      },
+      "WorkflowTemplateSave": {
+        "additionalProperties": false,
+        "description": "Create or replace a template (its ``definition.id`` and ``version``\nare set by the server).",
+        "properties": {
+          "definition": {
+            "$ref": "#/components/schemas/WorkflowDefinition"
+          }
+        },
+        "required": [
+          "definition"
+        ],
+        "title": "WorkflowTemplateSave",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Canvas of generation nodes. A node turns a prompt (plus the outputs of the nodes it references) into text, an image or a video.",
+    "title": "seedance-canvas API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/assets/{asset_id}/content": {
+      "get": {
+        "operationId": "getAssetContent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "ast_k4z9"
+              ],
+              "pattern": "^ast_[A-Za-z0-9]+$",
+              "title": "Asset Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/*": {},
+              "video/*": {}
+            },
+            "description": "The media bytes. Supports HTTP Range for video seeking."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Get Asset Content",
+        "tags": [
+          "assets"
+        ]
+      }
+    },
+    "/api/chat/{message_id}/apply": {
+      "post": {
+        "description": "Turn an answer's proposal into a take of its node (selected).",
+        "operationId": "applyProposal",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "title": "Message Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Output"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Apply Proposal",
+        "tags": [
+          "workflow"
+        ]
+      }
+    },
+    "/api/edges/{edge_id}": {
+      "delete": {
+        "description": "Soft delete: ``restoreDeleted`` can bring it back (undo). Workflow\nedges can't be deleted (409 ``workflow_locked``).",
+        "operationId": "deleteEdge",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "edge_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "edg_3m7q"
+              ],
+              "pattern": "^edg_[A-Za-z0-9]+$",
+              "title": "Edge Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Delete Edge",
+        "tags": [
+          "edges"
+        ]
+      }
+    },
+    "/api/global-assets": {
+      "get": {
+        "description": "Every global asset, oldest first (the order new projects lay them out).",
+        "operationId": "listGlobalAssets",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/GlobalAsset"
+                  },
+                  "title": "Response Listglobalassets",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "List Global Assets",
+        "tags": [
+          "global assets"
+        ]
+      },
+      "post": {
+        "description": "Upload one image (PNG, JPEG, WebP) or video (MP4, MOV) with a name.\n\nMultipart fields ``file`` and ``name``. The name is required and unique\namong global assets (409 ``duplicate_name``). Every project created from\nnow on starts with it as a node.",
+        "operationId": "uploadGlobalAsset",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_uploadGlobalAsset"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GlobalAsset"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unsupported Media Type"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Upload Global Asset",
+        "tags": [
+          "global assets"
+        ]
+      }
+    },
+    "/api/global-assets/{asset_id}": {
+      "delete": {
+        "description": "New projects stop getting it; projects made earlier keep their nodes.",
+        "operationId": "deleteGlobalAsset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "gas_k2m9"
+              ],
+              "pattern": "^gas_[A-Za-z0-9]+$",
+              "title": "Asset Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Delete Global Asset",
+        "tags": [
+          "global assets"
+        ]
+      },
+      "patch": {
+        "description": "Rename it. Projects created earlier keep their node names.",
+        "operationId": "renameGlobalAsset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "gas_k2m9"
+              ],
+              "pattern": "^gas_[A-Za-z0-9]+$",
+              "title": "Asset Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GlobalAssetUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GlobalAsset"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Rename Global Asset",
+        "tags": [
+          "global assets"
+        ]
+      }
+    },
+    "/api/global-assets/{asset_id}/content": {
+      "get": {
+        "operationId": "getGlobalAssetContent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "gas_k2m9"
+              ],
+              "pattern": "^gas_[A-Za-z0-9]+$",
+              "title": "Asset Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/*": {},
+              "video/*": {}
+            },
+            "description": "The file. Supports HTTP Range."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Get Global Asset Content",
+        "tags": [
+          "global assets"
+        ]
+      }
+    },
+    "/api/global-instruction": {
+      "get": {
+        "description": "The instruction every new project starts with.",
+        "operationId": "getGlobalInstruction",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GlobalInstruction"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Get Global Instruction",
+        "tags": [
+          "instructions"
+        ]
+      },
+      "put": {
+        "description": "Replace it. Existing projects keep their own instruction.",
+        "operationId": "setGlobalInstruction",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GlobalInstructionUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GlobalInstruction"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Set Global Instruction",
+        "tags": [
+          "instructions"
+        ]
+      }
+    },
+    "/api/health": {
+      "get": {
+        "operationId": "getHealth",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Health",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/api/jobs/{job_id}": {
+      "get": {
+        "operationId": "getJob",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "job_77ab"
+              ],
+              "pattern": "^job_[A-Za-z0-9]+$",
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Get Job",
+        "tags": [
+          "jobs"
+        ]
+      }
+    },
+    "/api/jobs/{job_id}/cancel": {
+      "post": {
+        "description": "Cancel a queued or running job. Fails (409) with ``job_finished``.",
+        "operationId": "cancelJob",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "job_77ab"
+              ],
+              "pattern": "^job_[A-Za-z0-9]+$",
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Cancel Job",
+        "tags": [
+          "jobs"
+        ]
+      }
+    },
+    "/api/materials/{material_id}": {
+      "delete": {
+        "description": "Remove it from the library. Nodes placed from it are unaffected.",
+        "operationId": "deleteMaterial",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "material_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "mat_q2w8"
+              ],
+              "pattern": "^mat_[A-Za-z0-9]+$",
+              "title": "Material Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Delete Material",
+        "tags": [
+          "materials"
+        ]
+      }
+    },
+    "/api/materials/{material_id}/place": {
+      "post": {
+        "description": "Put a material on the canvas as an uploaded node.\n\nThe node is named after the file (made unique), and its single take is the\nfile, already selected, so it can be used as another node's input at once.",
+        "operationId": "placeMaterial",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "material_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "mat_q2w8"
+              ],
+              "pattern": "^mat_[A-Za-z0-9]+$",
+              "title": "Material Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MaterialPlace"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Node"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Place Material",
+        "tags": [
+          "materials"
+        ]
+      }
+    },
+    "/api/nodes/{node_id}": {
+      "delete": {
+        "description": "Deletes the node and every edge touching it; cancels its running jobs.\n\nThe delete is soft: ``restoreDeleted`` brings the node back with its\ntakes (undo) until it is purged a day later. Downstream nodes keep their\nown outputs; prompts that mention its ID keep the text (unlinked).",
+        "operationId": "deleteNode",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "nod_a91x"
+              ],
+              "pattern": "^nod_[A-Za-z0-9]+$",
+              "title": "Node Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Delete Node",
+        "tags": [
+          "nodes"
+        ]
+      },
+      "patch": {
+        "description": "Move, resize, rename, edit the prompt or params, or pick a take.\n\n``selected_output_id`` must be one of this node's outputs. A name must be\nunique in the project (409 ``duplicate_name``); null or blank removes it.",
+        "operationId": "updateNode",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "nod_a91x"
+              ],
+              "pattern": "^nod_[A-Za-z0-9]+$",
+              "title": "Node Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NodeUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Node"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Update Node",
+        "tags": [
+          "nodes"
+        ]
+      }
+    },
+    "/api/nodes/{node_id}/chat": {
+      "get": {
+        "description": "The node's chat, oldest first.",
+        "operationId": "listChat",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "nod_a91x"
+              ],
+              "pattern": "^nod_[A-Za-z0-9]+$",
+              "title": "Node Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ChatMessage"
+                  },
+                  "title": "Response Listchat",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "List Chat",
+        "tags": [
+          "workflow"
+        ]
+      },
+      "post": {
+        "description": "Ask the model about a text node; returns your message and its answer.\n\nThe model sees the project instruction (for a workflow node, and its\nstep), the current version and the chat so far. When it suggests a new\nversion, the answer's ``proposal`` holds it whole; ``applyProposal``\nturns it into a take. Nothing is saved if the model fails (502).",
+        "operationId": "sendChat",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "nod_a91x"
+              ],
+              "pattern": "^nod_[A-Za-z0-9]+$",
+              "title": "Node Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ChatMessage"
+                  },
+                  "title": "Response Sendchat",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          }
+        },
+        "summary": "Send Chat",
+        "tags": [
+          "workflow"
+        ]
+      }
+    },
+    "/api/nodes/{node_id}/generate": {
+      "post": {
+        "description": "Queue a generation from the node's saved prompt, params and references.\n\nEach reference resolves to the source node's ``selected_output_id``.\nFails (409) with ``missing_ref_output``, ``unsupported_ref``,\n``too_many_refs``, ``job_in_progress`` or\n``not_generatable`` (an uploaded node). Progress\narrives as ``job.updated`` events; poll ``getJob`` as a fallback.",
+        "operationId": "generateNode",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "nod_a91x"
+              ],
+              "pattern": "^nod_[A-Za-z0-9]+$",
+              "title": "Node Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/GenerateRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Generate Node",
+        "tags": [
+          "nodes"
+        ]
+      }
+    },
+    "/api/nodes/{node_id}/outputs": {
+      "get": {
+        "description": "Every take of the node, newest first.",
+        "operationId": "listNodeOutputs",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "nod_a91x"
+              ],
+              "pattern": "^nod_[A-Za-z0-9]+$",
+              "title": "Node Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Output"
+                  },
+                  "title": "Response Listnodeoutputs",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "List Node Outputs",
+        "tags": [
+          "nodes"
+        ]
+      }
+    },
+    "/api/nodes/{node_id}/takes": {
+      "post": {
+        "description": "A text take written by hand; it becomes the selected take.",
+        "operationId": "createTextTake",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "nod_a91x"
+              ],
+              "pattern": "^nod_[A-Za-z0-9]+$",
+              "title": "Node Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TakeCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Output"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Create Text Take",
+        "tags": [
+          "workflow"
+        ]
+      }
+    },
+    "/api/projects": {
+      "get": {
+        "description": "All projects, most recently updated first, with counts and a cover.",
+        "operationId": "listProjects",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectSummary"
+                  },
+                  "title": "Response Listprojects",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "List Projects",
+        "tags": [
+          "projects"
+        ]
+      },
+      "post": {
+        "description": "Create a project. It starts with one uploaded node per global asset,\ndown the left side of its canvas.",
+        "operationId": "createProject",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Create Project",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/api/projects/{project_id}": {
+      "delete": {
+        "description": "Deletes the project with its nodes, edges, jobs, outputs and assets.",
+        "operationId": "deleteProject",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "prj_8f2k1"
+              ],
+              "pattern": "^prj_[A-Za-z0-9]+$",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Delete Project",
+        "tags": [
+          "projects"
+        ]
+      },
+      "get": {
+        "description": "The whole canvas: project, nodes, edges, outputs and active jobs.",
+        "operationId": "getProjectGraph",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "prj_8f2k1"
+              ],
+              "pattern": "^prj_[A-Za-z0-9]+$",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectGraph"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Get Project Graph",
+        "tags": [
+          "projects"
+        ]
+      },
+      "patch": {
+        "operationId": "updateProject",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "prj_8f2k1"
+              ],
+              "pattern": "^prj_[A-Za-z0-9]+$",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Update Project",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/edges": {
+      "post": {
+        "description": "Make the target node reference the source node (it needs an ID).\n\nThis appends the source's ID to the target's prompt, since links exist\nexactly when the prompt mentions the source.\n\nFails (409) with ``self_reference``, ``duplicate_edge`` or ``cycle``.\nBoth nodes must be in the project (else 404). Kind compatibility is\nchecked at generate time, not here, since a node's kind can change.",
+        "operationId": "createEdge",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "prj_8f2k1"
+              ],
+              "pattern": "^prj_[A-Za-z0-9]+$",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EdgeCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Edge"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Create Edge",
+        "tags": [
+          "edges"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/materials": {
+      "get": {
+        "description": "The project's uploaded images and videos, newest first.",
+        "operationId": "listMaterials",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "prj_8f2k1"
+              ],
+              "pattern": "^prj_[A-Za-z0-9]+$",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Material"
+                  },
+                  "title": "Response Listmaterials",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "List Materials",
+        "tags": [
+          "materials"
+        ]
+      },
+      "post": {
+        "description": "Upload one image (PNG, JPEG, WebP) or video (MP4, MOV), multipart field ``file``.\n\nThe type comes from the file's content, not its name. Fails with\n``unsupported_media`` (415) or ``too_large`` (413).",
+        "operationId": "uploadMaterial",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "prj_8f2k1"
+              ],
+              "pattern": "^prj_[A-Za-z0-9]+$",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_uploadMaterial"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Material"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unsupported Media Type"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Upload Material",
+        "tags": [
+          "materials"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/nodes": {
+      "post": {
+        "operationId": "createNode",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "prj_8f2k1"
+              ],
+              "pattern": "^prj_[A-Za-z0-9]+$",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NodeCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Node"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Create Node",
+        "tags": [
+          "nodes"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/restore": {
+      "post": {
+        "description": "Undo deletes: bring back soft-deleted nodes (with their takes) and edges.\n\nDeleted items are kept for a day, then purged when the API starts.",
+        "operationId": "restoreDeleted",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "prj_8f2k1"
+              ],
+              "pattern": "^prj_[A-Za-z0-9]+$",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestoreResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Restore Deleted",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/workflow/steps/{step_key}/run": {
+      "post": {
+        "description": "Run a step; its earlier nodes are replaced. Returns the graph (with\nthe new jobs).\n\nThe prompt, the project instruction and the nodes the prompt mentions\n(by ID) go to a text model, which writes ``count`` results (a text\nstep: its nodes' text) or prompts (an image or video step: one node\neach, generated right away, with the mentioned nodes as references).\nAfter a one-to-one step, there is one result per node of that step\n(``count`` is ignored), each made from its own input; an image or video\nstep fed by text uses each text as its prompt directly.",
+        "operationId": "runStep",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "prj_8f2k1"
+              ],
+              "pattern": "^prj_[A-Za-z0-9]+$",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "step_key",
+            "required": true,
+            "schema": {
+              "title": "Step Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StepRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectGraph"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          }
+        },
+        "summary": "Run Step",
+        "tags": [
+          "workflow"
+        ]
+      }
+    },
+    "/api/settings": {
+      "get": {
+        "description": "App-wide settings: the language of the UI and of every prompt the\nbackend writes for the models.",
+        "operationId": "getSettings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppSettings"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Get Settings",
+        "tags": [
+          "workflow",
+          "settings"
+        ]
+      },
+      "put": {
+        "operationId": "setSettings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppSettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppSettings"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Set Settings",
+        "tags": [
+          "workflow",
+          "settings"
+        ]
+      }
+    },
+    "/api/workflow-templates": {
+      "get": {
+        "description": "Every workflow template, oldest first; one is the default.",
+        "operationId": "listWorkflowTemplates",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WorkflowTemplate"
+                  },
+                  "title": "Response Listworkflowtemplates",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "List Workflow Templates",
+        "tags": [
+          "workflow"
+        ]
+      },
+      "post": {
+        "description": "A new template (422 if two steps share a key).",
+        "operationId": "createWorkflowTemplate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowTemplateSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowTemplate"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Create Workflow Template",
+        "tags": [
+          "workflow"
+        ]
+      }
+    },
+    "/api/workflow-templates/{template_id}": {
+      "delete": {
+        "description": "Not the default one (409).",
+        "operationId": "deleteWorkflowTemplate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "template_id",
+            "required": true,
+            "schema": {
+              "title": "Template Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Delete Workflow Template",
+        "tags": [
+          "workflow"
+        ]
+      },
+      "put": {
+        "description": "Replace a template (its version goes up). Projects already made keep\ntheir own copy.",
+        "operationId": "updateWorkflowTemplate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "template_id",
+            "required": true,
+            "schema": {
+              "title": "Template Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowTemplateSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowTemplate"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Update Workflow Template",
+        "tags": [
+          "workflow"
+        ]
+      }
+    },
+    "/api/workflow-templates/{template_id}/default": {
+      "post": {
+        "description": "New projects copy this template.",
+        "operationId": "setDefaultWorkflowTemplate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "template_id",
+            "required": true,
+            "schema": {
+              "title": "Template Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowTemplate"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Set Default Workflow Template",
+        "tags": [
+          "workflow"
+        ]
+      }
+    }
+  }
+}

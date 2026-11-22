@@ -1,0 +1,272 @@
+#!/usr/bin/env bash
+# Launch Seedance Canvas in a chromeless Chrome window.
+#
+# Starts the API container (backend/, Docker) and the UI dev server
+# (frontend/, Vite), then opens the UI in a Chromium `--app=` window with its
+# own profile. Re-running while everything is up just reopens the window.
+#
+# Needs: Docker Desktop, Node.js (npm), python3. Chrome is optional; without
+# a Chromium-family browser it falls back to your default browser.
+
+set -euo pipefail
+
+# Resolve symlinks (this is reached through <repo>/seedance-canvas and maybe a
+# link on PATH). macOS has no `readlink -f`, so use python3.
+SELF="$(python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "${BASH_SOURCE[0]}")"
+FRONTEND_DIR="$(cd "$(dirname "$SELF")/.." && pwd)"
+REPO_DIR="$(cd "${FRONTEND_DIR}/.." && pwd)"
+BACKEND_DIR="${REPO_DIR}/backend"
+
+UI_PORT=5180
+API_URL="http://127.0.0.1:8788"
+UI_URL="http://127.0.0.1:${UI_PORT}"
+
+STATE_DIR="${TMPDIR:-/tmp}"
+STATE_DIR="${STATE_DIR%/}"
+PIDFILE="${STATE_DIR}/seedance-canvas-ui.pid"
+LOGFILE="${STATE_DIR}/seedance-canvas-ui.log"
+PROFILE_DIR="${STATE_DIR}/seedance-canvas-profile"
+
+ACTION="start"
+NO_OPEN=0
+FAKE=0
+BROWSER_OVERRIDE=""
+
+usage() {
+  cat <<'USAGE'
+Usage: seedance-canvas [options]
+
+  (no options)    Start the API and UI if needed, and open the window
+  --stop          Close the window, stop the UI server and the API container
+  --status        Show what is running
+  --fake          Use offline placeholder images instead of OpenAI
+  --no-open       Start everything without opening a window
+  --browser PATH  Use this browser binary instead of probing for Chrome
+  --install       Put a `seedance-canvas` command on your PATH
+  -h, --help      Show this message
+
+Logs: the UI server logs to $TMPDIR/seedance-canvas-ui.log;
+      the API: cd backend && docker compose logs -f api
+USAGE
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --stop) ACTION="stop"; shift ;;
+    --status) ACTION="status"; shift ;;
+    --install) ACTION="install"; shift ;;
+    --fake) FAKE=1; shift ;;
+    --no-open) NO_OPEN=1; shift ;;
+    --browser) BROWSER_OVERRIDE="${2:?--browser needs a value}"; shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+# GET <url>/api/health and check it is this app. http.client talks straight
+# to loopback, ignoring proxy settings.
+healthy() {
+  python3 - "$1" <<'PY' >/dev/null 2>&1
+import http.client, json, sys, urllib.parse
+u = urllib.parse.urlsplit(sys.argv[1])
+try:
+    c = http.client.HTTPConnection(u.hostname, u.port, timeout=2)
+    c.request("GET", "/api/health")
+    r = c.getresponse()
+    ok = r.status == 200 and json.load(r).get("app") == "seedance-canvas"
+except Exception:
+    sys.exit(1)
+sys.exit(0 if ok else 1)
+PY
+}
+
+# The Vite server is up and serving this app's page.
+ui_up() {
+  python3 - "$UI_URL" <<'PY' >/dev/null 2>&1
+import http.client, sys, urllib.parse
+u = urllib.parse.urlsplit(sys.argv[1])
+try:
+    c = http.client.HTTPConnection(u.hostname, u.port, timeout=2)
+    c.request("GET", "/")
+    r = c.getresponse()
+    ok = r.status == 200 and b"<title>Seedance Canvas</title>" in r.read()
+except Exception:
+    sys.exit(1)
+sys.exit(0 if ok else 1)
+PY
+}
+
+# ── API container ───────────────────────────────────────────────────────────
+
+compose() { (cd "$BACKEND_DIR" && docker compose "$@"); }
+
+start_api() {
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "  docker not found -- install Docker Desktop" >&2; return 1
+  fi
+  if ! docker info >/dev/null 2>&1; then
+    echo "  Docker is not running -- start Docker Desktop, then re-run" >&2; return 1
+  fi
+  mkdir -p "${REPO_DIR}/data"
+  [ -f "${BACKEND_DIR}/.env" ] || echo "  note: backend/.env is missing -- copy .env.example and add OPENAI_API_KEY"
+  if [ "$FAKE" = "1" ]; then
+    echo "  using offline placeholder images (--fake)"
+  fi
+  # `up -d` is a no-op when the container is current, and recreates it when
+  # the environment changed (e.g. switching --fake on or off).
+  echo "  starting the API (the first run builds the image; allow a few minutes)..."
+  if ! CANVAS_FAKE_GENERATORS="$FAKE" compose up -d api >/dev/null 2>&1; then
+    echo "  could not start the API; run: cd backend && docker compose up api" >&2
+    return 1
+  fi
+  for _ in $(seq 1 60); do
+    healthy "$API_URL" && { echo "  API ready at ${API_URL}"; return 0; }
+    sleep 0.5
+  done
+  echo "  API did not become ready; see: cd backend && docker compose logs api" >&2
+  return 1
+}
+
+stop_api() {
+  command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1 || return 0
+  compose stop api >/dev/null 2>&1 && echo "  stopped the API container" || true
+}
+
+# ── UI dev server ───────────────────────────────────────────────────────────
+
+ui_pid() {
+  local pid
+  pid="$(cat "$PIDFILE" 2>/dev/null || true)"
+  [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && { echo "$pid"; return 0; }
+  return 1
+}
+
+start_ui() {
+  if ui_up; then
+    echo "  UI already up at ${UI_URL}"; return 0
+  fi
+  if ! command -v npm >/dev/null 2>&1; then
+    echo "  npm not found -- install Node.js (e.g. brew install node)" >&2; return 1
+  fi
+  if [ ! -d "${FRONTEND_DIR}/node_modules" ]; then
+    echo "  installing frontend dependencies (one time)..."
+    (cd "$FRONTEND_DIR" && npm install --no-audit --no-fund >/dev/null)
+  fi
+  # Vite in its own process group, so --stop can stop npm and vite together.
+  # (Separate statements: with `cd && nohup ... &` the whole list would be
+  # backgrounded and $! would be a subshell, not the server.)
+  (
+    cd "$FRONTEND_DIR"
+    nohup python3 -c 'import os,sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' \
+      npm run dev >"$LOGFILE" 2>&1 &
+    echo $! > "$PIDFILE"
+  )
+  for _ in $(seq 1 60); do
+    ui_up && { echo "  UI ready at ${UI_URL}"; return 0; }
+    sleep 0.5
+  done
+  echo "  the UI server did not start; see ${LOGFILE}" >&2
+  return 1
+}
+
+stop_ui() {
+  local pid stopped=0
+  if pid="$(ui_pid)"; then
+    kill -- "-${pid}" 2>/dev/null || kill "$pid" 2>/dev/null || true
+    stopped=1
+  fi
+  # Anything still serving this app on the port (e.g. started by hand with
+  # `npm run dev`, or a stale pidfile): stop it only if it is our Vite.
+  for pid in $(lsof -nP -t -iTCP:"$UI_PORT" -sTCP:LISTEN 2>/dev/null || true); do
+    if ps -o command= -p "$pid" 2>/dev/null | grep -q vite && \
+       [ "$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')" = "$FRONTEND_DIR" ]; then
+      kill "$pid" 2>/dev/null && stopped=1
+    fi
+  done
+  [ "$stopped" = "1" ] && echo "  stopped the UI server"
+  rm -f "$PIDFILE"
+}
+
+# ── Window ──────────────────────────────────────────────────────────────────
+
+find_browser() {
+  [ -n "$BROWSER_OVERRIDE" ] && { echo "$BROWSER_OVERRIDE"; return 0; }
+  local name candidate
+  for name in "Google Chrome" "Chromium" "Brave Browser" "Microsoft Edge" "Arc"; do
+    for candidate in "/Applications/${name}.app/Contents/MacOS/${name}" \
+                     "$HOME/Applications/${name}.app/Contents/MacOS/${name}"; do
+      [ -x "$candidate" ] && { echo "$candidate"; return 0; }
+    done
+  done
+  for candidate in google-chrome google-chrome-stable chromium chromium-browser; do
+    command -v "$candidate" >/dev/null 2>&1 && { command -v "$candidate"; return 0; }
+  done
+  return 1
+}
+
+window_pids() { pgrep -f -- "--user-data-dir=${PROFILE_DIR}" 2>/dev/null || true; }
+
+open_window() {
+  if [ -n "$(window_pids)" ]; then
+    echo "  the window is already open"; return 0
+  fi
+  local browser
+  if browser="$(find_browser)"; then
+    # A dedicated profile keeps this window out of your normal browsing
+    # session, and lets --stop close exactly this window.
+    nohup "$browser" "--app=${UI_URL}" "--user-data-dir=${PROFILE_DIR}" \
+      --no-first-run --no-default-browser-check --window-size=1440,900 >/dev/null 2>&1 &
+    disown 2>/dev/null || true
+    echo "  opened the window in $(basename "$browser")"
+  else
+    echo "  no Chrome-family browser found; opening your default browser"
+    open "$UI_URL" 2>/dev/null || xdg-open "$UI_URL" >/dev/null 2>&1 || true
+  fi
+}
+
+close_window() {
+  local pids
+  pids="$(window_pids)"
+  if [ -n "$pids" ]; then
+    # shellcheck disable=SC2086
+    kill $pids 2>/dev/null || true
+    echo "  closed the window"
+  fi
+}
+
+# ── Install ─────────────────────────────────────────────────────────────────
+
+install_cmd() {
+  local dir candidate
+  for candidate in /opt/homebrew/bin /usr/local/bin "$HOME/.local/bin" "$HOME/bin"; do
+    case ":$PATH:" in *":$candidate:"*) ;; *) continue ;; esac
+    if [ -d "$candidate" ] && [ -w "$candidate" ]; then dir="$candidate"; break; fi
+  done
+  if [ -z "${dir:-}" ]; then
+    echo "  no writable folder on PATH; add ~/.local/bin to PATH and re-run" >&2
+    return 1
+  fi
+  ln -sf "$SELF" "${dir}/seedance-canvas"
+  echo "  installed ${dir}/seedance-canvas -> ${SELF}"
+}
+
+# ── Main ────────────────────────────────────────────────────────────────────
+
+case "$ACTION" in
+  install) install_cmd ;;
+  status)
+    healthy "$API_URL" && echo "  API: up at ${API_URL}" || echo "  API: down"
+    ui_up && echo "  UI:  up at ${UI_URL}" || echo "  UI:  down"
+    [ -n "$(window_pids)" ] && echo "  window: open" || echo "  window: closed"
+    ;;
+  stop)
+    close_window
+    stop_ui
+    stop_api
+    ;;
+  start)
+    start_api || echo "  continuing without the API; the UI will say it can't reach it" >&2
+    start_ui
+    [ "$NO_OPEN" = "1" ] || open_window
+    ;;
+esac

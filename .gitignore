@@ -1,0 +1,28 @@
+# Secrets -- never commit
+.env
+.env.*
+!.env.example
+
+# Runtime data (projects, generated images and videos)
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+dist/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Local code snapshots (not part of the app)
+.snapshots/
