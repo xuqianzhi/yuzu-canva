@@ -3,6 +3,9 @@ import { createRoot } from "react-dom/client";
 import "@xyflow/react/dist/style.css";
 import "./styles.css";
 import { App } from "./App";
+import { startAuth } from "./auth";
+
+startAuth();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

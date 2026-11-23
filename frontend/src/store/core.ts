@@ -68,6 +68,9 @@ export const promptBefore = new Map<string, string>();
 
 export const PROMPT_SAVE_DELAY_MS = 400;
 export const UNDO_KEY = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘Z" : "Ctrl+Z";
+/** How often a running step run is checked on. */
+export const RUN_POLL_MS = 1500;
+
 export const POLL_INTERVAL_MS = 1000;
 
 /** Module-level values that change over time (timers, what's waiting to
@@ -82,6 +85,8 @@ export const session: {
   noticeTimer: ReturnType<typeof setTimeout> | undefined;
   recordIt: boolean;
   historyChain: Promise<void>;
+  /** The project whose running step runs are being polled, if any. */
+  watchingRuns: string | null;
 } = {
   viewportTimer: undefined,
   pendingViewport: undefined,
@@ -92,6 +97,7 @@ export const session: {
   noticeTimer: undefined,
   recordIt: true,
   historyChain: Promise.resolve(),
+  watchingRuns: null,
 };
 
 /** The helpers the actions share: saving, links, polling, history, local
@@ -559,6 +565,45 @@ export function createCore(set: SetState, get: GetState) {
     });
   }
 
+  /** Follow a project's step runs until none is running: they finish in
+      the background (the text model can take a while). When one ends, the
+      graph is reloaded (its new nodes) and their jobs followed. */
+  async function watchRuns(projectId: string) {
+    if (session.watchingRuns === projectId) return;
+    session.watchingRuns = projectId;
+    const running = () =>
+      get().project?.id === projectId &&
+      Object.values(get().runs).some((run) => run.status === "running");
+    try {
+      while (running()) {
+        await new Promise((resolve) => setTimeout(resolve, RUN_POLL_MS));
+        if (get().project?.id !== projectId) break;
+        const graph = unwrap(
+          await api.GET("/api/projects/{project_id}", {
+            params: { path: { project_id: projectId } },
+          }),
+        );
+        if (get().project?.id !== projectId) break;
+        const runs = Object.fromEntries((graph.runs ?? []).map((r) => [r.step, r]));
+        const ended = Object.values(get().runs).some(
+          (run) => run.status === "running" && runs[run.step]?.status !== "running",
+        );
+        if (!ended) {
+          set({ runs });
+          continue;
+        }
+        replaceGraph(graph);
+        const jobs = Object.fromEntries(graph.active_jobs.map((j) => [j.node_id, j]));
+        set((s) => ({ jobs: { ...s.jobs, ...jobs } }));
+        for (const job of Object.values(jobs)) poll(job.node_id, job.id);
+      }
+    } catch {
+      // Lost the connection: opening the project again picks the runs up.
+    } finally {
+      if (session.watchingRuns === projectId) session.watchingRuns = null;
+    }
+  }
+
   /** Set node fields locally and on the server (used by undo/redo). */
   async function applyNode(nodeId: string, body: NodeUpdate) {
     const node = get().nodes[nodeId];
@@ -605,6 +650,7 @@ export function createCore(set: SetState, get: GetState) {
     apiRestore,
     deleteNow,
     replaceGraph,
+    watchRuns,
     applyNode,
   };
 }

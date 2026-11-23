@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, File, Response, UploadFile
+from fastapi.concurrency import run_in_threadpool
 
 from ..contract import (
     MAX_UPLOAD_BYTES,
@@ -14,8 +15,9 @@ from ..contract import (
     Node,
     ProjectId,
 )
-from ..deps import StoreDep, remove_files
+from ..deps import FilesDep, StoreDep
 from ..errors import ApiError, responses
+from ..files import delete_all
 from ..providers.media import UnsupportedMedia, sniff_upload
 
 router = APIRouter(tags=["materials"])
@@ -60,14 +62,14 @@ async def upload_material(
     The type comes from the file's content, not its name. Fails with
     ``unsupported_media`` (415) or ``too_large`` (413).
     """
-    store.get_project(project_id)
     data = await read_upload(file)
     try:
         kind, mime, ext, width, height, duration = sniff_upload(data)
     except UnsupportedMedia as exc:
         raise ApiError(415, ErrorCode.unsupported_media, str(exc)) from exc
     name = (file.filename or f"upload.{ext}").replace("/", "_").strip()[:200]
-    return store.create_material(
+    return await run_in_threadpool(
+        store.create_material,
         project_id,
         name,
         MediaKind(kind),
@@ -87,9 +89,9 @@ async def upload_material(
     operation_id="deleteMaterial",
     responses=responses(404),
 )
-def delete_material(material_id: MaterialId, store: StoreDep) -> None:
+def delete_material(material_id: MaterialId, store: StoreDep, files: FilesDep) -> None:
     """Remove it from the library. Nodes placed from it are unaffected."""
-    remove_files([store.delete_material(material_id)])
+    delete_all(files, [store.delete_material(material_id)])
 
 
 @router.post(

@@ -1,8 +1,10 @@
 """Runs queued jobs on the event loop.
 
 Jobs live in the database, so the queue survives restarts: queued jobs are
-re-queued on start, and jobs that were running when the process died are
-marked failed (their provider call is lost).
+re-queued on start. A job that was running when the process stopped picks up
+where it left off if its provider can resume it (Seedance: the task keeps
+running at Volcengine and is fetched by its id); otherwise it is marked
+failed, as its provider call is lost.
 """
 
 from __future__ import annotations
@@ -12,8 +14,9 @@ import logging
 
 from ..contract import ErrorCode, Job, JobStatus, Operation
 from ..errors import ApiError
-from ..providers.base import GenerationRequest, Generator, ProviderError, RefFile
+from ..providers.base import GenerationRequest, Generator, ProviderError
 from ..store import Store
+from .queue import ref_file
 
 log = logging.getLogger(__name__)
 
@@ -147,10 +150,7 @@ class Worker:
         for ref in job.input.refs:
             output = self._store.get_output(ref.output_id)
             if output.asset is not None:
-                asset, path = self._store.asset_file(output.asset.id)
-                files.append(
-                    RefFile(node_id=ref.node_id, kind=asset.kind, path=path, mime=asset.mime)
-                )
+                files.append(ref_file(self._store, ref.node_id, output.asset.id))
         return GenerationRequest(
             operation=job.operation,
             prompt=job.input.prompt,

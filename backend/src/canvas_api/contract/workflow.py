@@ -95,12 +95,25 @@ class WorkflowTemplateSave(ContractModel):
 # --- per project: runs -----------------------------------------------------------------
 
 
+class RunStatus(StrEnum):
+    #: The model is writing the results; the step's old nodes are still there.
+    running = "running"
+    #: The step's nodes are the results of this run.
+    done = "done"
+    #: The run failed (``error`` says why); the old nodes are untouched.
+    failed = "failed"
+
+
 class StepRun(CompleteModel):
-    """The last run of a step in a project: what it was asked for."""
+    """The last run of a step in a project: what it was asked for, and how
+    it went. A run happens in the background: ``runStep`` answers with the
+    run ``running``; poll the graph until it is ``done`` or ``failed``."""
 
     step: str
     prompt: str
     count: int
+    status: RunStatus
+    error: str | None = None
     updated_at: Timestamp
 
 

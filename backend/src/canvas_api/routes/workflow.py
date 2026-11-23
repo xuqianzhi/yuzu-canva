@@ -3,9 +3,13 @@ node's chat. Plus the app's settings."""
 
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
+from dataclasses import dataclass
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Request, Response
+from fastapi.concurrency import run_in_threadpool
 
 from ..contract import (
     AppSettings,
@@ -23,10 +27,11 @@ from ..contract import (
     ProjectId,
     StepRunRequest,
     TakeCreate,
+    WorkflowStep,
     WorkflowTemplate,
     WorkflowTemplateSave,
 )
-from ..deps import StoreDep, TextModelDep, WorkerDep
+from ..deps import SpendingDep, StoreDep, TextModelDep, UserDep, WorkerDep
 from ..domain.workflow import (
     Piece,
     RunFormatError,
@@ -41,11 +46,12 @@ from ..domain.workflow import (
     words,
 )
 from ..errors import ApiError, responses
-from ..jobs.queue import queue_generation
+from ..jobs.queue import queue_generation, ref_file
 from ..providers.base import ProviderError, RefFile
 from ..providers.openai_text import parse_chat_answer
 
 router = APIRouter(tags=["workflow"])
+log = logging.getLogger(__name__)
 
 # How much of a chat is sent back to the model with each new message.
 CHAT_HISTORY = 20
@@ -59,9 +65,9 @@ def _provider_error(exc: ProviderError) -> ApiError:
 
 
 @router.get("/workflow-templates", operation_id="listWorkflowTemplates", responses=responses())
-def list_workflow_templates(store: StoreDep) -> list[WorkflowTemplate]:
-    """Every workflow template, oldest first; one is the default."""
-    return store.list_templates()
+def list_workflow_templates(store: StoreDep, user: UserDep) -> list[WorkflowTemplate]:
+    """Your workflow templates, oldest first; one is your default."""
+    return store.list_templates(user.id)
 
 
 @router.post(
@@ -70,9 +76,11 @@ def list_workflow_templates(store: StoreDep) -> list[WorkflowTemplate]:
     operation_id="createWorkflowTemplate",
     responses=responses(),
 )
-def create_workflow_template(body: WorkflowTemplateSave, store: StoreDep) -> WorkflowTemplate:
+def create_workflow_template(
+    body: WorkflowTemplateSave, store: StoreDep, user: UserDep
+) -> WorkflowTemplate:
     """A new template (422 if two steps share a key)."""
-    return store.save_template(None, body.definition)
+    return store.save_template(user.id, None, body.definition)
 
 
 @router.put(
@@ -81,11 +89,11 @@ def create_workflow_template(body: WorkflowTemplateSave, store: StoreDep) -> Wor
     responses=responses(404),
 )
 def update_workflow_template(
-    template_id: str, body: WorkflowTemplateSave, store: StoreDep
+    template_id: str, body: WorkflowTemplateSave, store: StoreDep, user: UserDep
 ) -> WorkflowTemplate:
     """Replace a template (its version goes up). Projects already made keep
     their own copy."""
-    return store.save_template(template_id, body.definition)
+    return store.save_template(user.id, template_id, body.definition)
 
 
 @router.delete(
@@ -106,28 +114,51 @@ def delete_workflow_template(template_id: str, store: StoreDep) -> None:
     responses=responses(404),
 )
 def set_default_workflow_template(template_id: str, store: StoreDep) -> WorkflowTemplate:
-    """New projects copy this template."""
+    """Your new projects copy this template."""
     return store.set_default_template(template_id)
 
 
 # --- running a step --------------------------------------------------------------------
 
 
+@dataclass(frozen=True)
+class _Run:
+    """A step run, worked out before it starts."""
+
+    project_id: str
+    step: WorkflowStep
+    prompt: str
+    count: int
+    sources: list[tuple[Node, Output]] | None
+    media: bool
+    direct: bool
+    # Whether the text model writes the results (else they come from inputs).
+    writes: bool
+
+
 @router.post(
     "/projects/{project_id}/workflow/steps/{step_key}/run",
+    status_code=202,
     operation_id="runStep",
-    responses=responses(404, 502),
+    responses=responses(404, 409, 429, 503),
 )
 async def run_step(
     project_id: ProjectId,
     step_key: str,
     body: StepRunRequest,
+    request: Request,
     store: StoreDep,
     worker: WorkerDep,
     text_model: TextModelDep,
+    spending: SpendingDep,
+    user: UserDep,
 ) -> ProjectGraph:
-    """Run a step; its earlier nodes are replaced. Returns the graph (with
-    the new jobs).
+    """Start running a step; returns the graph with the run ``running``.
+
+    It finishes in the background: poll ``getProjectGraph`` until the step's
+    run is ``done`` (its nodes replaced, image and video nodes generating)
+    or ``failed`` (``error`` says why; the old nodes are untouched). 409 if
+    the step is already running.
 
     The prompt, the project instruction and the nodes the prompt mentions
     (by ID) go to a text model, which writes ``count`` results (a text
@@ -137,6 +168,21 @@ async def run_step(
     (``count`` is ignored), each made from its own input; an image or video
     step fed by text uses each text as its prompt directly.
     """
+    run = await run_in_threadpool(_plan_run, store, project_id, step_key, body)
+    if run.writes:
+        spending.charge(user.id, "text")
+    if run.media:
+        spending.check_jobs(user.id, run.count)
+        spending.charge(user.id, run.step.kind.value, run.count)
+    await run_in_threadpool(store.start_run, project_id, step_key, run.prompt, run.count)
+    task = asyncio.create_task(_finish_run(run, store, worker, text_model))
+    tasks: set[asyncio.Task] = request.app.state.tasks
+    tasks.add(task)
+    task.add_done_callback(tasks.discard)
+    return await run_in_threadpool(store.get_graph, project_id)
+
+
+def _plan_run(store, project_id: str, step_key: str, body: StepRunRequest) -> _Run:
     project = store.get_project(project_id)
     step = step_by_key(project.workflow, step_key)
     if step is None:
@@ -150,38 +196,55 @@ async def run_step(
     direct = media and bool(sources) and all(o.kind == MediaKind.text for _, o in sources)
     if not prompt and not direct:
         raise ApiError(422, ErrorCode.validation_error, "write a prompt first")
-    mentioned = store.mentioned_nodes(project_id, prompt)
+    writes = not direct and not (media and sources)
+    return _Run(project_id, step, prompt, count, sources, media, direct, writes)
 
-    if direct:
-        # Each input text is its node's prompt (with the run's prompt, if any).
-        items = [f"{o.text or ''}\n{prompt}".strip() for _, o in sources]
-    elif media and sources:
-        # Media inputs (e.g. image -> video): the same prompt for each, the
-        # input itself going along as a reference.
-        items = [prompt] * count
-    else:
-        items = await _write_items(
-            store, text_model, project, step, prompt, count, mentioned, sources
+
+async def _finish_run(run: _Run, store, worker, text_model) -> None:
+    """The slow part of a run (the text model), then its new nodes."""
+    try:
+        project = store.get_project(run.project_id)
+        mentioned = store.mentioned_nodes(run.project_id, run.prompt)
+        if run.direct:
+            # Each input text is its node's prompt (with the run's prompt, if any).
+            items = [f"{o.text or ''}\n{run.prompt}".strip() for _, o in run.sources]
+        elif not run.writes:
+            # Media inputs (e.g. image -> video): the same prompt for each, the
+            # input itself going along as a reference.
+            items = [run.prompt] * run.count
+        else:
+            items = await _write_items(
+                store,
+                text_model,
+                project,
+                run.step,
+                run.prompt,
+                run.count,
+                mentioned,
+                run.sources,
+            )
+        if run.media:
+            # The prompt's mentions are each node's references: keep them in.
+            names = [n.name for n in mentioned if n.name]
+            items = [" ".join([item, *(n for n in names if n not in item)]) for item in items]
+        nodes, cancelled = store.replace_step_nodes(
+            run.project_id,
+            run.step.key,
+            run.prompt,
+            items,
+            run.count,
+            sources=[n.id for n, _ in run.sources] if run.sources else None,
         )
-    if media:
-        # The prompt's mentions are each node's references: keep them in.
-        names = [n.name for n in mentioned if n.name]
-        items = [" ".join([item, *(n for n in names if n not in item)]) for item in items]
-
-    nodes, cancelled = store.replace_step_nodes(
-        project_id,
-        step_key,
-        prompt,
-        items,
-        count,
-        sources=[n.id for n, _ in sources] if sources else None,
-    )
-    for job_id in cancelled:
-        worker.abort(job_id)
-    if media:
-        for node in nodes:
-            queue_generation(store, worker, node)
-    return store.get_graph(project_id)
+        for job_id in cancelled:
+            worker.abort(job_id)
+        if run.media:
+            for node in nodes:
+                queue_generation(store, worker, node)
+    except ApiError as exc:
+        store.fail_run(run.project_id, run.step.key, exc.detail.message)
+    except Exception as exc:  # noqa: BLE001 - shown on the run
+        log.exception("running step %s of %s failed", run.step.key, run.project_id)
+        store.fail_run(run.project_id, run.step.key, f"internal error: {type(exc).__name__}")
 
 
 def _one_to_one_sources(
@@ -216,14 +279,13 @@ async def _write_items(
     """Ask the text model for `count` results (or prompts). Mentioned nodes
     and one-to-one inputs go along: text quoted, images sent so the model
     can see them (labelled in that order)."""
-    language = store.get_language().value
+    language = store.get_language(store.owner_of("project", project.id)).value
     files: list[RefFile] = []
 
     def piece(node: Node, output: Output, name: str | None = None) -> Piece:
         label = None
         if output.kind == MediaKind.image and output.asset is not None:
-            asset, path = store.asset_file(output.asset.id)
-            files.append(RefFile(node_id=node.id, kind=asset.kind, path=path, mime=asset.mime))
+            files.append(ref_file(store, node.id, output.asset.id))
             label = image_label(language, len(files))
         text = output.text if output.kind == MediaKind.text else None
         return Piece(kind=output.kind.value, text=text, label=label, name=name)
@@ -272,10 +334,15 @@ def list_chat(node_id: NodeId, store: StoreDep) -> list[ChatMessage]:
 @router.post(
     "/nodes/{node_id}/chat",
     operation_id="sendChat",
-    responses=responses(404, 409, 502),
+    responses=responses(404, 409, 429, 502, 503),
 )
 async def send_chat(
-    node_id: NodeId, body: ChatRequest, store: StoreDep, text_model: TextModelDep
+    node_id: NodeId,
+    body: ChatRequest,
+    store: StoreDep,
+    text_model: TextModelDep,
+    spending: SpendingDep,
+    user: UserDep,
 ) -> list[ChatMessage]:
     """Ask the model about a text node; returns your message and its answer.
 
@@ -287,7 +354,8 @@ async def send_chat(
     node = store.get_node(node_id)
     if node.kind != MediaKind.text:
         raise ApiError(409, ErrorCode.not_generatable, "chat works on text nodes")
-    language = store.get_language().value
+    spending.charge(user.id, "text")
+    language = store.get_language(user.id).value
     w = words(language)
     step_name, instruction = None, ""
     if node.workflow_step:
@@ -344,12 +412,12 @@ def apply_proposal(message_id: str, store: StoreDep) -> Output:
 
 
 @router.get("/settings", operation_id="getSettings", responses=responses(), tags=["settings"])
-def get_settings(store: StoreDep) -> AppSettings:
-    """App-wide settings: the language of the UI and of every prompt the
+def get_settings(store: StoreDep, user: UserDep) -> AppSettings:
+    """Your settings: the language of the UI and of every prompt the
     backend writes for the models."""
-    return AppSettings(language=store.get_language())
+    return AppSettings(language=store.get_language(user.id))
 
 
 @router.put("/settings", operation_id="setSettings", responses=responses(), tags=["settings"])
-def set_settings(body: AppSettingsUpdate, store: StoreDep) -> AppSettings:
-    return AppSettings(language=store.set_language(body.language))
+def set_settings(body: AppSettingsUpdate, store: StoreDep, user: UserDep) -> AppSettings:
+    return AppSettings(language=store.set_language(user.id, body.language))

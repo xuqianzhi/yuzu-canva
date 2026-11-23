@@ -85,7 +85,7 @@ def ref(tmp_path: Path, node_id: str, kind: MediaKind, data: bytes) -> RefFile:
     path = tmp_path / f"{node_id}.bin"
     path.write_bytes(data)
     mime = "image/png" if kind == MediaKind.image else "video/mp4"
-    return RefFile(node_id=node_id, kind=kind, path=path, mime=mime)
+    return RefFile.from_path(node_id=node_id, kind=kind, path=path, mime=mime)
 
 
 def test_text_to_video():
@@ -329,7 +329,7 @@ def test_reference_images_are_sent_as_compact_jpeg(tmp_path):
     big = tmp_path / "big.png"
     Image.effect_noise((3000, 2000), 64).convert("RGBA").save(big)
     ark = FakeArk()
-    files = [RefFile("nod_a", MediaKind.image, big, "image/png")]
+    files = [RefFile.from_path("nod_a", MediaKind.image, big, "image/png")]
     asyncio.run(generator(ark).run(request(files)))
     url = ark.bodies("POST")[0]["content"][1]["image_url"]["url"]
     assert url.startswith("data:image/jpeg;base64,")

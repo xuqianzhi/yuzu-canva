@@ -1,7 +1,7 @@
 // The landing page's Global assets page: named images and videos that every
 // new project starts with, as nodes down the left side of its canvas.
 import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
-import { api, API_BASE, unwrap } from "../api/client";
+import { api, API_BASE, authedFetch, unwrap } from "../api/client";
 import type { components } from "../api/schema";
 import { isValidId, nameKey, normalizeName, toValidId } from "../api/types";
 import { errorText, t as tr, useT } from "../i18n";
@@ -70,7 +70,7 @@ export function GlobalAssets() {
         const form = new FormData();
         form.append("file", item.file, item.file.name);
         form.append("name", name);
-        const response = await fetch(`${API_BASE}/api/global-assets`, {
+        const response = await authedFetch(`${API_BASE}/api/global-assets`, {
           method: "POST",
           body: form,
         });

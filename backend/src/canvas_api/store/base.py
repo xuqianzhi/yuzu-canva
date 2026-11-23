@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
-import sqlite3
+import re
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
+from functools import lru_cache
 from typing import Any
 
+from psycopg import Connection, Cursor
+from psycopg.rows import dict_row
+from psycopg_pool import ConnectionPool
 from pydantic import TypeAdapter
 
 from ..contract import (
@@ -32,7 +35,7 @@ from ..domain.workflow import (
     builtin_workflow,
 )
 from ..errors import ApiError
-from .schema import SCHEMA
+from ..files import Files, UrlSigner
 
 _PARAMS = TypeAdapter(NodeParams)
 
@@ -54,6 +57,8 @@ PURGE_AFTER = timedelta(days=1)
 
 
 WORKFLOW_HANDLE = "workflow"
+
+Row = dict[str, Any]
 
 
 def now() -> datetime:
@@ -87,56 +92,103 @@ def _int_or_none(value: Any) -> int | None:
         return None
 
 
+_QUOTED = re.compile(r"('(?:[^']|'')*')")
+
+
+@lru_cache(maxsize=1024)
+def _pg(sql: str) -> str:
+    """The store writes `?` placeholders; psycopg wants `%s` (and `%%` for a
+    literal percent sign). Quoted strings are left alone."""
+    parts = _QUOTED.split(sql)
+    for i in range(0, len(parts), 2):  # outside quotes
+        parts[i] = parts[i].replace("%", "%%").replace("?", "%s")
+    for i in range(1, len(parts), 2):  # inside quotes
+        parts[i] = parts[i].replace("%", "%%")
+    return "".join(parts)
+
+
+class Db:
+    """One connection, as the store's code uses it: `execute(sql, params)`
+    with `?` placeholders, rows as dicts."""
+
+    def __init__(self, conn: Connection) -> None:
+        self._conn = conn
+
+    def execute(self, sql: str, params: tuple | list = ()) -> Cursor:
+        return self._conn.execute(_pg(sql), tuple(params))
+
+    def raw(self, sql: str) -> None:
+        """Run SQL as it is (several statements, no parameters)."""
+        self._conn.execute(sql.encode())
+
+
 class StoreBase:
-    """The connection, transactions, and turning rows into contract models.
+    """The connection pool, transactions, and turning rows into contract
+    models.
 
-    The other parts of the store are mixins on top of this (see __init__.py)."""
+    The other parts of the store are mixins on top of this (see __init__.py).
+    Writes run one at a time (one lock), as they did on SQLite: the API runs
+    as a single instance, and it keeps read-then-write logic simple.
+    """
 
-    def __init__(self, db_path: Path, assets_dir: Path, global_dir: Path | None = None) -> None:
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        assets_dir.mkdir(parents=True, exist_ok=True)
-        self.assets_dir = assets_dir
-        # Files of global assets (not tied to any project).
-        self.global_dir = global_dir or assets_dir.parent / "global"
-        self.global_dir.mkdir(parents=True, exist_ok=True)
+    def __init__(
+        self,
+        database_url: str,
+        files: Files,
+        signer: UrlSigner | None = None,
+        *,
+        pool_size: int = 4,
+    ) -> None:
+        self.files = files
+        self.signer = signer or UrlSigner("")
         self._lock = threading.RLock()
-        self._db = sqlite3.connect(db_path, check_same_thread=False, isolation_level=None)
-        self._db.row_factory = sqlite3.Row
-        self._db.execute("PRAGMA foreign_keys = ON")
-        self._db.executescript(SCHEMA)
+        self._local = threading.local()
+        self._pool = ConnectionPool(
+            database_url,
+            min_size=1,
+            max_size=pool_size,
+            kwargs={"row_factory": dict_row, "autocommit": True, "prepare_threshold": None},
+            # Connections dropped by the network or the pooler are replaced.
+            check=ConnectionPool.check_connection,
+            open=True,
+        )
         self._migrate()
-        self._seed_templates()
-        with self._tx() as db:
-            db.execute(
-                "UPDATE projects SET workflow = ? WHERE workflow = ''",
-                (self._template_for_project(db, None),),
-            )
 
     def close(self) -> None:
-        with self._lock:
-            self._db.close()
+        self._pool.close()
 
     @contextmanager
-    def _tx(self) -> Iterator[sqlite3.Connection]:
-        with self._lock:
-            self._db.execute("BEGIN IMMEDIATE")
-            try:
-                yield self._db
-            except BaseException:
-                self._db.execute("ROLLBACK")
-                raise
-            self._db.execute("COMMIT")
+    def _conn(self) -> Iterator[Db]:
+        current = getattr(self._local, "db", None)
+        if current is not None:  # inside _tx(): see its uncommitted writes
+            yield current
+            return
+        with self._pool.connection() as conn:
+            yield Db(conn)
 
-    def _one(self, sql: str, *args: Any) -> sqlite3.Row | None:
+    @contextmanager
+    def _tx(self) -> Iterator[Db]:
         with self._lock:
-            return self._db.execute(sql, args).fetchone()
+            if getattr(self._local, "db", None) is not None:
+                raise RuntimeError("nested transaction")
+            with self._pool.connection() as conn, conn.transaction():
+                db = Db(conn)
+                self._local.db = db
+                try:
+                    yield db
+                finally:
+                    self._local.db = None
 
-    def _all(self, sql: str, *args: Any) -> list[sqlite3.Row]:
-        with self._lock:
-            return self._db.execute(sql, args).fetchall()
+    def _one(self, sql: str, *args: Any) -> Row | None:
+        with self._conn() as db:
+            return db.execute(sql, args).fetchone()
+
+    def _all(self, sql: str, *args: Any) -> list[Row]:
+        with self._conn() as db:
+            return db.execute(sql, args).fetchall()
 
     @staticmethod
-    def _project(r: sqlite3.Row) -> Project:
+    def _project(r: Row) -> Project:
         return Project(
             id=r["id"],
             name=r["name"],
@@ -148,7 +200,7 @@ class StoreBase:
         )
 
     @staticmethod
-    def _node(r: sqlite3.Row) -> Node:
+    def _node(r: Row) -> Node:
         return Node(
             id=r["id"],
             project_id=r["project_id"],
@@ -167,7 +219,7 @@ class StoreBase:
         )
 
     @staticmethod
-    def _edge(r: sqlite3.Row) -> Edge:
+    def _edge(r: Row) -> Edge:
         workflow = r["target_handle"] == WORKFLOW_HANDLE
         return Edge(
             id=r["id"],
@@ -178,13 +230,12 @@ class StoreBase:
             created_at=_dt(r["created_at"]),
         )
 
-    @staticmethod
-    def _asset(r: sqlite3.Row) -> Asset:
+    def _asset(self, r: Row) -> Asset:
         return Asset(
             id=r["id"],
             kind=r["kind"],
             mime=r["mime"],
-            url=f"/api/assets/{r['id']}/content",
+            url=self.signer.url("assets", r["id"]),
             bytes=r["bytes"],
             width=r["width"],
             height=r["height"],
@@ -192,7 +243,7 @@ class StoreBase:
             created_at=_dt(r["created_at"]),
         )
 
-    def _output(self, r: sqlite3.Row) -> Output:
+    def _output(self, r: Row) -> Output:
         asset = None
         if r["asset_id"]:
             row = self._one("SELECT * FROM assets WHERE id = ?", r["asset_id"])
@@ -208,7 +259,7 @@ class StoreBase:
         )
 
     @staticmethod
-    def _job(r: sqlite3.Row) -> Job:
+    def _job(r: Row) -> Job:
         return Job(
             id=r["id"],
             project_id=r["project_id"],
@@ -226,5 +277,5 @@ class StoreBase:
             finished_at=_dt(r["finished_at"]),
         )
 
-    def _touch_project(self, db: sqlite3.Connection, project_id: str) -> None:
+    def _touch_project(self, db: Db, project_id: str) -> None:
         db.execute("UPDATE projects SET updated_at = ? WHERE id = ?", (_ts(now()), project_id))

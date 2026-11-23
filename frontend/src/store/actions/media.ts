@@ -1,5 +1,5 @@
 // The project's uploaded files (assets) and placing them as nodes.
-import { API_BASE, api, unwrap } from "../../api/client";
+import { api, API_BASE, authedFetch, unwrap } from "../../api/client";
 import { t } from "../../i18n";
 import { type Material, type Node } from "../../api/types";
 import type { CanvasState, GetState, SetState } from "../types";
@@ -25,7 +25,7 @@ export function mediaActions(
           // Multipart: openapi-fetch's JSON client doesn't fit, so plain fetch.
           const form = new FormData();
           form.append("file", file, file.name);
-          const response = await fetch(
+          const response = await authedFetch(
             `${API_BASE}/api/projects/${encodeURIComponent(project.id)}/materials`,
             { method: "POST", body: form },
           );

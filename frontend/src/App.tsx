@@ -3,16 +3,27 @@ import { useEffect } from "react";
 import { Canvas } from "./canvas/Canvas";
 import { ProjectBar } from "./canvas/ProjectBar";
 import { HomePage } from "./pages/HomePage";
+import { SignInGate } from "./pages/SignIn";
 import { homeHref, syncProject, useRoute } from "./router";
 import { useCanvas } from "./store/canvas";
 import { loadLanguage, useT } from "./i18n";
 import { StepPanel } from "./workflow/StepPanel";
 import { WorkflowBar } from "./workflow/WorkflowBar";
+import { useGenerating, useKeepOpenWarning } from "./workflow/keepOpen";
 
 export function App() {
+  return (
+    <SignInGate>
+      <SignedInApp />
+    </SignInGate>
+  );
+}
+
+function SignedInApp() {
   const route = useRoute();
-  // The last language picked, as the backend remembers it.
+  // Your last language, as the backend remembers it.
   useEffect(() => void loadLanguage(), []);
+  useKeepOpenWarning();
   const projectId = route.page === "project" ? route.projectId : null;
 
   useEffect(() => {
@@ -48,10 +59,23 @@ function ProjectPage() {
               {/* Remount per project so the saved viewport applies. */}
               <Canvas key={project.id} />
               <StepPanel />
+              <KeepOpenNotice />
             </>
           )}
         </main>
       </div>
     </ReactFlowProvider>
+  );
+}
+
+/** While anything generates, the page must stay open (see keepOpen.ts). */
+function KeepOpenNotice() {
+  const t = useT();
+  const generating = useGenerating();
+  if (!generating) return null;
+  return (
+    <div className="keep-open" role="status">
+      <span className="spinner" /> {t("keep_open")}
+    </div>
   );
 }

@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 from canvas_api.app import create_app
 from canvas_api.contract import ErrorResponse, Operation
 
-from .conftest import PNG, make_settings, wait_for_job, wait_for_status
+from .conftest import PNG, open_store, signed_in, wait_for_job, wait_for_status
 
 OPENAPI_JSON = Path(__file__).resolve().parents[2] / "contract" / "openapi.json"
 
@@ -77,12 +77,6 @@ def test_malformed_id_is_a_validation_error(client):
     response = client.get("/api/projects/not-a-project-id")
     assert response.status_code == 422
     assert error_code(response) == "validation_error"
-
-
-def test_openapi_includes_websocket_event_types(client):
-    schemas = client.get("/openapi.json").json()["components"]["schemas"]
-    for name in ("ServerEvent", "JobUpdatedEvent", "OutputCreatedEvent"):
-        assert name in schemas
 
 
 def test_committed_openapi_matches_code():
@@ -390,7 +384,7 @@ def test_generate_with_image_references(client, fake_image, data_dir):
     assert wait_for_job(client, job["id"])["status"] == "succeeded"
     request = fake_image.requests[-1]
     assert [f.node_id for f in request.files] == [snow, fox]
-    assert all(f.path.parent == data_dir / "assets" and f.path.is_file() for f in request.files)
+    assert all(f.name.startswith("ast_") and f.read() == PNG for f in request.files)
 
 
 def test_reference_uses_the_selected_take(client, fake_image):
@@ -490,23 +484,21 @@ def test_deleting_project_removes_asset_files(client, data_dir):
     assert list((data_dir / "assets").iterdir()) == []
 
 
-def test_restart_requeues_queued_and_fails_running(data_dir, fake_image):
+def test_restart_requeues_queued_and_fails_running(settings, fake_image):
     """Jobs survive a restart: queued ones run, running ones are marked failed."""
     from canvas_api.contract import JobStatus
-    from canvas_api.store import Store
 
-    settings = make_settings(data_dir)
     generators = {Operation.image_generate: fake_image}
 
     fake_image.gate.clear()
-    with TestClient(create_app(settings, generators)) as client:
+    with signed_in(create_app(settings, generators)) as client:
         project = new_project(client)
         running_node = new_node(client, project)["id"]
         queued_node = new_node(client, project)["id"]
         running = generate(client, running_node).json()["id"]
         wait_for_status(client, running, "running")
     # Simulate a job that was queued when the process died.
-    store = Store(settings.db_path, settings.assets_dir)
+    store = open_store(settings)
     queued = store.create_job(
         store.get_node(queued_node),
         provider=store.get_job(running).provider,
@@ -516,19 +508,18 @@ def test_restart_requeues_queued_and_fails_running(data_dir, fake_image):
     store.close()
 
     fake_image.gate.set()
-    with TestClient(create_app(settings, generators)) as client:
+    with signed_in(create_app(settings, generators)) as client:
         assert client.get(f"/api/jobs/{running}").json()["status"] == "failed"
         assert "restart" in client.get(f"/api/jobs/{running}").json()["error"]
         assert wait_for_job(client, queued)["status"] == JobStatus.succeeded
 
 
-def test_restart_resumes_a_submitted_video_job(data_dir, fake_image, fake_video):
+def test_restart_resumes_a_submitted_video_job(settings, fake_image, fake_video):
     """A video job that reached Seedance is resumed, not resubmitted."""
-    settings = make_settings(data_dir)
     generators = {Operation.image_generate: fake_image, Operation.video_generate: fake_video}
 
     fake_video.gate.clear()
-    with TestClient(create_app(settings, generators)) as client:
+    with signed_in(create_app(settings, generators)) as client:
         project = new_project(client)
         node = new_node(client, project, kind="video")["id"]
         job = generate(client, node).json()["id"]
@@ -536,7 +527,7 @@ def test_restart_resumes_a_submitted_video_job(data_dir, fake_image, fake_video)
         assert client.get(f"/api/jobs/{job}").json()["provider_task_id"] == "cgt-1"
 
     fake_video.gate.set()
-    with TestClient(create_app(settings, generators)) as client:
+    with signed_in(create_app(settings, generators)) as client:
         finished = wait_for_job(client, job)
         assert finished["status"] == "succeeded"
         assert fake_video.requests[-1].resume_task_id == "cgt-1"
@@ -629,23 +620,20 @@ def test_deleted_nodes_leave_the_project_summary(client):
     assert (summary["node_count"], summary["image_count"], summary["cover"]) == (0, 0, None)
 
 
-def test_purge_erases_old_deletes_and_their_files(data_dir, fake_image):
+def test_purge_erases_old_deletes_and_their_files(settings, fake_image):
     from datetime import timedelta
 
-    from canvas_api.store import Store
-
-    settings = make_settings(data_dir)
-    with TestClient(create_app(settings, {Operation.image_generate: fake_image})) as client:
+    with signed_in(create_app(settings, {Operation.image_generate: fake_image})) as client:
         project = new_project(client)
         node = new_node(client, project)["id"]
         wait_for_job(client, generate(client, node).json()["id"])
         client.delete(f"/api/nodes/{node}")
 
-    store = Store(settings.db_path, settings.assets_dir)
+    store = open_store(settings)
     assert store.purge_deleted(older_than=timedelta(days=1)) == []  # too recent
     files = store.purge_deleted(older_than=timedelta(0))
     store.close()
-    assert len(files) == 1 and files[0].parent == data_dir / "assets"
+    assert len(files) == 1 and files[0].startswith("assets/ast_")
 
-    with TestClient(create_app(settings, {Operation.image_generate: fake_image})) as client:
+    with signed_in(create_app(settings, {Operation.image_generate: fake_image})) as client:
         assert restore(client, project, nodes=[node])["nodes"] == []

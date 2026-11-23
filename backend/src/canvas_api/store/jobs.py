@@ -14,6 +14,7 @@ from ..contract import (
     Provider,
 )
 from ..errors import ApiError
+from ..files import delete_all
 from ..ids import new_id
 from .base import (
     ACTIVE,
@@ -21,6 +22,7 @@ from .base import (
     _ts,
     now,
 )
+from .media import asset_key
 
 
 class _Abandoned(Exception):
@@ -102,8 +104,8 @@ class JobsMixin:
         with self._tx() as db:
             cur = db.execute(
                 f"UPDATE jobs SET status = ?, error = ?{stamp} "
-                f"WHERE id = ? AND status IN ({','.join('?' * len(allowed))})",
-                (*values, job_id, *allowed),
+                "WHERE id = ? AND status = ANY(?)",
+                (*values, job_id, list(allowed)),
             )
             if cur.rowcount == 0:
                 return None
@@ -133,12 +135,13 @@ class JobsMixin:
         if job.status != JobStatus.running:
             return None
         output_id, ts = new_id("out"), _ts(now())
-        asset_id, path = None, None
+        asset_id, key, filename = None, None, None
         if media is not None:
             data, mime, ext = media
             asset_id = new_id("ast")
-            path = self.assets_dir / f"{asset_id}.{ext}"
-            path.write_bytes(data)
+            filename = f"{asset_id}.{ext}"
+            key = asset_key(filename)
+            self.files.write(key, data, mime)
         try:
             with self._tx() as db:
                 row = db.execute("SELECT status FROM jobs WHERE id = ?", (job_id,)).fetchone()
@@ -146,13 +149,15 @@ class JobsMixin:
                     raise _Abandoned
                 if media is not None:
                     db.execute(
-                        "INSERT INTO assets VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        "INSERT INTO assets (id, project_id, kind, mime, filename, bytes, "
+                        "width, height, duration_s, created_at) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                         (
                             asset_id,
                             job.project_id,
                             kind.value,
                             mime,
-                            path.name,
+                            filename,
                             len(data),
                             width,
                             height,
@@ -183,11 +188,11 @@ class JobsMixin:
                     (JobStatus.succeeded.value, output_id, ts, job_id),
                 )
         except _Abandoned:
-            if path:
-                path.unlink(missing_ok=True)
+            if key:
+                delete_all(self.files, [key])
             return None
         except BaseException:
-            if path:
-                path.unlink(missing_ok=True)
+            if key:
+                delete_all(self.files, [key])
             raise
         return self.get_job(job_id), self.get_output(output_id)

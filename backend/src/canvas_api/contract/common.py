@@ -133,6 +133,13 @@ class ErrorCode(StrEnum):
     workflow_locked = "workflow_locked"
     # A workflow step can't run yet: the step before has no approved take.
     workflow_blocked = "workflow_blocked"
+    # No valid sign-in (401), or signed in but not on the allowlist (403).
+    unauthenticated = "unauthenticated"
+    forbidden = "forbidden"
+    # A daily limit or the per-minute rate was reached (429).
+    quota_exceeded = "quota_exceeded"
+    # Generation is turned off for now (503).
+    generation_off = "generation_off"
 
 
 class ErrorDetail(CompleteModel):

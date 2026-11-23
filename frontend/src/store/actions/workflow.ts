@@ -10,7 +10,7 @@ export function workflowActions(
   get: GetState,
   core: Core,
 ): Pick<CanvasState, "openStep" | "runStep"> {
-  const { flushTyping, poll, replaceGraph } = core;
+  const { flushTyping, watchRuns } = core;
   return {
   openStep(key, nodeId = null) {
     set({ activeStep: key, activeNodeId: nodeId });
@@ -28,12 +28,11 @@ export function workflowActions(
         }),
       );
       if (get().project?.id !== project.id) return null;
-      replaceGraph(graph);
-      // Image and video steps start generating at once: follow those jobs.
-      const jobs = Object.fromEntries((graph.active_jobs ?? []).map((j) => [j.node_id, j]));
-      set((s) => ({ jobs: { ...s.jobs, ...jobs } }));
-      for (const job of Object.values(jobs)) poll(job.node_id, job.id);
-      return null;
+      // The run finishes in the background: follow it until it's done.
+      set({ runs: Object.fromEntries((graph.runs ?? []).map((r) => [r.step, r])) });
+      await watchRuns(project.id);
+      const run = get().runs[key];
+      return run?.status === "failed" ? (run.error ?? t("run_failed")) : null;
     } catch (error) {
       return message(error);
     }

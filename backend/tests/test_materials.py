@@ -3,16 +3,12 @@
 from __future__ import annotations
 
 import io
-import sqlite3
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from canvas_api.app import create_app
-from canvas_api.contract import Operation
-
-from .conftest import PNG, make_settings, wait_for_job
+from .conftest import PNG, wait_for_job
 from .test_api import connect, error_code, generate, new_node, new_project, restore
 
 VIDEO = (
@@ -177,46 +173,7 @@ def test_placed_material_is_an_uploaded_node_that_feeds_others(client, fake_imag
     connect(client, project, node["id"], target)
     job = wait_for_job(client, generate(client, target).json()["id"])
     assert job["operation"] == "image_edit" and job["status"] == "succeeded"
-    assert fake_image.requests[-1].files[0].path.read_bytes() == PNG
-
-
-def test_old_databases_are_migrated(data_dir, fake_image):
-    """outputs.job_id was NOT NULL and nodes had no `source` column."""
-    settings = make_settings(data_dir)
-    data_dir.mkdir(parents=True)
-    db = sqlite3.connect(settings.db_path)
-    db.executescript(
-        """
-        CREATE TABLE outputs (
-            seq INTEGER PRIMARY KEY AUTOINCREMENT,
-            id TEXT NOT NULL UNIQUE,
-            node_id TEXT NOT NULL,
-            job_id TEXT NOT NULL,
-            kind TEXT NOT NULL,
-            text TEXT,
-            asset_id TEXT,
-            created_at TEXT NOT NULL
-        );
-        INSERT INTO outputs (id, node_id, job_id, kind, created_at)
-            VALUES ('out_old', 'nod_old', 'job_old', 'image', '2026-01-01T00:00:00+00:00');
-        CREATE TABLE nodes (
-            id TEXT PRIMARY KEY, project_id TEXT NOT NULL, kind TEXT NOT NULL,
-            title TEXT NOT NULL, position TEXT NOT NULL, size TEXT, prompt TEXT NOT NULL,
-            params TEXT NOT NULL, selected_output_id TEXT, created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-        );
-        """
-    )
-    db.close()
-    with TestClient(create_app(settings, {Operation.image_generate: fake_image})):
-        pass
-    db = sqlite3.connect(settings.db_path)
-    db.row_factory = sqlite3.Row
-    job_id = next(r for r in db.execute("PRAGMA table_info(outputs)") if r["name"] == "job_id")
-    assert job_id["notnull"] == 0
-    assert db.execute("SELECT job_id FROM outputs").fetchone()["job_id"] == "job_old"
-    assert "source" in {r["name"] for r in db.execute("PRAGMA table_info(nodes)")}
-    db.close()
+    assert fake_image.requests[-1].files[0].read() == PNG
 
 
 def test_ids_have_no_spaces_or_punctuation(client):

@@ -95,6 +95,9 @@ function RunForm({ view }: { view: StepView }) {
   const [count, setCount] = useState(view.run?.count ?? 3);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // The run happens on the server: it may still be going after a reload.
+  const running = busy || view.run?.status === "running";
+  const runError = error || (view.run?.status === "failed" ? (view.run.error ?? "") : "");
   const media = view.step.kind !== "text";
   // After a one-to-one step, there is one node per result of that step.
   const fedBy = view.previous?.output === "one_to_one" ? view.previous : null;
@@ -117,7 +120,7 @@ function RunForm({ view }: { view: StepView }) {
   );
 
   const run = async () => {
-    if (!ready || busy) return;
+    if (!ready || running) return;
     if (view.nodes.length && !window.confirm(t("run_replace", { n: view.nodes.length }))) return;
     if (view.step.kind === "video" && !window.confirm(t("generate_all_confirm", { n: total }))) {
       return;
@@ -159,14 +162,18 @@ function RunForm({ view }: { view: StepView }) {
             />
           </label>
         )}
-        <button className="button button--primary" disabled={!ready || busy} onClick={() => void run()}>
-          {busy
+        <button
+          className="button button--primary"
+          disabled={!ready || running}
+          onClick={() => void run()}
+        >
+          {running
             ? t("generating")
             : view.nodes.length
               ? t("run_again", { n: total })
               : t("run_go", { n: total })}
         </button>
-        {busy && <span className="spinner" />}
+        {running && <span className="spinner" />}
       </div>
       <p className="step-panel__muted">
         {fedBy
@@ -176,9 +183,9 @@ function RunForm({ view }: { view: StepView }) {
           : t("run_uses_instruction", { example })}
         {media && !direct ? ` ${t("run_media_note")}` : ""}
       </p>
-      {error && (
+      {runError && !running && (
         <p className="step-panel__error" role="alert">
-          {error}
+          {runError}
         </p>
       )}
     </section>

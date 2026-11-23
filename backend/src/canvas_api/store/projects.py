@@ -1,9 +1,8 @@
-"""Projects, the global instruction and the app's language."""
+"""Projects, and each user's global instruction and language."""
 
 from __future__ import annotations
 
-import sqlite3
-from pathlib import Path
+from pathlib import PurePath
 
 from ..contract import (
     GLOBAL_NODE_STEP,
@@ -19,6 +18,7 @@ from ..contract import (
     ProjectUpdate,
     Viewport,
 )
+from ..files import delete_all
 from ..ids import new_id
 from .base import (
     ACTIVE,
@@ -28,16 +28,19 @@ from .base import (
     _ts,
     now,
 )
+from .media import asset_key, global_key
 
 
 class ProjectsMixin:
-    """Projects, the global instruction and the app's language."""
+    """Projects, and each user's global instruction and language."""
 
-    def list_projects(self) -> list[Project]:
-        rows = self._all("SELECT * FROM projects ORDER BY updated_at DESC, id")
+    def list_projects(self, owner: str) -> list[Project]:
+        rows = self._all(
+            "SELECT * FROM projects WHERE owner_id = ? ORDER BY updated_at DESC, id", owner
+        )
         return [self._project(r) for r in rows]
 
-    def list_project_summaries(self) -> list[ProjectSummary]:
+    def list_project_summaries(self, owner: str) -> list[ProjectSummary]:
         rows = self._all(
             f"""
             SELECT p.*,
@@ -49,8 +52,9 @@ class ProjectsMixin:
                 AS running_count,
               (SELECT a.id FROM {LIVE_ASSETS} AND a.kind IN ('image', 'video')
                  ORDER BY a.created_at DESC, a.id DESC LIMIT 1) AS cover_id
-            FROM projects p ORDER BY p.updated_at DESC, p.id
-            """
+            FROM projects p WHERE p.owner_id = ? ORDER BY p.updated_at DESC, p.id
+            """,
+            owner,
         )
         summaries = []
         for r in rows:
@@ -73,44 +77,45 @@ class ProjectsMixin:
             raise _not_found("project", project_id)
         return self._project(row)
 
-    def create_project(self, body: ProjectCreate) -> Project:
+    def create_project(self, owner: str, body: ProjectCreate) -> Project:
         """Create a project; every global asset becomes an uploaded node in it.
 
         The nodes go down the left side of the canvas, oldest asset first,
         each named after its asset and holding its own copy of the file.
         """
         project_id, ts = new_id("prj"), _ts(now())
-        written: list[Path] = []
+        written: list[str] = []
         try:
             with self._tx() as db:
                 instruction = body.instruction
                 if instruction is None:
-                    instruction = self._global_instruction(db)
+                    instruction = self._setting(db, owner, "instruction") or ""
                 db.execute(
-                    "INSERT INTO projects (id, name, viewport, created_at, updated_at,"
-                    " instruction, workflow) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO projects (id, owner_id, name, viewport, created_at,"
+                    " updated_at, instruction, workflow) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         project_id,
+                        owner,
                         body.name,
                         Viewport().model_dump_json(),
                         ts,
                         ts,
                         instruction,
-                        self._template_for_project(db, body.workflow_template_id),
+                        self._template_for_project(db, owner, body.workflow_template_id),
                     ),
                 )
                 rows = db.execute(
-                    "SELECT * FROM global_assets ORDER BY created_at, id"
+                    "SELECT * FROM global_assets WHERE owner_id = ? ORDER BY created_at, id",
+                    (owner,),
                 ).fetchall()
                 for i, row in enumerate(rows):
-                    source = self.global_dir / row["filename"]
-                    _, path = self._insert_upload_node(
+                    _, key = self._insert_upload_node(
                         db,
                         project_id,
                         MediaKind(row["kind"]),
-                        source.read_bytes(),
                         row["mime"],
-                        source.suffix.lstrip(".") or "bin",
+                        PurePath(row["filename"]).suffix.lstrip(".") or "bin",
+                        row["bytes"],
                         row["width"],
                         row["height"],
                         row["duration_s"],
@@ -118,11 +123,11 @@ class ProjectsMixin:
                         position=Position(
                             x=GLOBAL_NODE_X, y=GLOBAL_NODE_Y + i * GLOBAL_NODE_STEP
                         ),
+                        copy_from=global_key(row["filename"]),
                     )
-                    written.append(path)
+                    written.append(key)
         except BaseException:
-            for path in written:
-                path.unlink(missing_ok=True)
+            delete_all(self.files, written)
             raise
         return self.get_project(project_id)
 
@@ -139,41 +144,29 @@ class ProjectsMixin:
             )
         return self.get_project(project_id)
 
-    @staticmethod
-    def _global_instruction(db: sqlite3.Connection) -> str:
-        row = db.execute("SELECT value FROM settings WHERE key = 'instruction'").fetchone()
-        return row["value"] if row else ""
+    def get_global_instruction(self, owner: str) -> str:
+        with self._conn() as db:
+            return self._setting(db, owner, "instruction") or ""
 
-    def get_global_instruction(self) -> str:
-        with self._lock:
-            return self._global_instruction(self._db)
-
-    def get_language(self) -> Language:
-        row = self._one("SELECT value FROM settings WHERE key = 'language'")
+    def get_language(self, owner: str) -> Language:
+        with self._conn() as db:
+            value = self._setting(db, owner, "language")
         try:
-            return Language(row["value"]) if row else Language.en
+            return Language(value) if value else Language.en
         except ValueError:
             return Language.en
 
-    def set_language(self, language: Language) -> Language:
+    def set_language(self, owner: str, language: Language) -> Language:
         with self._tx() as db:
-            db.execute(
-                "INSERT INTO settings (key, value) VALUES ('language', ?)"
-                " ON CONFLICT (key) DO UPDATE SET value = excluded.value",
-                (language.value,),
-            )
+            self._put_setting(db, owner, "language", language.value)
         return language
 
-    def set_global_instruction(self, text: str) -> str:
+    def set_global_instruction(self, owner: str, text: str) -> str:
         with self._tx() as db:
-            db.execute(
-                "INSERT INTO settings (key, value) VALUES ('instruction', ?)"
-                " ON CONFLICT (key) DO UPDATE SET value = excluded.value",
-                (text,),
-            )
+            self._put_setting(db, owner, "instruction", text)
         return text
 
-    def delete_project(self, project_id: str) -> tuple[list[Path], list[str]]:
+    def delete_project(self, project_id: str) -> tuple[list[str], list[str]]:
         """Delete everything in the project.
 
         Returns (asset files to remove, ids of jobs that were active).
@@ -181,7 +174,7 @@ class ProjectsMixin:
         self.get_project(project_id)
         with self._tx() as db:
             files = [
-                self.assets_dir / r["filename"]
+                asset_key(r["filename"])
                 for r in db.execute(
                     "SELECT filename FROM assets WHERE project_id = ?", (project_id,)
                 )

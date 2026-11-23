@@ -71,7 +71,7 @@ export interface paths {
         };
         /**
          * List Global Assets
-         * @description Every global asset, oldest first (the order new projects lay them out).
+         * @description Your global assets, oldest first (the order new projects lay them out).
          */
         get: operations["listGlobalAssets"];
         put?: never;
@@ -140,7 +140,7 @@ export interface paths {
         };
         /**
          * Get Global Instruction
-         * @description The instruction every new project starts with.
+         * @description The instruction every new project of yours starts with.
          */
         get: operations["getGlobalInstruction"];
         /**
@@ -252,6 +252,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Me
+         * @description Who you're signed in as (401 if not, 403 if not on the allowlist),
+         *     and today's usage against your limits.
+         */
+        get: operations["getMe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/nodes/{node_id}": {
         parameters: {
             query?: never;
@@ -328,8 +349,9 @@ export interface paths {
          *     Each reference resolves to the source node's ``selected_output_id``.
          *     Fails (409) with ``missing_ref_output``, ``unsupported_ref``,
          *     ``too_many_refs``, ``job_in_progress`` or
-         *     ``not_generatable`` (an uploaded node). Progress
-         *     arrives as ``job.updated`` events; poll ``getJob`` as a fallback.
+         *     ``not_generatable`` (an uploaded node); 429 ``quota_exceeded`` past a
+         *     limit; 503 ``generation_off``. Poll ``getJob`` (or the graph) for
+         *     progress.
          */
         post: operations["generateNode"];
         delete?: never;
@@ -387,14 +409,15 @@ export interface paths {
         };
         /**
          * List Projects
-         * @description All projects, most recently updated first, with counts and a cover.
+         * @description Your projects, most recently updated first, with counts and a cover.
          */
         get: operations["listProjects"];
         put?: never;
         /**
          * Create Project
          * @description Create a project. It starts with one uploaded node per global asset,
-         *     down the left side of its canvas.
+         *     down the left side of its canvas. ``workflow_template_id`` must be one
+         *     of yours (404 otherwise); by default, your default workflow.
          */
         post: operations["createProject"];
         delete?: never;
@@ -532,8 +555,12 @@ export interface paths {
         put?: never;
         /**
          * Run Step
-         * @description Run a step; its earlier nodes are replaced. Returns the graph (with
-         *     the new jobs).
+         * @description Start running a step; returns the graph with the run ``running``.
+         *
+         *     It finishes in the background: poll ``getProjectGraph`` until the step's
+         *     run is ``done`` (its nodes replaced, image and video nodes generating)
+         *     or ``failed`` (``error`` says why; the old nodes are untouched). 409 if
+         *     the step is already running.
          *
          *     The prompt, the project instruction and the nodes the prompt mentions
          *     (by ID) go to a text model, which writes ``count`` results (a text
@@ -559,7 +586,7 @@ export interface paths {
         };
         /**
          * Get Settings
-         * @description App-wide settings: the language of the UI and of every prompt the
+         * @description Your settings: the language of the UI and of every prompt the
          *     backend writes for the models.
          */
         get: operations["getSettings"];
@@ -581,7 +608,7 @@ export interface paths {
         };
         /**
          * List Workflow Templates
-         * @description Every workflow template, oldest first; one is the default.
+         * @description Your workflow templates, oldest first; one is your default.
          */
         get: operations["listWorkflowTemplates"];
         put?: never;
@@ -632,7 +659,7 @@ export interface paths {
         put?: never;
         /**
          * Set Default Workflow Template
-         * @description New projects copy this template.
+         * @description Your new projects copy this template.
          */
         post: operations["setDefaultWorkflowTemplate"];
         delete?: never;
@@ -796,7 +823,7 @@ export interface components {
          * ErrorCode
          * @enum {string}
          */
-        ErrorCode: "not_found" | "validation_error" | "cycle" | "duplicate_edge" | "self_reference" | "missing_ref_output" | "unsupported_ref" | "too_many_refs" | "job_in_progress" | "job_finished" | "provider_error" | "duplicate_name" | "no_id" | "not_generatable" | "unsupported_media" | "too_large" | "workflow_locked" | "workflow_blocked";
+        ErrorCode: "not_found" | "validation_error" | "cycle" | "duplicate_edge" | "self_reference" | "missing_ref_output" | "unsupported_ref" | "too_many_refs" | "job_in_progress" | "job_finished" | "provider_error" | "duplicate_name" | "no_id" | "not_generatable" | "unsupported_media" | "too_large" | "workflow_locked" | "workflow_blocked" | "unauthenticated" | "forbidden" | "quota_exceeded" | "generation_off";
         /** ErrorDetail */
         ErrorDetail: {
             code: components["schemas"]["ErrorCode"];
@@ -964,18 +991,6 @@ export interface components {
          */
         JobStatus: "queued" | "running" | "succeeded" | "failed" | "canceled";
         /**
-         * JobUpdatedEvent
-         * @description Sent on every job status or progress change.
-         */
-        JobUpdatedEvent: {
-            job: components["schemas"]["Job"];
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "job.updated";
-        };
-        /**
          * Language
          * @description The app's language: the UI's, and that of every prompt the backend
          *     writes for the models (the user's own text is sent as written).
@@ -1009,6 +1024,17 @@ export interface components {
          */
         MaterialPlace: {
             position: components["schemas"]["Position"];
+        };
+        /**
+         * Me
+         * @description Who you're signed in as, and what you used today (UTC) against your
+         *     daily limits (0 means no limit).
+         */
+        Me: {
+            daily_limits: components["schemas"]["UsageCounts"];
+            /** Email */
+            email: string;
+            used_today: components["schemas"]["UsageCounts"];
         };
         /**
          * MediaKind
@@ -1136,23 +1162,6 @@ export interface components {
             node_id: string;
             /** Text */
             text: string | null;
-        };
-        /**
-         * OutputCreatedEvent
-         * @description Sent when a job succeeds, before its final ``job.updated``.
-         */
-        OutputCreatedEvent: {
-            /**
-             * Node Id
-             * @example nod_a91x
-             */
-            node_id: string;
-            output: components["schemas"]["Output"];
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            type: "output.created";
         };
         /**
          * OutputUse
@@ -1328,7 +1337,11 @@ export interface components {
             /** Outputs */
             outputs: components["schemas"]["Output"][];
         };
-        ServerEvent: components["schemas"]["JobUpdatedEvent"] | components["schemas"]["OutputCreatedEvent"];
+        /**
+         * RunStatus
+         * @enum {string}
+         */
+        RunStatus: "running" | "done" | "failed";
         /**
          * Size
          * @description Node size in canvas coordinates. Null on a node means "auto".
@@ -1341,13 +1354,18 @@ export interface components {
         };
         /**
          * StepRun
-         * @description The last run of a step in a project: what it was asked for.
+         * @description The last run of a step in a project: what it was asked for, and how
+         *     it went. A run happens in the background: ``runStep`` answers with the
+         *     run ``running``; poll the graph until it is ``done`` or ``failed``.
          */
         StepRun: {
             /** Count */
             count: number;
+            /** Error */
+            error: string | null;
             /** Prompt */
             prompt: string;
+            status: components["schemas"]["RunStatus"];
             /** Step */
             step: string;
             /**
@@ -1386,6 +1404,15 @@ export interface components {
              * @enum {string}
              */
             kind: "text";
+        };
+        /** UsageCounts */
+        UsageCounts: {
+            /** Image */
+            image: number;
+            /** Text */
+            text: number;
+            /** Video */
+            video: number;
         };
         /** VideoParams */
         VideoParams: {
@@ -1507,7 +1534,10 @@ export type $defs = Record<string, never>;
 export interface operations {
     getAssetContent: {
         parameters: {
-            query?: never;
+            query: {
+                e: number;
+                s: string;
+            };
             header?: never;
             path: {
                 asset_id: string;
@@ -1525,6 +1555,13 @@ export interface operations {
                     "image/*": unknown;
                     "video/*": unknown;
                 };
+            };
+            /** @description Redirect to the file in Cloud Storage. */
+            307: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Not Found */
             404: {
@@ -1815,7 +1852,10 @@ export interface operations {
     };
     getGlobalAssetContent: {
         parameters: {
-            query?: never;
+            query: {
+                e: number;
+                s: string;
+            };
             header?: never;
             path: {
                 asset_id: string;
@@ -1824,7 +1864,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The file. Supports HTTP Range. */
+            /** @description The media bytes. Supports HTTP Range for video seeking. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1833,6 +1873,13 @@ export interface operations {
                     "image/*": unknown;
                     "video/*": unknown;
                 };
+            };
+            /** @description Redirect to the file in Cloud Storage. */
+            307: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Not Found */
             404: {
@@ -2107,6 +2154,53 @@ export interface operations {
             };
         };
     };
+    getMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Me"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     deleteNode: {
         parameters: {
             query?: never;
@@ -2280,8 +2374,26 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Bad Gateway */
             502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2881,7 +2993,7 @@ export interface operations {
         };
         responses: {
             /** @description Successful Response */
-            200: {
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2898,6 +3010,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Unprocessable Entity */
             422: {
                 headers: {
@@ -2907,8 +3028,17 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Bad Gateway */
-            502: {
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

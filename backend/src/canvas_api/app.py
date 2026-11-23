@@ -4,16 +4,15 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any
 
-from fastapi import FastAPI
-from fastapi.openapi.utils import get_openapi
-from pydantic import TypeAdapter
+from fastapi import Depends, FastAPI
 
 from . import __version__, errors
+from .auth import Authenticator
 from .config import Settings
-from .contract import Operation, ServerEvent
-from .deps import remove_files
+from .contract import Operation
+from .deps import authorize
+from .files import UrlSigner, delete_all, make_files
 from .jobs.worker import Worker
 from .providers.base import Generator
 from .providers.fake import FakeImageGenerator, FakeTextModel, FakeVideoGenerator
@@ -23,36 +22,20 @@ from .providers.seedance_video import SeedanceVideoGenerator
 from .routes import (
     assets,
     edges,
-    events,
     global_assets,
     health,
     instructions,
     jobs,
     materials,
+    me,
     nodes,
     projects,
     workflow,
 )
+from .spending import Spending
 from .store import Store
 
 API_PREFIX = "/api"
-
-
-def _openapi(app: FastAPI) -> dict[str, Any]:
-    """OpenAPI schema, plus the WebSocket event types OpenAPI can't express."""
-    if app.openapi_schema:
-        return app.openapi_schema
-    schema = get_openapi(
-        title=app.title, version=app.version, description=app.description, routes=app.routes
-    )
-    ref = "#/components/schemas/{model}"
-    event_schema = TypeAdapter(ServerEvent).json_schema(ref_template=ref, mode="serialization")
-    components = schema.setdefault("components", {}).setdefault("schemas", {})
-    for name, definition in event_schema.pop("$defs", {}).items():
-        components.setdefault(name, definition)
-    components["ServerEvent"] = event_schema
-    app.openapi_schema = schema
-    return schema
 
 
 def default_text_model(settings: Settings) -> TextModel:
@@ -108,22 +91,31 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         resolved = settings or Settings.from_env()
-        store = Store(resolved.db_path, resolved.assets_dir)
+        resolved.check()
+        files = make_files(resolved.storage, resolved.bucket, resolved.data_dir)
+        store = Store(resolved.database_url, files, UrlSigner(resolved.url_secret))
         model = text_model if text_model is not None else default_text_model(resolved)
         if generators is not None:
             ops = {Operation.text_generate: TextGenerator(model), **generators}
         else:
             ops = default_generators(resolved, model)
         worker = Worker(store, ops, concurrency=resolved.worker_concurrency)
+        app.state.settings = resolved
         app.state.store, app.state.worker, app.state.text_model = store, worker, model
+        app.state.auth = Authenticator(resolved)
+        app.state.spending = Spending(store, resolved.limits, resolved.generation_off)
+        app.state.seen_users = {}
+        # Workflow runs finishing in the background (see routes/workflow.py).
+        app.state.tasks = set()
         # Deletes are soft (for undo); erase what has been deleted a while.
-        remove_files(store.purge_deleted())
-        # Links follow prompts; make sure they do after any migration.
-        store.sync_all_links()
+        delete_all(files, store.purge_deleted())
+        store.fail_interrupted_runs()
         await worker.start()
         try:
             yield
         finally:
+            for task in list(app.state.tasks):
+                task.cancel()
             await worker.stop()
             store.close()
 
@@ -133,15 +125,21 @@ def create_app(
         version=__version__,
         description=(
             "Canvas of generation nodes. A node turns a prompt (plus the outputs of "
-            "the nodes it references) into text, an image or a video."
+            "the nodes it references) into text, an image or a video.\n\n"
+            "Every route except /health and the media links needs "
+            "`Authorization: Bearer <Firebase ID token>`."
         ),
         # Split input/output schemas would generate Node and Node-Input types;
         # one schema per model keeps the TypeScript names clean.
         separate_input_output_schemas=False,
     )
     errors.install(app)
-    modules = (
-        health,
+    # Open: the health check, and media (signed links instead of sign-in).
+    for module in (health, assets):
+        app.include_router(module.router, prefix=API_PREFIX)
+    # Signed in, and only your own things (see deps.authorize).
+    signed_in = [Depends(authorize)]
+    for module in (
         projects,
         nodes,
         edges,
@@ -150,12 +148,9 @@ def create_app(
         global_assets,
         instructions,
         workflow,
-        assets,
-        events,
-    )
-    for module in modules:
-        app.include_router(module.router, prefix=API_PREFIX)
-    app.openapi = lambda: _openapi(app)  # type: ignore[method-assign]
+        me,
+    ):
+        app.include_router(module.router, prefix=API_PREFIX, dependencies=signed_in)
     return app
 
 

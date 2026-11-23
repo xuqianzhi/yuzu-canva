@@ -48,9 +48,6 @@ export type ResolvedRef = S["ResolvedRef"];
 export type ErrorCode = S["ErrorCode"];
 export type ErrorResponse = S["ErrorResponse"];
 
-export type ServerEvent = S["ServerEvent"];
-export type JobUpdatedEvent = S["JobUpdatedEvent"];
-export type OutputCreatedEvent = S["OutputCreatedEvent"];
 
 export const TERMINAL_JOB_STATUSES: readonly JobStatus[] = ["succeeded", "failed", "canceled"];
 

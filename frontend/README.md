@@ -157,18 +157,21 @@ approval and out-of-date tracking, is saved in
 ```
 src/
   api/        schema.d.ts (generated), types.ts, client.ts (typed fetch)
+  auth.ts     sign-in (Firebase Google sign-in; dev sign-in on `npm run dev`)
   i18n.ts     English/Chinese strings, the language setting, useT()
   router.ts   hash routes: #/ (projects), #/assets, #/instruction, #/workflows, #/settings,
               #/project/<id>
   pages/      HomePage.tsx (projects), GlobalAssets.tsx, GlobalInstruction.tsx,
-              WorkflowDesigner.tsx, Settings.tsx
+              WorkflowDesigner.tsx, Settings.tsx (language, account, usage),
+              SignIn.tsx (sign-in page and the gate in front of the app)
   store/      the open project's state and every API call:
               canvas.ts (useCanvas: composes the parts), types.ts (the state's
               shape), core.ts (shared helpers: saving, polling, history),
               actions/ (project, graph, media, generation, workflow, chat)
   canvas/     Canvas.tsx, GenNode.tsx, Sidebar.tsx (menu), NodeName.tsx,
               ProjectBar.tsx, inputs.ts
-  workflow/   status.ts (step states, from runs and nodes), WorkflowBar.tsx,
+  workflow/   status.ts (step states, from runs and nodes), keepOpen.ts ("keep
+              this page open" while generating), WorkflowBar.tsx,
               StepPanel.tsx, ChatThread.tsx
   styles.css  light/dark tokens
 bin/seedance-canvas       the launcher

@@ -27,6 +27,7 @@ export function projectActions(
     flushInstruction,
     clearHistory,
     step,
+    watchRuns,
   } = core;
   return {
   async openProject(projectId) {
@@ -73,6 +74,8 @@ export function projectActions(
       const current = currentStep(views);
       if (current) set({ activeStep: current.step.key, activeNodeId: null });
       for (const job of Object.values(jobs)) poll(job.node_id, job.id);
+      // A step may still be running (started before a reload).
+      void watchRuns(graph.project.id);
     } catch (error) {
       set({ load: { status: "error", message: message(error) } });
     }

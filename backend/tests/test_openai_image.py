@@ -110,8 +110,8 @@ def test_edit_sends_reference_images_as_multipart(tmp_path):
         prompt="put @{nod_a} in @{nod_b}, keep @{nod_zz}",
         params=ImageParams(quality="low"),
         files=[
-            RefFile(node_id="nod_a", kind=MediaKind.image, path=a, mime="image/png"),
-            RefFile(node_id="nod_b", kind=MediaKind.image, path=b, mime="image/png"),
+            RefFile.from_path(node_id="nod_a", kind=MediaKind.image, path=a, mime="image/png"),
+            RefFile.from_path(node_id="nod_b", kind=MediaKind.image, path=b, mime="image/png"),
         ],
     )
     seen = {}
@@ -139,14 +139,14 @@ def test_edit_with_missing_reference_file(tmp_path):
         operation=Operation.image_edit,
         prompt="x",
         params=ImageParams(),
-        files=[RefFile("nod_a", MediaKind.image, tmp_path / "gone.png", "image/png")],
+        files=[RefFile.from_path("nod_a", MediaKind.image, tmp_path / "gone.png", "image/png")],
     )
-    with pytest.raises(ProviderError, match="missing on disk"):
+    with pytest.raises(ProviderError, match="is missing"):
         asyncio.run(generator(lambda r: httpx.Response(200)).run(request))
 
 
 def test_label_mentions():
-    files = [RefFile("nod_b", MediaKind.image, Path("b"), "image/png")]
+    files = [RefFile.from_path("nod_b", MediaKind.image, Path("b"), "image/png")]
     assert label_mentions("@{nod_a} @{nod_b}", files, lambda n: f"[{n}]") == "@{nod_a} [1]"
 
 
@@ -159,7 +159,7 @@ def test_fake_edit_stripes_reference_colors(tmp_path):
         operation=Operation.image_edit,
         prompt="p",
         params=ImageParams(),
-        files=[RefFile("nod_a", MediaKind.image, red, "image/png")],
+        files=[RefFile.from_path("nod_a", MediaKind.image, red, "image/png")],
     )
     result = asyncio.run(FakeImageGenerator(delay_s=0).run(request))
     assert first_pixel(result.data) == (200, 10, 10)  # leftmost stripe is the reference
@@ -181,7 +181,9 @@ def test_edit_sends_compressed_reference_images(tmp_path):
         operation=Operation.image_edit,
         prompt="restyle @{nod_a}",
         params=ImageParams(),
-        files=[RefFile(node_id="nod_a", kind=MediaKind.image, path=big, mime="image/png")],
+        files=[
+            RefFile.from_path(node_id="nod_a", kind=MediaKind.image, path=big, mime="image/png")
+        ],
     )
     seen = {}
 

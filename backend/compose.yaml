@@ -1,5 +1,9 @@
-# Values resolve as: shell environment > .env > the default here. There is
-# deliberately no `env_file:` key, so a missing .env is not an error.
+# Local development and tests. Values resolve as: shell environment > .env >
+# the default here. There is deliberately no `env_file:` key, so a missing
+# .env is not an error.
+#
+# The database here is always the local `db` service: DATABASE_URL in .env
+# (your Supabase database) is ignored, so local work never touches it.
 
 # Explicit, so it never collides with another repo's `backend/` folder.
 name: seedance-canvas
@@ -20,8 +24,37 @@ x-env: &env
   - SEEDANCE_HTTP_TIMEOUT=${SEEDANCE_HTTP_TIMEOUT-}
   - CANVAS_WORKER_CONCURRENCY=${CANVAS_WORKER_CONCURRENCY-}
   - CANVAS_FAKE_GENERATORS=${CANVAS_FAKE_GENERATORS-}
+  - DATABASE_URL=postgresql://canvas:canvas@db:5432/canvas
+  # Sign-in: "dev:<email>" tokens locally; Firebase too if a project is set.
+  - CANVAS_DEV_AUTH=${CANVAS_DEV_AUTH:-1}
+  - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID-}
+  - CANVAS_ALLOWED_EMAILS=${CANVAS_ALLOWED_EMAILS-}
+  - CANVAS_URL_SECRET=${CANVAS_URL_SECRET-local-development-only-url-signing-key}
+  - CANVAS_LIMIT_TEXT_PER_DAY=${CANVAS_LIMIT_TEXT_PER_DAY-}
+  - CANVAS_LIMIT_IMAGES_PER_DAY=${CANVAS_LIMIT_IMAGES_PER_DAY-}
+  - CANVAS_LIMIT_VIDEOS_PER_DAY=${CANVAS_LIMIT_VIDEOS_PER_DAY-}
+  - CANVAS_LIMIT_ACTIVE_JOBS=${CANVAS_LIMIT_ACTIVE_JOBS-}
+  - CANVAS_LIMIT_TEXT_PER_MINUTE=${CANVAS_LIMIT_TEXT_PER_MINUTE-}
+  - CANVAS_GENERATION_OFF=${CANVAS_GENERATION_OFF-}
 
 services:
+  # Postgres for local work and tests, on 127.0.0.1:5433 (5432 is often taken).
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: canvas
+      POSTGRES_PASSWORD: canvas
+      POSTGRES_DB: canvas
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U canvas -d canvas"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
   # The API behind the canvas. Published on loopback only.
   # Port 8788, so it can run next to seedance-ui's API on 8787.
   api:
@@ -34,6 +67,9 @@ services:
     environment: *env
     ports:
       - "127.0.0.1:8788:8788"
+    depends_on:
+      db:
+        condition: service_healthy
     # --reload plus the source mount: edits apply without rebuilding.
     command: ["uvicorn", "canvas_api.app:app", "--host", "0.0.0.0", "--port", "8788", "--reload", "--reload-dir", "/app/src"]
     volumes:
@@ -41,6 +77,7 @@ services:
       - ../data:/app/data
 
   # Unit tests and contract export. Dummy keys: nothing here touches the network.
+  # Each test gets its own Postgres schema in the `db` service.
   test:
     build:
       context: .
@@ -51,8 +88,15 @@ services:
     environment:
       OPENAI_API_KEY: test-key-not-real
       ARK_API_KEY: test-key-not-real
+      TEST_DATABASE_URL: postgresql://canvas:canvas@db:5432/canvas
+    depends_on:
+      db:
+        condition: service_healthy
     volumes:
       - ./src:/app/src:ro
       - ./tests:/app/tests:ro
       - ./pyproject.toml:/app/pyproject.toml:ro
       - ../contract:/contract:ro
+
+volumes:
+  pgdata:

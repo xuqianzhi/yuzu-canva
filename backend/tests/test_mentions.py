@@ -3,15 +3,8 @@ exactly when a prompt mentions them."""
 
 from __future__ import annotations
 
-import sqlite3
-
-from fastapi.testclient import TestClient
-
-from canvas_api.app import create_app
-from canvas_api.contract import Operation
 from canvas_api.domain.mentions import find_mentions, mentioned, remove_mentions
 
-from .conftest import make_settings
 from .test_api import connect, error_code, new_node, new_project
 
 IDS = {"fox": "nod_f", "fox_2": "nod_f2", "兔子老板": "nod_r", "Snow-Field": "nod_s"}
@@ -113,47 +106,3 @@ def test_deleting_and_restoring_a_source_relinks(client):
     assert [e["id"] for e in client.get(f"/api/projects/{project}").json()["edges"]] == [
         edge["id"]
     ]
-
-
-def test_old_at_mentions_and_characters_are_migrated(data_dir, fake_image):
-    """Before: "@ID" in prompts, and character nodes (a subtype of image)
-    with a sheet of traits, some given by an image linked to the trait."""
-    settings = make_settings(data_dir)
-    generators = {Operation.image_generate: fake_image}
-    with TestClient(create_app(settings, generators)) as client:
-        project = new_project(client)
-        parrot = new_node(client, project, name="鹦鹉员工")["id"]
-        scene = new_node(client, project, prompt="x")["id"]
-        hero = new_node(client, project, prompt="")["id"]
-    db = sqlite3.connect(settings.db_path)
-    db.execute(
-        "UPDATE nodes SET prompt = 'meet @鹦鹉员工 at noon, mail a@b.com' WHERE id = ?",
-        (scene,),
-    )
-    db.execute(
-        "UPDATE nodes SET prompt = '', role = 'character', character = ? WHERE id = ?",
-        (
-            '{"style": "anime", "color": "", "body_shape": "", "age": "", '
-            '"description": "brave"}',
-            hero,
-        ),
-    )
-    db.execute(
-        "INSERT INTO edges (id, project_id, source_node_id, target_node_id, created_at, "
-        "target_handle) VALUES ('edg_trait', ?, ?, ?, '2026-01-01T00:00:00Z', 'color')",
-        (project, parrot, hero),
-    )
-    db.execute("PRAGMA user_version = 0")
-    db.commit()
-    db.close()
-    with TestClient(create_app(settings, generators)) as client:
-        graph = client.get(f"/api/projects/{project}").json()
-        nodes = {n["id"]: n for n in graph["nodes"]}
-        assert nodes[scene]["prompt"] == "meet 鹦鹉员工 at noon, mail a@b.com"
-        # The character is a plain image whose prompt kept everything.
-        assert nodes[hero]["prompt"] == "brave\nStyle: anime\nColor: 鹦鹉员工"
-        assert "role" not in nodes[hero] and "character" not in nodes[hero]
-        # Links are re-synced on startup: both mentions link, the trait link is gone.
-        pairs = sorted((e["source_node_id"], e["target_node_id"]) for e in graph["edges"])
-        assert pairs == sorted([(parrot, scene), (parrot, hero)])
-        assert all(e["id"] != "edg_trait" for e in graph["edges"])

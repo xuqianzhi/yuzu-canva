@@ -91,7 +91,7 @@ class FakeImageGenerator:
         for ref in request.files:
             if ref.kind != MediaKind.image:
                 continue
-            data = ref.path.read_bytes()
+            data = ref.read()
             colors.append(first_pixel(data) or color_of(data))
         colors.append(color_of(request.prompt.encode()))
 

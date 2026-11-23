@@ -14,7 +14,7 @@ from ..contract import (
     Output,
     ProjectId,
 )
-from ..deps import StoreDep, WorkerDep
+from ..deps import SpendingDep, StoreDep, WorkerDep
 from ..errors import ApiError, responses
 from ..jobs.queue import queue_generation
 
@@ -85,6 +85,7 @@ async def generate_node(
     node_id: NodeId,
     store: StoreDep,
     worker: WorkerDep,
+    spending: SpendingDep,
     body: GenerateRequest | None = None,
 ) -> Job:
     """Queue a generation from the node's saved prompt, params and references.
@@ -92,8 +93,9 @@ async def generate_node(
     Each reference resolves to the source node's ``selected_output_id``.
     Fails (409) with ``missing_ref_output``, ``unsupported_ref``,
     ``too_many_refs``, ``job_in_progress`` or
-    ``not_generatable`` (an uploaded node). Progress
-    arrives as ``job.updated`` events; poll ``getJob`` as a fallback.
+    ``not_generatable`` (an uploaded node); 429 ``quota_exceeded`` past a
+    limit; 503 ``generation_off``. Poll ``getJob`` (or the graph) for
+    progress.
     """
     node = store.get_node(node_id)
     if node.source == NodeSource.upload:
@@ -107,4 +109,4 @@ async def generate_node(
             f"node {node_id} already has job {active.id} in progress",
             {"job_id": active.id},
         )
-    return queue_generation(store, worker, node)
+    return queue_generation(store, worker, node, spending)

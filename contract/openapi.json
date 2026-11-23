@@ -341,7 +341,11 @@
           "unsupported_media",
           "too_large",
           "workflow_locked",
-          "workflow_blocked"
+          "workflow_blocked",
+          "unauthenticated",
+          "forbidden",
+          "quota_exceeded",
+          "generation_off"
         ],
         "title": "ErrorCode",
         "type": "string"
@@ -797,27 +801,6 @@
         "title": "JobStatus",
         "type": "string"
       },
-      "JobUpdatedEvent": {
-        "additionalProperties": false,
-        "description": "Sent on every job status or progress change.",
-        "properties": {
-          "job": {
-            "$ref": "#/components/schemas/Job"
-          },
-          "type": {
-            "const": "job.updated",
-            "default": "job.updated",
-            "title": "Type",
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "job"
-        ],
-        "title": "JobUpdatedEvent",
-        "type": "object"
-      },
       "Language": {
         "description": "The app's language: the UI's, and that of every prompt the backend\nwrites for the models (the user's own text is sent as written).",
         "enum": [
@@ -881,6 +864,29 @@
           "position"
         ],
         "title": "MaterialPlace",
+        "type": "object"
+      },
+      "Me": {
+        "additionalProperties": false,
+        "description": "Who you're signed in as, and what you used today (UTC) against your\ndaily limits (0 means no limit).",
+        "properties": {
+          "daily_limits": {
+            "$ref": "#/components/schemas/UsageCounts"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "used_today": {
+            "$ref": "#/components/schemas/UsageCounts"
+          }
+        },
+        "required": [
+          "email",
+          "used_today",
+          "daily_limits"
+        ],
+        "title": "Me",
         "type": "object"
       },
       "MediaKind": {
@@ -1314,36 +1320,6 @@
         "title": "Output",
         "type": "object"
       },
-      "OutputCreatedEvent": {
-        "additionalProperties": false,
-        "description": "Sent when a job succeeds, before its final ``job.updated``.",
-        "properties": {
-          "node_id": {
-            "examples": [
-              "nod_a91x"
-            ],
-            "pattern": "^nod_[A-Za-z0-9]+$",
-            "title": "Node Id",
-            "type": "string"
-          },
-          "output": {
-            "$ref": "#/components/schemas/Output"
-          },
-          "type": {
-            "const": "output.created",
-            "default": "output.created",
-            "title": "Type",
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "output",
-          "node_id"
-        ],
-        "title": "OutputCreatedEvent",
-        "type": "object"
-      },
       "OutputUse": {
         "enum": [
           "independent",
@@ -1742,22 +1718,14 @@
         "title": "RestoreResult",
         "type": "object"
       },
-      "ServerEvent": {
-        "discriminator": {
-          "mapping": {
-            "job.updated": "#/components/schemas/JobUpdatedEvent",
-            "output.created": "#/components/schemas/OutputCreatedEvent"
-          },
-          "propertyName": "type"
-        },
-        "oneOf": [
-          {
-            "$ref": "#/components/schemas/JobUpdatedEvent"
-          },
-          {
-            "$ref": "#/components/schemas/OutputCreatedEvent"
-          }
-        ]
+      "RunStatus": {
+        "enum": [
+          "running",
+          "done",
+          "failed"
+        ],
+        "title": "RunStatus",
+        "type": "string"
       },
       "Size": {
         "additionalProperties": false,
@@ -1783,15 +1751,29 @@
       },
       "StepRun": {
         "additionalProperties": false,
-        "description": "The last run of a step in a project: what it was asked for.",
+        "description": "The last run of a step in a project: what it was asked for, and how\nit went. A run happens in the background: ``runStep`` answers with the\nrun ``running``; poll the graph until it is ``done`` or ``failed``.",
         "properties": {
           "count": {
             "title": "Count",
             "type": "integer"
           },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
           "prompt": {
             "title": "Prompt",
             "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RunStatus"
           },
           "step": {
             "title": "Step",
@@ -1807,6 +1789,8 @@
           "step",
           "prompt",
           "count",
+          "status",
+          "error",
           "updated_at"
         ],
         "title": "StepRun",
@@ -1870,6 +1854,30 @@
           "kind"
         ],
         "title": "TextParams",
+        "type": "object"
+      },
+      "UsageCounts": {
+        "additionalProperties": false,
+        "properties": {
+          "image": {
+            "title": "Image",
+            "type": "integer"
+          },
+          "text": {
+            "title": "Text",
+            "type": "integer"
+          },
+          "video": {
+            "title": "Video",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "text",
+          "image",
+          "video"
+        ],
+        "title": "UsageCounts",
         "type": "object"
       },
       "VideoParams": {
@@ -2093,7 +2101,7 @@
     }
   },
   "info": {
-    "description": "Canvas of generation nodes. A node turns a prompt (plus the outputs of the nodes it references) into text, an image or a video.",
+    "description": "Canvas of generation nodes. A node turns a prompt (plus the outputs of the nodes it references) into text, an image or a video.\n\nEvery route except /health and the media links needs `Authorization: Bearer <Firebase ID token>`.",
     "title": "seedance-canvas API",
     "version": "0.1.0"
   },
@@ -2115,6 +2123,25 @@
               "title": "Asset Id",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "e",
+            "required": true,
+            "schema": {
+              "title": "E",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "s",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "title": "S",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -2124,6 +2151,9 @@
               "video/*": {}
             },
             "description": "The media bytes. Supports HTTP Range for video seeking."
+          },
+          "307": {
+            "description": "Redirect to the file in Cloud Storage."
           },
           "404": {
             "content": {
@@ -2267,7 +2297,7 @@
     },
     "/api/global-assets": {
       "get": {
-        "description": "Every global asset, oldest first (the order new projects lay them out).",
+        "description": "Your global assets, oldest first (the order new projects lay them out).",
         "operationId": "listGlobalAssets",
         "responses": {
           "200": {
@@ -2512,6 +2542,25 @@
               "title": "Asset Id",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "e",
+            "required": true,
+            "schema": {
+              "title": "E",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "s",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "title": "S",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -2520,7 +2569,10 @@
               "image/*": {},
               "video/*": {}
             },
-            "description": "The file. Supports HTTP Range."
+            "description": "The media bytes. Supports HTTP Range for video seeking."
+          },
+          "307": {
+            "description": "Redirect to the file in Cloud Storage."
           },
           "404": {
             "content": {
@@ -2545,13 +2597,13 @@
         },
         "summary": "Get Global Asset Content",
         "tags": [
-          "global assets"
+          "assets"
         ]
       }
     },
     "/api/global-instruction": {
       "get": {
-        "description": "The instruction every new project starts with.",
+        "description": "The instruction every new project of yours starts with.",
         "operationId": "getGlobalInstruction",
         "responses": {
           "200": {
@@ -2882,6 +2934,58 @@
         ]
       }
     },
+    "/api/me": {
+      "get": {
+        "description": "Who you're signed in as (401 if not, 403 if not on the allowlist),\nand today's usage against your limits.",
+        "operationId": "getMe",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Get Me",
+        "tags": [
+          "me"
+        ]
+      }
+    },
     "/api/nodes/{node_id}": {
       "delete": {
         "description": "Deletes the node and every edge touching it; cancels its running jobs.\n\nThe delete is soft: ``restoreDeleted`` brings the node back with its\ntakes (undo) until it is purged a day later. Downstream nodes keep their\nown outputs; prompts that mention its ID keep the text (unlinked).",
@@ -3130,6 +3234,16 @@
             },
             "description": "Unprocessable Entity"
           },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
           "502": {
             "content": {
               "application/json": {
@@ -3139,6 +3253,16 @@
               }
             },
             "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         },
         "summary": "Send Chat",
@@ -3149,7 +3273,7 @@
     },
     "/api/nodes/{node_id}/generate": {
       "post": {
-        "description": "Queue a generation from the node's saved prompt, params and references.\n\nEach reference resolves to the source node's ``selected_output_id``.\nFails (409) with ``missing_ref_output``, ``unsupported_ref``,\n``too_many_refs``, ``job_in_progress`` or\n``not_generatable`` (an uploaded node). Progress\narrives as ``job.updated`` events; poll ``getJob`` as a fallback.",
+        "description": "Queue a generation from the node's saved prompt, params and references.\n\nEach reference resolves to the source node's ``selected_output_id``.\nFails (409) with ``missing_ref_output``, ``unsupported_ref``,\n``too_many_refs``, ``job_in_progress`` or\n``not_generatable`` (an uploaded node); 429 ``quota_exceeded`` past a\nlimit; 503 ``generation_off``. Poll ``getJob`` (or the graph) for\nprogress.",
         "operationId": "generateNode",
         "parameters": [
           {
@@ -3371,7 +3495,7 @@
     },
     "/api/projects": {
       "get": {
-        "description": "All projects, most recently updated first, with counts and a cover.",
+        "description": "Your projects, most recently updated first, with counts and a cover.",
         "operationId": "listProjects",
         "responses": {
           "200": {
@@ -3405,7 +3529,7 @@
         ]
       },
       "post": {
-        "description": "Create a project. It starts with one uploaded node per global asset,\ndown the left side of its canvas.",
+        "description": "Create a project. It starts with one uploaded node per global asset,\ndown the left side of its canvas. ``workflow_template_id`` must be one\nof yours (404 otherwise); by default, your default workflow.",
         "operationId": "createProject",
         "requestBody": {
           "content": {
@@ -3972,7 +4096,7 @@
     },
     "/api/projects/{project_id}/workflow/steps/{step_key}/run": {
       "post": {
-        "description": "Run a step; its earlier nodes are replaced. Returns the graph (with\nthe new jobs).\n\nThe prompt, the project instruction and the nodes the prompt mentions\n(by ID) go to a text model, which writes ``count`` results (a text\nstep: its nodes' text) or prompts (an image or video step: one node\neach, generated right away, with the mentioned nodes as references).\nAfter a one-to-one step, there is one result per node of that step\n(``count`` is ignored), each made from its own input; an image or video\nstep fed by text uses each text as its prompt directly.",
+        "description": "Start running a step; returns the graph with the run ``running``.\n\nIt finishes in the background: poll ``getProjectGraph`` until the step's\nrun is ``done`` (its nodes replaced, image and video nodes generating)\nor ``failed`` (``error`` says why; the old nodes are untouched). 409 if\nthe step is already running.\n\nThe prompt, the project instruction and the nodes the prompt mentions\n(by ID) go to a text model, which writes ``count`` results (a text\nstep: its nodes' text) or prompts (an image or video step: one node\neach, generated right away, with the mentioned nodes as references).\nAfter a one-to-one step, there is one result per node of that step\n(``count`` is ignored), each made from its own input; an image or video\nstep fed by text uses each text as its prompt directly.",
         "operationId": "runStep",
         "parameters": [
           {
@@ -4009,7 +4133,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "202": {
             "content": {
               "application/json": {
                 "schema": {
@@ -4029,6 +4153,16 @@
             },
             "description": "Not Found"
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -4039,7 +4173,7 @@
             },
             "description": "Unprocessable Entity"
           },
-          "502": {
+          "429": {
             "content": {
               "application/json": {
                 "schema": {
@@ -4047,7 +4181,17 @@
                 }
               }
             },
-            "description": "Bad Gateway"
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         },
         "summary": "Run Step",
@@ -4058,7 +4202,7 @@
     },
     "/api/settings": {
       "get": {
-        "description": "App-wide settings: the language of the UI and of every prompt the\nbackend writes for the models.",
+        "description": "Your settings: the language of the UI and of every prompt the\nbackend writes for the models.",
         "operationId": "getSettings",
         "responses": {
           "200": {
@@ -4131,7 +4275,7 @@
     },
     "/api/workflow-templates": {
       "get": {
-        "description": "Every workflow template, oldest first; one is the default.",
+        "description": "Your workflow templates, oldest first; one is your default.",
         "operationId": "listWorkflowTemplates",
         "responses": {
           "200": {
@@ -4324,7 +4468,7 @@
     },
     "/api/workflow-templates/{template_id}/default": {
       "post": {
-        "description": "New projects copy this template.",
+        "description": "Your new projects copy this template.",
         "operationId": "setDefaultWorkflowTemplate",
         "parameters": [
           {

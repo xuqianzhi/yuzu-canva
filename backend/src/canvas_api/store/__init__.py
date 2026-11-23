@@ -1,8 +1,8 @@
-"""SQLite persistence. Every method returns contract models.
+"""Postgres persistence. Every method returns contract models.
 
-One connection, guarded by a lock: routes run in a thread pool and the job
-worker runs on the event loop, and every call here is short. Swap for
-Postgres later behind the same methods.
+A small connection pool; writes run one at a time under a lock (routes run
+in a thread pool and the job worker on the event loop, and every call here
+is short). Media files live in `files` (see files.py).
 
 The store is split by area into mixins; ``Store`` puts them together.
 """
@@ -16,11 +16,13 @@ from .jobs import JobsMixin
 from .media import MediaMixin
 from .migrations import MigrationsMixin
 from .projects import ProjectsMixin
+from .users import UsersMixin
 from .workflow import WorkflowMixin
 
 
 class Store(
     MigrationsMixin,
+    UsersMixin,
     ProjectsMixin,
     GraphMixin,
     MediaMixin,
@@ -29,7 +31,7 @@ class Store(
     JobsMixin,
     StoreBase,
 ):
-    """SQLite persistence; every method returns contract models."""
+    """Postgres persistence; every method returns contract models."""
 
 
 __all__ = ["PURGE_AFTER", "WORKFLOW_HANDLE", "Store", "now"]

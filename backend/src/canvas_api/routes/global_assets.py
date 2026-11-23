@@ -3,11 +3,12 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, File, Form, Response, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.concurrency import run_in_threadpool
 
 from ..contract import ErrorCode, GlobalAsset, GlobalAssetId, GlobalAssetUpdate, MediaKind
-from ..deps import StoreDep, remove_files
+from ..deps import FilesDep, StoreDep, UserDep
 from ..errors import ApiError, responses
+from ..files import delete_all
 from ..providers.media import UnsupportedMedia, sniff_upload
 from .materials import read_upload
 
@@ -15,9 +16,9 @@ router = APIRouter(prefix="/global-assets", tags=["global assets"])
 
 
 @router.get("", operation_id="listGlobalAssets", responses=responses())
-def list_global_assets(store: StoreDep) -> list[GlobalAsset]:
-    """Every global asset, oldest first (the order new projects lay them out)."""
-    return store.list_global_assets()
+def list_global_assets(store: StoreDep, user: UserDep) -> list[GlobalAsset]:
+    """Your global assets, oldest first (the order new projects lay them out)."""
+    return store.list_global_assets(user.id)
 
 
 @router.post(
@@ -28,6 +29,7 @@ def list_global_assets(store: StoreDep) -> list[GlobalAsset]:
 )
 async def upload_global_asset(
     store: StoreDep,
+    user: UserDep,
     file: Annotated[UploadFile, File()],
     name: Annotated[str, Form(max_length=80)],
 ) -> GlobalAsset:
@@ -42,8 +44,17 @@ async def upload_global_asset(
         kind, mime, ext, width, height, duration = sniff_upload(data)
     except UnsupportedMedia as exc:
         raise ApiError(415, ErrorCode.unsupported_media, str(exc)) from exc
-    return store.create_global_asset(
-        name, MediaKind(kind), data, mime, ext, width=width, height=height, duration_s=duration
+    return await run_in_threadpool(
+        store.create_global_asset,
+        user.id,
+        name,
+        MediaKind(kind),
+        data,
+        mime,
+        ext,
+        width=width,
+        height=height,
+        duration_s=duration,
     )
 
 
@@ -62,25 +73,6 @@ def rename_global_asset(
     operation_id="deleteGlobalAsset",
     responses=responses(404),
 )
-def delete_global_asset(asset_id: GlobalAssetId, store: StoreDep) -> None:
+def delete_global_asset(asset_id: GlobalAssetId, store: StoreDep, files: FilesDep) -> None:
     """New projects stop getting it; projects made earlier keep their nodes."""
-    remove_files([store.delete_global_asset(asset_id)])
-
-
-@router.get(
-    "/{asset_id}/content",
-    operation_id="getGlobalAssetContent",
-    response_class=FileResponse,
-    responses={
-        200: {
-            "description": "The file. Supports HTTP Range.",
-            "content": {"image/*": {}, "video/*": {}},
-        },
-        **responses(404),
-    },
-)
-def get_global_asset_content(asset_id: GlobalAssetId, store: StoreDep) -> FileResponse:
-    asset, path = store.global_asset_file(asset_id)
-    if not path.is_file():
-        raise ApiError(404, ErrorCode.not_found, f"global asset {asset_id} file is missing")
-    return FileResponse(path, media_type=asset.mime)
+    delete_all(files, [store.delete_global_asset(asset_id)])

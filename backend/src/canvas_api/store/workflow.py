@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 
 from ..contract import (
     ErrorCode,
@@ -14,6 +13,7 @@ from ..contract import (
     Output,
     OutputUse,
     Position,
+    RunStatus,
     StepRun,
     WorkflowDefinition,
     WorkflowTemplate,
@@ -23,7 +23,6 @@ from ..domain.mentions import (
     mentioned,
 )
 from ..domain.workflow import (
-    BUILTIN_ID,
     builtin_workflow,
     position_for,
     step_by_key,
@@ -33,6 +32,8 @@ from ..ids import new_id
 from .base import (
     ACTIVE,
     WORKFLOW_HANDLE,
+    Db,
+    Row,
     _dt,
     _not_found,
     _ts,
@@ -44,7 +45,7 @@ class WorkflowMixin:
     """Workflow templates and running a project's steps."""
 
     @staticmethod
-    def _template(r: sqlite3.Row, default_id: str | None) -> WorkflowTemplate:
+    def _template(r: Row, default_id: str | None) -> WorkflowTemplate:
         return WorkflowTemplate(
             id=r["id"],
             definition=WorkflowDefinition.model_validate_json(r["definition"]),
@@ -53,58 +54,58 @@ class WorkflowMixin:
             updated_at=_dt(r["updated_at"]),
         )
 
-    @staticmethod
-    def _default_template_id(db: sqlite3.Connection) -> str | None:
-        row = db.execute("SELECT value FROM settings WHERE key = 'default_workflow'").fetchone()
-        return row["value"] if row else None
+    def _default_template_id(self, db: Db, owner: str) -> str | None:
+        return self._setting(db, owner, "default_workflow")
 
-    def _seed_templates(self) -> None:
-        """The built-in template exists, and some template is the default."""
-        with self._tx() as db:
-            if not db.execute("SELECT 1 FROM workflow_templates LIMIT 1").fetchone():
-                ts = _ts(now())
-                db.execute(
-                    "INSERT INTO workflow_templates (id, definition, created_at, updated_at) "
-                    "VALUES (?, ?, ?, ?)",
-                    (BUILTIN_ID, builtin_workflow().model_dump_json(), ts, ts),
-                )
-            default = self._default_template_id(db)
-            known = (
-                default
-                and db.execute(
-                    "SELECT 1 FROM workflow_templates WHERE id = ?", (default,)
-                ).fetchone()
+    def _seed_templates(self, db: Db, owner: str) -> None:
+        """The user has a template (a copy of the built-in one to start
+        with), and one of theirs is the default."""
+        first = db.execute(
+            "SELECT id FROM workflow_templates WHERE owner_id = ? ORDER BY created_at, id "
+            "LIMIT 1",
+            (owner,),
+        ).fetchone()
+        if first is None:
+            template_id, ts = new_id("wft"), _ts(now())
+            definition = builtin_workflow().model_copy(update={"id": template_id})
+            db.execute(
+                "INSERT INTO workflow_templates (id, owner_id, definition, created_at, "
+                "updated_at) VALUES (?, ?, ?, ?, ?)",
+                (template_id, owner, definition.model_dump_json(), ts, ts),
             )
-            if not known:
-                first = db.execute(
-                    "SELECT id FROM workflow_templates ORDER BY created_at, id LIMIT 1"
-                ).fetchone()
-                db.execute(
-                    "INSERT INTO settings (key, value) VALUES ('default_workflow', ?)"
-                    " ON CONFLICT (key) DO UPDATE SET value = excluded.value",
-                    (first["id"],),
-                )
+            first = {"id": template_id}
+        default = self._default_template_id(db, owner)
+        known = (
+            default
+            and db.execute(
+                "SELECT 1 FROM workflow_templates WHERE id = ? AND owner_id = ?",
+                (default, owner),
+            ).fetchone()
+        )
+        if not known:
+            self._put_setting(db, owner, "default_workflow", first["id"])
 
-    def list_templates(self) -> list[WorkflowTemplate]:
-        with self._lock:
-            default = self._default_template_id(self._db)
-            rows = self._db.execute(
-                "SELECT * FROM workflow_templates ORDER BY created_at, id"
+    def list_templates(self, owner: str) -> list[WorkflowTemplate]:
+        with self._conn() as db:
+            default = self._default_template_id(db, owner)
+            rows = db.execute(
+                "SELECT * FROM workflow_templates WHERE owner_id = ? ORDER BY created_at, id",
+                (owner,),
             ).fetchall()
         return [self._template(r, default) for r in rows]
 
     def get_template(self, template_id: str) -> WorkflowTemplate:
-        with self._lock:
-            default = self._default_template_id(self._db)
-            row = self._db.execute(
+        with self._conn() as db:
+            row = db.execute(
                 "SELECT * FROM workflow_templates WHERE id = ?", (template_id,)
             ).fetchone()
-        if not row:
-            raise _not_found("workflow template", template_id)
+            if not row:
+                raise _not_found("workflow template", template_id)
+            default = self._default_template_id(db, row["owner_id"])
         return self._template(row, default)
 
     def save_template(
-        self, template_id: str | None, definition: WorkflowDefinition
+        self, owner: str, template_id: str | None, definition: WorkflowDefinition
     ) -> WorkflowTemplate:
         """Create (no id) or replace a template; its version goes up by one."""
         ts = _ts(now())
@@ -113,13 +114,14 @@ class WorkflowMixin:
                 template_id = new_id("wft")
                 saved = definition.model_copy(update={"id": template_id, "version": 1})
                 db.execute(
-                    "INSERT INTO workflow_templates (id, definition, created_at, updated_at) "
-                    "VALUES (?, ?, ?, ?)",
-                    (template_id, saved.model_dump_json(), ts, ts),
+                    "INSERT INTO workflow_templates (id, owner_id, definition, created_at, "
+                    "updated_at) VALUES (?, ?, ?, ?, ?)",
+                    (template_id, owner, saved.model_dump_json(), ts, ts),
                 )
             else:
                 row = db.execute(
-                    "SELECT definition FROM workflow_templates WHERE id = ?", (template_id,)
+                    "SELECT definition FROM workflow_templates WHERE id = ? AND owner_id = ?",
+                    (template_id, owner),
                 ).fetchone()
                 if not row:
                     raise _not_found("workflow template", template_id)
@@ -143,20 +145,18 @@ class WorkflowMixin:
             db.execute("DELETE FROM workflow_templates WHERE id = ?", (template_id,))
 
     def set_default_template(self, template_id: str) -> WorkflowTemplate:
-        self.get_template(template_id)
+        owner = self.owner_of("template", template_id)
         with self._tx() as db:
-            db.execute(
-                "INSERT INTO settings (key, value) VALUES ('default_workflow', ?)"
-                " ON CONFLICT (key) DO UPDATE SET value = excluded.value",
-                (template_id,),
-            )
+            self._put_setting(db, owner, "default_workflow", template_id)
         return self.get_template(template_id)
 
-    def _template_for_project(self, db: sqlite3.Connection, template_id: str | None) -> str:
-        """The definition (JSON) a new project copies."""
-        template_id = template_id or self._default_template_id(db)
+    def _template_for_project(self, db: Db, owner: str, template_id: str | None) -> str:
+        """The definition (JSON) a new project copies: one of the owner's
+        templates (their default if none is named)."""
+        template_id = template_id or self._default_template_id(db, owner)
         row = db.execute(
-            "SELECT definition FROM workflow_templates WHERE id = ?", (template_id,)
+            "SELECT definition FROM workflow_templates WHERE id = ? AND owner_id = ?",
+            (template_id, owner),
         ).fetchone()
         if not row:
             raise _not_found("workflow template", str(template_id))
@@ -171,10 +171,46 @@ class WorkflowMixin:
                 step=r["step"],
                 prompt=r["prompt"],
                 count=r["count"],
+                status=r["status"],
+                error=r["error"],
                 updated_at=_dt(r["updated_at"]),
             )
             for r in rows
         ]
+
+    def start_run(self, project_id: str, key: str, prompt: str, count: int) -> None:
+        """Mark a step's run as started (409 if one is already running)."""
+        with self._tx() as db:
+            row = db.execute(
+                "SELECT status FROM step_runs WHERE project_id = ? AND step = ?",
+                (project_id, key),
+            ).fetchone()
+            if row and row["status"] == RunStatus.running.value:
+                raise ApiError(409, ErrorCode.workflow_locked, "this step is already running")
+            db.execute(
+                "INSERT INTO step_runs (project_id, step, prompt, count, updated_at, status, "
+                "error) VALUES (?, ?, ?, ?, ?, 'running', NULL) ON CONFLICT (project_id, step) "
+                "DO UPDATE SET prompt = excluded.prompt, count = excluded.count, "
+                "updated_at = excluded.updated_at, status = 'running', error = NULL",
+                (project_id, key, prompt, count, _ts(now())),
+            )
+
+    def fail_run(self, project_id: str, key: str, error: str) -> None:
+        with self._tx() as db:
+            db.execute(
+                "UPDATE step_runs SET status = 'failed', error = ?, updated_at = ? "
+                "WHERE project_id = ? AND step = ? AND status = 'running'",
+                (error, _ts(now()), project_id, key),
+            )
+
+    def fail_interrupted_runs(self) -> None:
+        """Runs cut off by a restart (the model call is lost)."""
+        with self._tx() as db:
+            db.execute(
+                "UPDATE step_runs SET status = 'failed', error = ?, updated_at = ? "
+                "WHERE status = 'running'",
+                ("interrupted by a server restart; run it again", _ts(now())),
+            )
 
     def step_nodes(self, project_id: str, key: str) -> list[Node]:
         rows = self._all(
@@ -208,8 +244,8 @@ class WorkflowMixin:
 
     def mentioned_nodes(self, project_id: str, text: str) -> list[Node]:
         """The nodes `text` mentions by ID, in order, that have an output."""
-        with self._lock:
-            ids = self._id_map(self._db, project_id)
+        with self._conn() as db:
+            ids = self._id_map(db, project_id)
         found = []
         for node_id in mentioned(text, ids):
             node = self.get_node(node_id)
@@ -292,17 +328,17 @@ class WorkflowMixin:
                     )
                 ids.append(node_id)
             db.execute(
-                "INSERT INTO step_runs (project_id, step, prompt, count, updated_at) "
-                "VALUES (?, ?, ?, ?, ?) ON CONFLICT (project_id, step) DO UPDATE SET "
-                "prompt = excluded.prompt, count = excluded.count, "
-                "updated_at = excluded.updated_at",
+                "INSERT INTO step_runs (project_id, step, prompt, count, updated_at, status, "
+                "error) VALUES (?, ?, ?, ?, ?, 'done', NULL) ON CONFLICT (project_id, step) "
+                "DO UPDATE SET prompt = excluded.prompt, count = excluded.count, "
+                "updated_at = excluded.updated_at, status = 'done', error = NULL",
                 (project_id, key, prompt, count, _ts(now())),
             )
             self.sync_links(db, project_id)
             self._touch_project(db, project_id)
         return [self.get_node(i) for i in ids], active
 
-    def _remove_workflow_nodes(self, db: sqlite3.Connection, node_ids: list[str]) -> list[str]:
+    def _remove_workflow_nodes(self, db: Db, node_ids: list[str]) -> list[str]:
         """Soft-delete a step's old nodes (and their edges); returns the ids
         of jobs that were active on them."""
         ts = _ts(now())
@@ -328,7 +364,7 @@ class WorkflowMixin:
         return active
 
     @staticmethod
-    def _insert_text_take(db: sqlite3.Connection, node_id: str, text: str) -> str:
+    def _insert_text_take(db: Db, node_id: str, text: str) -> str:
         """A take made without a job (a run's result, hand-written, or
         applied); it becomes the node's selected take."""
         output_id = new_id("out")

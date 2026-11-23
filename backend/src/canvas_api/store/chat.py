@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import sqlite3
-
 from ..contract import (
     ChatMessage,
     ChatRole,
@@ -13,6 +11,7 @@ from ..contract import (
 from ..errors import ApiError
 from ..ids import new_id
 from .base import (
+    Row,
     _dt,
     _not_found,
     _ts,
@@ -24,7 +23,7 @@ class ChatMixin:
     """Each text node's chat with the model."""
 
     @staticmethod
-    def _message(r: sqlite3.Row) -> ChatMessage:
+    def _message(r: Row) -> ChatMessage:
         return ChatMessage(
             id=r["id"],
             node_id=r["node_id"],

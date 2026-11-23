@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
-from pydantic import TypeAdapter, ValidationError
+from pydantic import ValidationError
 
 from canvas_api.contract import (
     EdgeCreate,
@@ -14,7 +14,6 @@ from canvas_api.contract import (
     Node,
     NodeCreate,
     NodeUpdate,
-    ServerEvent,
     VideoParams,
     default_params,
 )
@@ -77,9 +76,3 @@ def test_node_round_trips_through_json():
         updated_at=NOW,
     )
     assert Node.model_validate_json(node.model_dump_json()) == node
-
-
-def test_server_event_is_discriminated_by_type():
-    adapter = TypeAdapter(ServerEvent)
-    with pytest.raises(ValidationError):
-        adapter.validate_python({"type": "nope"})

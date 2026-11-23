@@ -26,3 +26,9 @@ dist/
 
 # Local code snapshots (not part of the app)
 .snapshots/
+
+# Deploy settings (personal: the allowlist)
+deploy/deploy.env
+
+# Firebase CLI deploy cache
+.firebase/

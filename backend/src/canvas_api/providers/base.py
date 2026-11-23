@@ -16,8 +16,8 @@ log = logging.getLogger(__name__)
 # Every reference image sent to any provider is shrunk to JPEG first (long
 # edge <= 1024 px, quality 80), as seedance-ui does: requests stay small and
 # fast to upload, and 1024 px is plenty for a reference. The node's own file
-# on disk stays full size. Providers get reference bytes only through
-# `RefFile.load()`, never by reading `path` themselves.
+# stored stays full size. Providers get reference bytes only through
+# `RefFile.load()`, never by calling `read` themselves.
 REF_IMAGE_MAX_EDGE = 1024
 REF_IMAGE_JPEG_QUALITY = 80
 
@@ -28,22 +28,28 @@ class ProviderError(Exception):
 
 @dataclass(frozen=True)
 class RefFile:
-    """A referenced output's media, in the order the node references them."""
+    """A referenced output's media, in the order the node references them.
+
+    `read` fetches the stored bytes (from disk or the bucket); `name` is the
+    file's name, e.g. "ast_x.png"."""
 
     node_id: str
     kind: MediaKind
-    path: Path
     mime: str
+    name: str
+    read: Callable[[], bytes] = field(repr=False, compare=False)
+
+    @classmethod
+    def from_path(cls, node_id: str, kind: MediaKind, path: Path, mime: str) -> RefFile:
+        return cls(node_id=node_id, kind=kind, mime=mime, name=path.name, read=path.read_bytes)
 
     def load(self) -> RefPayload:
         """The bytes to send: images compressed (see REF_IMAGE_MAX_EDGE),
         videos as they are."""
         try:
-            data = self.path.read_bytes()
-        except OSError as exc:
-            raise ProviderError(
-                f"a reference {self.kind.value} is missing on disk: {exc}"
-            ) from exc
+            data = self.read()
+        except Exception as exc:  # noqa: BLE001 - shown to the user on the job
+            raise ProviderError(f"a reference {self.kind.value} is missing: {exc}") from exc
         mime = self.mime
         if self.kind == MediaKind.image:
             before = len(data)
@@ -56,9 +62,9 @@ class RefFile:
                 before / 1024 / 1024,
                 len(data) / 1024 / 1024,
             )
-        name = self.path.name
+        name = self.name
         if mime != self.mime:  # re-encoded as JPEG
-            name = f"{self.path.stem}.jpg"
+            name = f"{Path(self.name).stem}.jpg"
         return RefPayload(data=data, mime=mime, filename=name)
 
 

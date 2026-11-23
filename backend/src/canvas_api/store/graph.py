@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import sqlite3
 from datetime import timedelta
-from pathlib import Path
 
 from ..contract import (
     Edge,
@@ -37,10 +35,12 @@ from .base import (
     ACTIVE,
     PURGE_AFTER,
     WORKFLOW_HANDLE,
+    Db,
     _not_found,
     _ts,
     now,
 )
+from .media import asset_key
 
 
 class GraphMixin:
@@ -167,9 +167,7 @@ class GraphMixin:
         return self.get_node(node_id)
 
     @staticmethod
-    def _names_in_use(
-        db: sqlite3.Connection, project_id: str, exclude_id: str | None
-    ) -> set[str]:
+    def _names_in_use(db: Db, project_id: str, exclude_id: str | None) -> set[str]:
         rows = db.execute(
             "SELECT id, title FROM nodes WHERE project_id = ? AND deleted_at IS NULL "
             "AND title != ''",
@@ -178,7 +176,7 @@ class GraphMixin:
         return {name_key(r["title"]) for r in rows if r["id"] != exclude_id}
 
     def _check_name_free(
-        self, db: sqlite3.Connection, project_id: str, name: str | None, node_id: str | None
+        self, db: Db, project_id: str, name: str | None, node_id: str | None
     ) -> None:
         if name and not is_valid_id(name):
             raise ApiError(422, ErrorCode.validation_error, ID_RULE, {"name": name})
@@ -190,9 +188,7 @@ class GraphMixin:
                 {"name": name},
             )
 
-    def _unique_name(
-        self, db: sqlite3.Connection, project_id: str, wanted: str, node_id: str | None
-    ) -> str:
+    def _unique_name(self, db: Db, project_id: str, wanted: str, node_id: str | None) -> str:
         """`wanted` as a valid ID, or `wanted_2`, `wanted_3`... whichever is free."""
         base = wanted if is_valid_id(wanted) else to_valid_id(wanted)
         taken = self._names_in_use(db, project_id, node_id)
@@ -203,7 +199,7 @@ class GraphMixin:
         return candidate
 
     @staticmethod
-    def _id_map(db: sqlite3.Connection, project_id: str) -> dict[str, str]:
+    def _id_map(db: Db, project_id: str) -> dict[str, str]:
         """Every live node's ID -> node id."""
         rows = db.execute(
             "SELECT id, title FROM nodes WHERE project_id = ? AND deleted_at IS NULL "
@@ -213,7 +209,7 @@ class GraphMixin:
         return {r["title"]: r["id"] for r in rows}
 
     def _rename_mentions(
-        self, db: sqlite3.Connection, project_id: str, node_id: str, old: str, new: str
+        self, db: Db, project_id: str, node_id: str, old: str, new: str
     ) -> None:
         ids = self._id_map(db, project_id)
         rows = db.execute(
@@ -228,7 +224,7 @@ class GraphMixin:
             if prompt != r["prompt"]:
                 db.execute("UPDATE nodes SET prompt = ? WHERE id = ?", (prompt, r["id"]))
 
-    def sync_links(self, db: sqlite3.Connection, project_id: str) -> None:
+    def sync_links(self, db: Db, project_id: str) -> None:
         """Make links match prompts, for the whole project.
 
         - A generating node's links are exactly the nodes its prompt mentions by
@@ -241,7 +237,7 @@ class GraphMixin:
         """
         ts = _ts(now())
         nodes = db.execute(
-            "SELECT id, title, prompt, role, source FROM nodes "
+            "SELECT id, title, prompt, source FROM nodes "
             "WHERE project_id = ? AND deleted_at IS NULL ORDER BY created_at, id",
             (project_id,),
         ).fetchall()
@@ -375,8 +371,8 @@ class GraphMixin:
                 (JobStatus.canceled.value, "the node was deleted", ts, node_id),
             )
             db.execute(
-                f"UPDATE edges SET deleted_at = ? WHERE id IN ({','.join('?' * len(edges))})",
-                (ts, *edges),
+                "UPDATE edges SET deleted_at = ? WHERE id = ANY(?)",
+                (ts, list(edges)),
             )
             db.execute("UPDATE nodes SET deleted_at = ? WHERE id = ?", (ts, node_id))
             self.sync_links(db, node.project_id)
@@ -463,7 +459,7 @@ class GraphMixin:
         outputs = [o for n in restored_nodes for o in self.list_outputs(n)]
         return nodes, restored_edges, outputs
 
-    def purge_deleted(self, older_than: timedelta = PURGE_AFTER) -> list[Path]:
+    def purge_deleted(self, older_than: timedelta = PURGE_AFTER) -> list[str]:
         """Erase nodes and edges soft-deleted before `older_than` ago.
 
         Returns the asset files of purged nodes, for the caller to remove.
@@ -471,7 +467,7 @@ class GraphMixin:
         cutoff = _ts(now() - older_than)
         with self._tx() as db:
             files = [
-                self.assets_dir / r["filename"]
+                asset_key(r["filename"])
                 for r in db.execute(
                     "SELECT a.filename FROM assets a JOIN outputs o ON o.asset_id = a.id "
                     "JOIN nodes n ON n.id = o.node_id "

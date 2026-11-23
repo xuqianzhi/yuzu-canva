@@ -40,10 +40,19 @@ request may take up to `SEEDANCE_HTTP_TIMEOUT` (default 900s).
 If a create request is lost mid-upload, the backend checks Ark for the task
 (by its seed) before reporting a failure, so you are never charged twice.
 
-Everything is stored in SQLite and files under `data/`. Poll
-`GET /api/jobs/{id}` for progress.
+Data is in Postgres (locally the compose `db` service; deployed, Supabase),
+media under `data/` locally or in Cloud Storage when deployed. Poll
+`GET /api/jobs/{id}` for progress; a workflow step runs in the background
+(poll the graph until its run is `done`).
 
-Not yet: the WebSocket event stream (the UI polls), streaming chat answers.
+Every API route but `/api/health` needs a sign-in: deployed, a Firebase ID
+token (Google sign-in) for an allowlisted email; locally, `dev:<email>` (the
+frontend's dev sign-in). Each user sees only their own projects, templates,
+assets and settings, within daily limits. Media links are signed instead.
+
+Deploying (Firebase Hosting + Cloud Run + Supabase): see [DEPLOY.md](DEPLOY.md).
+
+Not yet: streaming chat answers.
 
 ## Backend
 
@@ -52,8 +61,8 @@ Needs Docker Desktop.
 ```bash
 cd backend
 make setup      # creates .env -- add OPENAI_API_KEY and ARK_API_KEY
-make up         # API on http://127.0.0.1:8788, docs at /docs
-make test       # tests in Docker
+make up         # Postgres + API on http://127.0.0.1:8788, docs at /docs
+make test       # tests in Docker (each test gets its own Postgres schema)
 make down
 ```
 

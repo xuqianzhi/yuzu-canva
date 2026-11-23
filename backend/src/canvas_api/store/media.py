@@ -1,9 +1,13 @@
-"""Stored files: materials, uploaded nodes, global assets, outputs."""
+"""Stored files: materials, uploaded nodes, global assets, outputs.
+
+A project asset's file is "assets/<asset id>.<ext>", a global asset's
+"global/<id>.<ext>" (see files.py). Files are written before their rows and
+removed again if the row can't be written.
+"""
 
 from __future__ import annotations
 
-import sqlite3
-from pathlib import Path
+from pathlib import PurePath
 
 from ..contract import (
     Asset,
@@ -24,8 +28,11 @@ from ..domain.mentions import (
     is_valid_id,
 )
 from ..errors import ApiError
+from ..files import delete_all
 from ..ids import new_id
 from .base import (
+    Db,
+    Row,
     _dt,
     _not_found,
     _ts,
@@ -33,10 +40,22 @@ from .base import (
 )
 
 
+def asset_key(filename: str) -> str:
+    return f"assets/{filename}"
+
+
+def global_key(filename: str) -> str:
+    return f"global/{filename}"
+
+
+def _ext(filename: str) -> str:
+    return PurePath(filename).suffix.lstrip(".") or "bin"
+
+
 class MediaMixin:
     """Stored files: materials, uploaded nodes, global assets, outputs."""
 
-    def _material(self, r: sqlite3.Row) -> Material:
+    def _material(self, r: Row) -> Material:
         asset = self._asset(self._one("SELECT * FROM assets WHERE id = ?", r["asset_id"]))
         return Material(
             id=r["id"],
@@ -48,35 +67,45 @@ class MediaMixin:
 
     def _insert_asset(
         self,
-        db: sqlite3.Connection,
+        db: Db,
         project_id: str,
         kind: MediaKind,
-        data: bytes,
         mime: str,
         ext: str,
+        size: int,
         width: int | None,
         height: int | None,
         duration_s: float | None,
-    ) -> tuple[str, Path]:
+        *,
+        data: bytes | None = None,
+        copy_from: str | None = None,
+    ) -> tuple[str, str]:
+        """Store a file (`data`, or a copy of the file `copy_from`) and its
+        asset row. Returns (asset id, the file's key)."""
         asset_id = new_id("ast")
-        path = self.assets_dir / f"{asset_id}.{ext}"
-        path.write_bytes(data)
+        filename = f"{asset_id}.{ext}"
+        key = asset_key(filename)
+        if copy_from is not None:
+            self.files.copy(copy_from, key)
+        else:
+            self.files.write(key, data or b"", mime)
         db.execute(
-            "INSERT INTO assets VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO assets (id, project_id, kind, mime, filename, bytes, width, "
+            "height, duration_s, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 asset_id,
                 project_id,
                 kind.value,
                 mime,
-                path.name,
-                len(data),
+                filename,
+                size,
                 width,
                 height,
                 duration_s,
                 _ts(now()),
             ),
         )
-        return asset_id, path
+        return asset_id, key
 
     def list_materials(self, project_id: str) -> list[Material]:
         self.get_project(project_id)
@@ -106,57 +135,79 @@ class MediaMixin:
     ) -> Material:
         self.get_project(project_id)
         material_id = new_id("mat")
-        path = None
+        written: list[str] = []
         try:
             with self._tx() as db:
-                asset_id, path = self._insert_asset(
-                    db, project_id, kind, data, mime, ext, width, height, duration_s
+                asset_id, key = self._insert_asset(
+                    db,
+                    project_id,
+                    kind,
+                    mime,
+                    ext,
+                    len(data),
+                    width,
+                    height,
+                    duration_s,
+                    data=data,
                 )
+                written.append(key)
                 db.execute(
-                    "INSERT INTO materials VALUES (?, ?, ?, ?, ?)",
+                    "INSERT INTO materials (id, project_id, asset_id, name, created_at) "
+                    "VALUES (?, ?, ?, ?, ?)",
                     (material_id, project_id, asset_id, name, _ts(now())),
                 )
         except BaseException:
-            if path:
-                path.unlink(missing_ok=True)
+            delete_all(self.files, written)
             raise
         return self.get_material(material_id)
 
-    def delete_material(self, material_id: str) -> Path:
+    def delete_material(self, material_id: str) -> str:
         """Remove it from the library. Nodes placed from it keep their own copy.
 
         Returns the file to remove.
         """
         material = self.get_material(material_id)
-        _, path = self.asset_file(material.asset.id)
+        _, key = self.asset_file(material.asset.id)
         with self._tx() as db:
             db.execute("DELETE FROM assets WHERE id = ?", (material.asset.id,))
-        return path
+        return key
 
     def _insert_upload_node(
         self,
-        db: sqlite3.Connection,
+        db: Db,
         project_id: str,
         kind: MediaKind,
-        data: bytes,
         mime: str,
         ext: str,
+        size: int,
         width: int | None,
         height: int | None,
         duration_s: float | None,
         *,
         name: str,
         position: Position,
-    ) -> tuple[str, Path]:
-        """An uploaded node holding its own copy of `data` as its one take,
+        data: bytes | None = None,
+        copy_from: str | None = None,
+    ) -> tuple[str, str]:
+        """An uploaded node holding its own copy of the file as its one take,
         already selected. `name` is made unique in the project.
 
         Returns (node id, the file written), for cleanup if the caller fails.
         """
         node_id, output_id, ts = new_id("nod"), new_id("out"), _ts(now())
         unique = self._unique_name(db, project_id, name[:80], None)
-        asset_id, path = self._insert_asset(
-            db, project_id, kind, data, mime, ext, width, height, duration_s
+        asset_id, key = self._insert_asset(
+            db,
+            project_id,
+            kind,
+            mime,
+            ext,
+            size,
+            width,
+            height,
+            duration_s,
+            data=data,
+            copy_from=copy_from,
         )
         db.execute(
             "INSERT INTO nodes (id, project_id, kind, title, position, size, prompt, "
@@ -180,7 +231,7 @@ class MediaMixin:
             "created_at) VALUES (?, ?, NULL, ?, NULL, ?, ?)",
             (output_id, node_id, kind.value, asset_id, ts),
         )
-        return node_id, path
+        return node_id, key
 
     def place_material(self, material_id: str, position: Position) -> Node:
         """Create an uploaded node from a material, with its own copy of the file.
@@ -189,39 +240,39 @@ class MediaMixin:
         the file, already selected, so it can feed other nodes right away.
         """
         material = self.get_material(material_id)
-        asset, source_path = self.asset_file(material.asset.id)
-        stem = Path(material.name).stem.strip() or asset.kind.value
-        path = None
+        asset, source = self.asset_file(material.asset.id)
+        stem = PurePath(material.name).stem.strip() or asset.kind.value
+        written: list[str] = []
         try:
             with self._tx() as db:
-                node_id, path = self._insert_upload_node(
+                node_id, key = self._insert_upload_node(
                     db,
                     material.project_id,
                     asset.kind,
-                    source_path.read_bytes(),
                     asset.mime,
-                    source_path.suffix.lstrip(".") or "bin",
+                    _ext(source),
+                    asset.bytes,
                     asset.width,
                     asset.height,
                     asset.duration_s,
                     name=stem,
                     position=position,
+                    copy_from=source,
                 )
+                written.append(key)
                 self._touch_project(db, material.project_id)
         except BaseException:
-            if path:
-                path.unlink(missing_ok=True)
+            delete_all(self.files, written)
             raise
         return self.get_node(node_id)
 
-    @staticmethod
-    def _global(r: sqlite3.Row) -> GlobalAsset:
+    def _global(self, r: Row) -> GlobalAsset:
         return GlobalAsset(
             id=r["id"],
             name=r["name"],
             kind=r["kind"],
             mime=r["mime"],
-            url=f"/api/global-assets/{r['id']}/content",
+            url=self.signer.url("global-assets", r["id"]),
             bytes=r["bytes"],
             width=r["width"],
             height=r["height"],
@@ -229,8 +280,10 @@ class MediaMixin:
             created_at=_dt(r["created_at"]),
         )
 
-    def list_global_assets(self) -> list[GlobalAsset]:
-        rows = self._all("SELECT * FROM global_assets ORDER BY created_at, id")
+    def list_global_assets(self, owner: str) -> list[GlobalAsset]:
+        rows = self._all(
+            "SELECT * FROM global_assets WHERE owner_id = ? ORDER BY created_at, id", owner
+        )
         return [self._global(r) for r in rows]
 
     def get_global_asset(self, asset_id: str) -> GlobalAsset:
@@ -239,14 +292,15 @@ class MediaMixin:
             raise _not_found("global asset", asset_id)
         return self._global(row)
 
-    def global_asset_file(self, asset_id: str) -> tuple[GlobalAsset, Path]:
+    def global_asset_file(self, asset_id: str) -> tuple[GlobalAsset, str]:
         row = self._one("SELECT * FROM global_assets WHERE id = ?", asset_id)
         if not row:
             raise _not_found("global asset", asset_id)
-        return self._global(row), self.global_dir / row["filename"]
+        return self._global(row), global_key(row["filename"])
 
-    def _global_name(self, db: sqlite3.Connection, name: str, exclude_id: str | None) -> str:
-        """Validate a global asset's name: required, unique ignoring case."""
+    def _global_name(self, db: Db, owner: str, name: str, exclude_id: str | None) -> str:
+        """Validate a global asset's name: required, unique (for its owner)
+        ignoring case."""
         cleaned = normalize_name(name)
         if not cleaned:
             raise ApiError(422, ErrorCode.validation_error, "a global asset needs an ID")
@@ -254,7 +308,9 @@ class MediaMixin:
             raise ApiError(422, ErrorCode.validation_error, ID_RULE, {"name": cleaned})
         taken = {
             name_key(r["name"])
-            for r in db.execute("SELECT id, name FROM global_assets")
+            for r in db.execute(
+                "SELECT id, name FROM global_assets WHERE owner_id = ?", (owner,)
+            ).fetchall()
             if r["id"] != exclude_id
         }
         if name_key(cleaned) in taken:
@@ -268,6 +324,7 @@ class MediaMixin:
 
     def create_global_asset(
         self,
+        owner: str,
         name: str,
         kind: MediaKind,
         data: bytes,
@@ -278,19 +335,25 @@ class MediaMixin:
         duration_s: float | None = None,
     ) -> GlobalAsset:
         asset_id = new_id("gas")
-        path = self.global_dir / f"{asset_id}.{ext}"
+        filename = f"{asset_id}.{ext}"
+        key = global_key(filename)
+        with self._tx() as db:  # check the name before writing the file
+            cleaned = self._global_name(db, owner, name, None)
+        self.files.write(key, data, mime)
         try:
             with self._tx() as db:
-                cleaned = self._global_name(db, name, None)
-                path.write_bytes(data)
+                cleaned = self._global_name(db, owner, name, None)
                 db.execute(
-                    "INSERT INTO global_assets VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO global_assets (id, owner_id, name, kind, mime, filename, "
+                    "bytes, width, height, duration_s, created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         asset_id,
+                        owner,
                         cleaned,
                         kind.value,
                         mime,
-                        path.name,
+                        filename,
                         len(data),
                         width,
                         height,
@@ -299,23 +362,23 @@ class MediaMixin:
                     ),
                 )
         except BaseException:
-            path.unlink(missing_ok=True)
+            delete_all(self.files, [key])
             raise
         return self.get_global_asset(asset_id)
 
     def rename_global_asset(self, asset_id: str, name: str) -> GlobalAsset:
-        self.get_global_asset(asset_id)
+        owner = self.owner_of("global_asset", asset_id)
         with self._tx() as db:
-            cleaned = self._global_name(db, name, asset_id)
+            cleaned = self._global_name(db, owner, name, asset_id)
             db.execute("UPDATE global_assets SET name = ? WHERE id = ?", (cleaned, asset_id))
         return self.get_global_asset(asset_id)
 
-    def delete_global_asset(self, asset_id: str) -> Path:
+    def delete_global_asset(self, asset_id: str) -> str:
         """Returns the file to remove. Projects made earlier keep their copies."""
-        _, path = self.global_asset_file(asset_id)
+        _, key = self.global_asset_file(asset_id)
         with self._tx() as db:
             db.execute("DELETE FROM global_assets WHERE id = ?", (asset_id,))
-        return path
+        return key
 
     def list_outputs(self, node_id: str) -> list[Output]:
         self.get_node(node_id)
@@ -328,8 +391,9 @@ class MediaMixin:
             raise _not_found("output", output_id)
         return self._output(row)
 
-    def asset_file(self, asset_id: str) -> tuple[Asset, Path]:
+    def asset_file(self, asset_id: str) -> tuple[Asset, str]:
+        """An asset and its file's key."""
         row = self._one("SELECT * FROM assets WHERE id = ?", asset_id)
         if not row:
             raise _not_found("asset", asset_id)
-        return self._asset(row), self.assets_dir / row["filename"]
+        return self._asset(row), asset_key(row["filename"])

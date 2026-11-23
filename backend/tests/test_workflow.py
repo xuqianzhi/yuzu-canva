@@ -3,23 +3,48 @@ with a prompt and a count."""
 
 from __future__ import annotations
 
-import sqlite3
+import time
 
 from fastapi.testclient import TestClient
 
-from canvas_api.app import create_app
-from canvas_api.contract import Operation
-from canvas_api.domain.workflow import BUILTIN_ID, builtin_workflow, parse_run
+from canvas_api.domain.workflow import builtin_workflow, parse_run
 
-from .conftest import make_settings, wait_for_job
+from .conftest import wait_for_job
 from .test_api import error_code, new_node, new_project
 
 
+class Finished:
+    """A finished run, shaped like a response: 200 with the graph, or 502
+    with the run's error."""
+
+    def __init__(self, status_code: int, body: dict) -> None:
+        self.status_code, self._body = status_code, body
+        self.text = str(body)
+
+    def json(self) -> dict:
+        return self._body
+
+
 def run_step(client: TestClient, project: str, step: str, prompt: str, count: int | None):
-    return client.post(
+    """Start a run and wait for it (it finishes in the background)."""
+    response = client.post(
         f"/api/projects/{project}/workflow/steps/{step}/run",
         json={"prompt": prompt, "count": count},
     )
+    if response.status_code != 202:
+        return response
+    started = next(r for r in response.json()["runs"] if r["step"] == step)
+    assert started["status"] in ("running", "done", "failed")  # may already be over
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        graph = graph_of(client, project)
+        run = next(r for r in graph["runs"] if r["step"] == step)
+        if run["status"] == "done":
+            return Finished(200, graph)
+        if run["status"] == "failed":
+            return Finished(502, {"error": {"code": "provider_error", "message": run["error"]}})
+        time.sleep(0.02)
+    raise AssertionError(f"step {step} still running")
 
 
 def step_nodes(graph: dict, step: str) -> list[dict]:
@@ -29,6 +54,17 @@ def step_nodes(graph: dict, step: str) -> list[dict]:
 
 def graph_of(client: TestClient, project: str) -> dict:
     return client.get(f"/api/projects/{project}").json()
+
+
+def wait_for_outputs(client: TestClient, project: str, step: str) -> None:
+    """Until every node of the step has an output."""
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        nodes = step_nodes(graph_of(client, project), step)
+        if nodes and all(n["selected_output_id"] for n in nodes):
+            return
+        time.sleep(0.02)
+    raise AssertionError(f"{step} nodes still have no output")
 
 
 def mini() -> dict:
@@ -44,13 +80,14 @@ def mini() -> dict:
 
 def test_templates_are_designed_once_and_copied_by_projects(client):
     [builtin] = client.get("/api/workflow-templates").json()
-    assert builtin["id"] == BUILTIN_ID and builtin["is_default"]
+    assert builtin["id"].startswith("wft_") and builtin["is_default"]
     assert [(s["name"], s["kind"]) for s in builtin["definition"]["steps"]] == [
         ("Dish brainstorming", "text"),
         ("Character", "image"),
     ]
     project = graph_of(client, new_project(client))["project"]
-    assert project["workflow"] == builtin_workflow().model_dump(mode="json")
+    expected = builtin_workflow().model_copy(update={"id": builtin["id"]})
+    assert project["workflow"] == expected.model_dump(mode="json")
 
     made = client.post("/api/workflow-templates", json={"definition": mini()})
     assert made.status_code == 201, made.text
@@ -69,7 +106,7 @@ def test_templates_are_designed_once_and_copied_by_projects(client):
     assert client.post("/api/workflow-templates", json={"definition": twice}).status_code == 422
     client.post(f"/api/workflow-templates/{template['id']}/default")
     assert client.delete(f"/api/workflow-templates/{template['id']}").status_code == 409
-    client.post(f"/api/workflow-templates/{BUILTIN_ID}/default")
+    client.post(f"/api/workflow-templates/{builtin['id']}/default")
     assert client.delete(f"/api/workflow-templates/{template['id']}").status_code == 204
 
 
@@ -91,6 +128,8 @@ def test_a_text_step_makes_one_node_per_result(client, fake_text):
         "step": "dishes",
         "prompt": "winter soups",
         "count": 3,
+        "status": "done",
+        "error": None,
         "updated_at": None,
     }
     call = fake_text.calls[-1]
@@ -116,6 +155,7 @@ def test_independent_results_are_used_by_mentioning_their_ids(client, fake_text,
     run_step(client, project, "characters", "a mascot", 1)
     assert fake_text.calls[-1]["messages"][0]["content"] == "## Request\na mascot"
 
+    fake_image.gate.clear()  # keep the new image jobs running while we look
     graph = run_step(client, project, "characters", "a mascot for dishes_2", 2).json()
     call = fake_text.calls[-1]
     sent = call["messages"][0]["content"]
@@ -131,14 +171,15 @@ def test_independent_results_are_used_by_mentioning_their_ids(client, fake_text,
     assert [(e["source_node_id"], e["workflow"]) for e in into] == [(dish["id"], False)]
     # Each image is generated right away.
     assert len(graph["active_jobs"]) == 2
+    fake_image.gate.set()
     for job in graph["active_jobs"]:
         assert wait_for_job(client, job["id"])["status"] == "succeeded"
 
 
 def test_mentioned_images_are_shown_to_the_model(client, fake_text, fake_image):
     project = new_project(client)
-    graph = run_step(client, project, "characters", "a fox", 1).json()
-    wait_for_job(client, graph["active_jobs"][0]["id"])
+    run_step(client, project, "characters", "a fox", 1)
+    wait_for_outputs(client, project, "characters")
     run_step(client, project, "dishes", "a soup for characters_1", 2)
     call = fake_text.calls[-1]
     assert call["messages"][0]["content"].startswith(
@@ -207,15 +248,16 @@ def test_one_to_one_into_text_writes_one_result_per_input(client, fake_text):
 
 def test_one_to_one_images_are_references(client, fake_image, fake_video):
     project = one_to_one_template(client, "image", "video")
-    graph = run_step(client, project, "prompts", "two stills", 2).json()
-    for job in graph["active_jobs"]:
-        wait_for_job(client, job["id"])
+    run_step(client, project, "prompts", "two stills", 2)
+    wait_for_outputs(client, project, "prompts")
     assert run_step(client, project, "scenes", "", None).status_code == 422  # needs a prompt
+    fake_video.gate.clear()  # keep the video jobs running while we look
     graph = run_step(client, project, "scenes", "slow zoom in", None).json()
     scenes = step_nodes(graph, "scenes")
     assert [n["prompt"] for n in scenes] == ["slow zoom in", "slow zoom in"]
     job = graph["active_jobs"][0]
     assert [r["kind"] for r in job["input"]["refs"]] == ["image"]
+    fake_video.gate.set()
 
 
 def test_the_last_step_cant_feed_one_to_one(client):
@@ -268,26 +310,3 @@ def test_chat_and_takes_on_text_nodes(client, fake_text):
     assert [o["id"] for o in outputs][:2] == [take["id"], applied["id"]]
     image = new_node(client, project)["id"]
     assert client.post(f"/api/nodes/{image}/chat", json={"text": "hi"}).status_code == 409
-
-
-def test_older_workflows_are_released(data_dir, fake_image):
-    """Before: templates and nodes of a richer workflow model."""
-    settings = make_settings(data_dir)
-    generators = {Operation.image_generate: fake_image}
-    with TestClient(create_app(settings, generators)) as client:
-        project = new_project(client)
-        node = new_node(client, project, kind="text")["id"]
-    db = sqlite3.connect(settings.db_path)
-    db.execute(
-        "UPDATE nodes SET workflow_step = 'shots', workflow_item = 'itm_a' WHERE id = ?",
-        (node,),
-    )
-    db.execute('UPDATE workflow_templates SET definition = \'{"id": "x", "label": {}}\'')
-    db.execute("PRAGMA user_version = 3")
-    db.commit()
-    db.close()
-    with TestClient(create_app(settings, generators)) as client:
-        graph = graph_of(client, project)
-        assert graph["nodes"][0]["workflow_step"] is None
-        assert graph["project"]["workflow"]["id"] == BUILTIN_ID
-        assert [t["id"] for t in client.get("/api/workflow-templates").json()] == [BUILTIN_ID]
