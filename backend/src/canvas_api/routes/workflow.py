@@ -304,11 +304,10 @@ async def send_chat(
     spending.charge(user.id, store.collection_of(node.project_id), "text")
     language = store.get_language(user.id).value
     w = words(language)
-    step_name, instruction = None, ""
+    step, instruction = None, ""
     if node.workflow_step:
         project = store.get_project(node.project_id)
         step = step_by_key(project.workflow, node.workflow_step)
-        step_name = step.name if step else None
         instruction = project.instruction
     current = None
     if node.selected_output_id:
@@ -332,7 +331,7 @@ async def send_chat(
     messages.append({"role": "user", "content": body.text})
     try:
         answer = await text_model.complete(
-            chat_system(instruction, step_name, language), messages, chat_spec()
+            chat_system(instruction, step, language), messages, chat_spec()
         )
         reply, proposal = parse_chat_answer(answer)
     except ProviderError as exc:

@@ -2694,6 +2694,12 @@
             ],
             "title": "Count"
           },
+          "description": {
+            "default": "",
+            "maxLength": 4000,
+            "title": "Description",
+            "type": "string"
+          },
           "key": {
             "pattern": "^[a-z][a-z0-9_]{0,39}$",
             "title": "Key",
@@ -2716,6 +2722,7 @@
         "required": [
           "key",
           "name",
+          "description",
           "kind",
           "output",
           "count"

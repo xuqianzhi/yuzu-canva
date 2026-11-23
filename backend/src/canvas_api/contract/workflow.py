@@ -41,6 +41,8 @@ from .common import (
 # The most nodes one run of a step may make.
 MAX_ITEMS = 20
 
+MAX_STEP_DESCRIPTION = 4000
+
 STEP_KEY = r"^[a-z][a-z0-9_]{0,39}$"
 
 
@@ -55,6 +57,10 @@ class WorkflowStep(CompleteModel):
     # Stable identity (node IDs are "<key>_<n>"), set by the designer.
     key: str = Field(pattern=STEP_KEY)
     name: str = Field(min_length=1, max_length=80)
+    # What this step is for, in the user's words: sent to the text model with
+    # the project instruction whenever it writes for this step (a run, or a
+    # chat on one of its nodes). Empty: nothing extra.
+    description: str = Field(default="", max_length=MAX_STEP_DESCRIPTION)
     kind: MediaKind
     output: OutputUse = OutputUse.independent
     # How many a run makes unless the project says otherwise (the run form

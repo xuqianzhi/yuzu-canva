@@ -12,7 +12,7 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
-from ..contract import Language, MediaKind, WorkflowDefinition, WorkflowStep
+from ..contract import Language, MediaKind, OutputUse, WorkflowDefinition, WorkflowStep
 
 # --- the built-in template --------------------------------------------------------
 
@@ -25,8 +25,71 @@ def builtin_workflow() -> WorkflowDefinition:
         version=1,
         name="Default",
         steps=[
-            WorkflowStep(key="dishes", name="Dish brainstorming", kind=MediaKind.text, count=3),
-            WorkflowStep(key="characters", name="Character", kind=MediaKind.image, count=3),
+            WorkflowStep(
+                key="characters",
+                name="Character",
+                kind=MediaKind.image,
+                description=(
+                    "Design the recurring characters of this video, one image per "
+                    "character: full body, facing the camera, on a plain background, so "
+                    "later steps can use them by ID (characters_1, characters_2...). Give "
+                    "each a distinctive, easy-to-repeat look (face, hair, clothes, "
+                    "colours), all in one shared art style."
+                ),
+            ),
+            WorkflowStep(
+                key="dishes",
+                name="Dish brainstorming",
+                kind=MediaKind.text,
+                description=(
+                    "Brainstorm dishes the video could feature. For each: its name, one "
+                    "sentence on what it is, and what makes it look good on camera. Keep "
+                    "them varied in cuisine, colour and difficulty."
+                ),
+            ),
+            WorkflowStep(
+                key="dish_images",
+                name="Dish image",
+                kind=MediaKind.image,
+                description=(
+                    "One appetising image per dish: the finished dish, plated and "
+                    "styled, in the same art style as the characters, so it can appear "
+                    "in the video."
+                ),
+            ),
+            WorkflowStep(
+                key="script",
+                name="Script overview",
+                kind=MediaKind.text,
+                count=1,
+                description=(
+                    "Write the video's script: a title, then numbered scenes. For each "
+                    "scene: where it happens, which characters and dishes are in it (by "
+                    "ID), what happens, and any spoken line. Keep it to about 1-2 "
+                    "minutes, with a clear beginning, middle and end."
+                ),
+            ),
+            WorkflowStep(
+                key="scene_prompts",
+                name="Prompt per scene",
+                kind=MediaKind.text,
+                output=OutputUse.one_to_one,
+                description=(
+                    "Turn each scene of the script into the prompt for its video clip, "
+                    "in order, one scene per result. Each result is sent to the video "
+                    "model exactly as written, so it is the prompt itself and nothing "
+                    "else: no title, scene number, notes or explanation."
+                ),
+            ),
+            WorkflowStep(
+                key="videos",
+                name="Video per prompt",
+                kind=MediaKind.video,
+                description=(
+                    "One short clip per scene prompt from the step before. Keep the "
+                    "characters, style and light consistent from clip to clip."
+                ),
+            ),
         ],
     )
 
@@ -277,7 +340,7 @@ def run_messages(
         task = w[f"task_{step.kind.value}"].format(count=count)
         if step.kind != MediaKind.text and references:
             task += " " + w["keep_ids"]
-    parts.append(f"{w['step'].format(name=step.name)}\n{task}")
+    parts.append(_step_block(step, w, task))
     system = "\n\n".join(parts)
 
     user = [f"{w['referenced'].format(name=r.name)}\n{_body(r, w)}" for r in references]
@@ -291,13 +354,24 @@ def run_messages(
     return system, "\n\n".join(user)
 
 
-def chat_system(instruction: str, step_name: str | None, language: str) -> str:
+def _step_block(step: WorkflowStep, w: dict[str, str], task: str | None = None) -> str:
+    """ "## This step: <name>", its description (the user's own words), and
+    what to do now, if given."""
+    lines = [w["step"].format(name=step.name)]
+    if step.description.strip():
+        lines.append(step.description.strip())
+    if task:
+        lines.append(task)
+    return "\n".join(lines)
+
+
+def chat_system(instruction: str, step: WorkflowStep | None, language: str) -> str:
     w = words(language)
     parts = [w["base"]]
     if instruction.strip():
         parts.append(f"{w['instruction']}\n{instruction.strip()}")
-    if step_name:
-        parts.append(w["step"].format(name=step_name))
+    if step is not None:
+        parts.append(_step_block(step, w))
     parts.append(w["how"])
     return "\n\n".join(parts)
 

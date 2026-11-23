@@ -256,6 +256,9 @@ const en = {
   wf_output_last: "The last step's results are independent.",
   wf_output_independent_last: "Independent (last step)",
   wf_count: "Default count",
+  wf_description: "Description (sent to the AI with this step)",
+  wf_description_ph:
+    "What this step is for and what good results look like, e.g. “Two-line dish ideas a five-year-old could draw.”",
   wf_count_none: "None",
   wf_count_help: "How many a run makes; a project can change it. Blank: each project must say.",
   wf_count_fed: "Set by the step before: one result per node it made.",
@@ -648,6 +651,8 @@ const zh: Record<Key, string> = {
   wf_output_last: "最后一步的结果是独立的。",
   wf_output_independent_last: "独立（最后一步）",
   wf_count: "默认数量",
+  wf_description: "说明（运行这一步时会发给 AI）",
+  wf_description_ph: "这一步要做什么、好的结果是什么样，例如：“五岁小孩能画出来的两行菜品创意。”",
   wf_count_none: "无",
   wf_count_help: "每次运行生成的数量；项目里可以修改。留空：每个项目需自行填写。",
   wf_count_fed: "由上一步决定：它的每个节点生成一个结果。",

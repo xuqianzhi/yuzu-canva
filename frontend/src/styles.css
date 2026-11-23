@@ -3031,6 +3031,25 @@ a.rail-button {
   flex: none;
 }
 
+/* The step's description: its own line under the fields, lined up with them. */
+.designer__step--row {
+  flex-wrap: wrap;
+}
+
+.designer__step--row .designer__field--description {
+  flex: 1 1 100%;
+  padding-left: 42px;
+}
+
+.designer__step--row .designer__field--description textarea {
+  width: 100%;
+  min-height: 52px;
+  resize: vertical;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+}
+
 .run__count input.is-invalid {
   border-color: var(--danger);
 }

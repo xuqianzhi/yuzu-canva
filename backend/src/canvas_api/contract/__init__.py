@@ -90,6 +90,7 @@ from .users import Me, UsageCounts, UsageLine
 from .views import ProjectGraph, ProjectSummary, RestoreRequest, RestoreResult
 from .workflow import (
     MAX_ITEMS,
+    MAX_STEP_DESCRIPTION,
     AppSettings,
     AppSettingsUpdate,
     ChatMessage,
@@ -141,6 +142,7 @@ __all__ = [
     "Language",
     "Localized",
     "MAX_ITEMS",
+    "MAX_STEP_DESCRIPTION",
     "OutputUse",
     "RunStatus",
     "StepRun",

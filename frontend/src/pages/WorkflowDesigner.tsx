@@ -173,6 +173,7 @@ export function WorkflowDesigner({ view }: { view: CollectionView }) {
                       kind: "text",
                       output: "independent",
                       count: null,
+                      description: "",
                     },
                   ],
                 })
@@ -384,6 +385,16 @@ export function WorkflowDesigner({ view }: { view: CollectionView }) {
                         </svg>
                       </button>
                     </div>
+                    <label className="designer__field designer__field--description">
+                      <span>{t("wf_description")}</span>
+                      <textarea
+                        rows={2}
+                        maxLength={4000}
+                        value={step.description}
+                        placeholder={t("wf_description_ph")}
+                        onChange={(e) => setStep(index, { ...step, description: e.target.value })}
+                      />
+                    </label>
                   </li>
                 ))}
               </ol>
@@ -400,6 +411,7 @@ export function WorkflowDesigner({ view }: { view: CollectionView }) {
                         kind: "text",
                         output: "independent",
                         count: null,
+                        description: "",
                       },
                     ],
                   })

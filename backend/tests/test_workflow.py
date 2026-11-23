@@ -96,10 +96,16 @@ def test_a_collection_starts_with_the_builtin_workflow_active(client):
         client.get(f"/api/collections/{collection}").json()["active_workflow_id"]
         == (builtin["id"])
     )
-    assert [(s["name"], s["kind"]) for s in builtin["definition"]["steps"]] == [
-        ("Dish brainstorming", "text"),
-        ("Character", "image"),
+    steps = builtin["definition"]["steps"]
+    assert [(s["name"], s["kind"], s["output"]) for s in steps] == [
+        ("Character", "image", "independent"),
+        ("Dish brainstorming", "text", "independent"),
+        ("Dish image", "image", "independent"),
+        ("Script overview", "text", "independent"),
+        ("Prompt per scene", "text", "one_to_one"),
+        ("Video per prompt", "video", "independent"),
     ]
+    assert all(s["description"] for s in steps)
     project = graph_of(client, new_project(client, collection=collection))["project"]
     expected = builtin_workflow().model_copy(update={"id": builtin["id"]})
     assert project["workflow"] == expected.model_dump(mode="json")
@@ -156,7 +162,40 @@ def test_a_step_can_have_a_default_count(client):
         wrong = [{**steps[0], "count": bad}, steps[1]]
         assert add_workflow(client, collection, {**mini(), "steps": wrong}).status_code == 422
     [builtin] = [w for w in workflows(client, collection) if w["active"]]
-    assert [s["count"] for s in builtin["definition"]["steps"]] == [3, 3]
+    assert [s["count"] for s in builtin["definition"]["steps"]] == [
+        None,
+        None,
+        None,
+        1,
+        None,
+        None,
+    ]
+
+
+def test_a_steps_description_goes_to_the_ai(client, fake_text):
+    described = "Two-line dish ideas a five-year-old could draw."
+    steps = [
+        {"key": "dishes", "name": "Dishes", "kind": "text", "description": f"  {described} "},
+        {"key": "posters", "name": "Posters", "kind": "image"},
+    ]
+    collection = new_collection(
+        client, "Kids", instruction="Cozy.", workflow={**mini(), "steps": steps}
+    )
+    [workflow] = workflows(client, collection)
+    assert workflow["definition"]["steps"][0]["description"] == f"  {described} "
+    assert workflow["definition"]["steps"][1]["description"] == ""
+    project = new_project(client, collection=collection)
+
+    graph = run_step(client, project, "dishes", "soups", 1).json()
+    system = fake_text.calls[-1]["system"]
+    assert f"## This step: Dishes\n{described}\n" in system
+    assert system.index("Cozy.") < system.index(described)
+    node = step_nodes(graph, "dishes")[0]["id"]
+    client.post(f"/api/nodes/{node}/chat", json={"text": "shorter please"})
+    assert f"## This step: Dishes\n{described}" in fake_text.calls[-1]["system"]
+
+    too_long = [{**steps[0], "description": "x" * 4001}, steps[1]]
+    assert add_workflow(client, collection, {**mini(), "steps": too_long}).status_code == 422
 
 
 def test_switching_workflows_hides_steps_without_deleting_them(client):
