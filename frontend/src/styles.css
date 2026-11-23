@@ -2999,3 +2999,90 @@ a.rail-button {
 .lock-banner > span {
   padding-right: 6px;
 }
+
+/* --- a step's default count (workflow designer) and its run form --------------- */
+
+/* A step's fields share the row: the name takes what's left, the count
+   stays narrow, and the move/remove buttons never get pushed out. */
+.designer__step--row .designer__field {
+  flex: 0 1 140px;
+  min-width: 0;
+}
+
+.designer__step--row .designer__field--grow {
+  flex: 1 1 120px;
+}
+
+.designer__step--row .designer__field--kind {
+  flex: 0 1 92px;
+}
+
+.designer__step--row .designer__field--count {
+  flex: 0 0 84px;
+}
+
+.designer__step--row .designer__field input,
+.designer__step--row .designer__field select {
+  width: 100%;
+  min-width: 0;
+}
+
+.designer__step--row .designer__step-tools {
+  flex: none;
+}
+
+.run__count input.is-invalid {
+  border-color: var(--danger);
+}
+
+/* --- reordering workflow steps by drag and drop ----------------------------------- */
+
+.designer__grip {
+  flex: none;
+  touch-action: none;
+  align-self: center;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 28px;
+  margin-left: -6px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: grab;
+}
+
+.designer__grip:hover,
+.designer__grip:focus-visible {
+  outline: none;
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+.designer__grip:active {
+  cursor: grabbing;
+}
+
+.designer__grip svg {
+  width: 10px;
+  height: 16px;
+  fill: currentColor;
+}
+
+.designer__step.is-dragging {
+  position: relative;
+  z-index: 2;
+  opacity: 0.85;
+  box-shadow: var(--shadow);
+}
+
+/* Where the dragged step would land: a line in the gap above (or below). */
+.designer__step.is-drop-before {
+  box-shadow: 0 -5px 0 -2px var(--accent);
+}
+
+.designer__step.is-drop-after {
+  box-shadow: 0 5px 0 -2px var(--accent);
+}

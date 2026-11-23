@@ -57,6 +57,10 @@ class WorkflowStep(CompleteModel):
     name: str = Field(min_length=1, max_length=80)
     kind: MediaKind
     output: OutputUse = OutputUse.independent
+    # How many a run makes unless the project says otherwise (the run form
+    # starts with it). Null: no default, the project must say. Ignored after a
+    # one-to-one step (there, the step before decides).
+    count: int | None = Field(default=None, ge=1, le=MAX_ITEMS)
 
 
 class WorkflowDefinition(CompleteModel):

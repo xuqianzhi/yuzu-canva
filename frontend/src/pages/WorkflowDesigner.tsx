@@ -3,13 +3,14 @@
 // (text, image, video). Names are the user's text and are never translated.
 // A collection has any number of workflows; every project in it runs on the
 // active one, so editing or switching it changes every project.
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError, unwrap } from "../api/client";
-import type {
-  CollectionWorkflow,
-  MediaKind,
-  WorkflowDefinition,
-  WorkflowStep,
+import {
+  MAX_RUN_ITEMS,
+  type CollectionWorkflow,
+  type MediaKind,
+  type WorkflowDefinition,
+  type WorkflowStep,
 } from "../api/types";
 import { errorText, t as tr, useT } from "../i18n";
 import type { CollectionView } from "./HomePage";
@@ -17,6 +18,18 @@ import type { CollectionView } from "./HomePage";
 type WorkflowTemplate = CollectionWorkflow;
 
 const KINDS: MediaKind[] = ["text", "image", "video"];
+
+interface DragState {
+  from: number;
+  to: number;
+  startY: number;
+  dy: number;
+}
+
+/** Whether dropping now would change the order (not back into its own place). */
+function moves({ from, to }: DragState): boolean {
+  return to !== from && to !== from + 1;
+}
 
 /** A key no step has yet (node IDs are "<key>_<n>"). */
 function freeKey(steps: WorkflowStep[]): string {
@@ -72,6 +85,29 @@ export function WorkflowDesigner({ view }: { view: CollectionView }) {
     );
     setDraft({ ...next, steps });
     setDirty(true);
+  };
+  // Reordering: the step being dragged (`from`), the gap it would land in
+  // (`to`: 0 is above the first step), and how far it has moved.
+  const [drag, setDrag] = useState<DragState | null>(null);
+  const stepList = useRef<HTMLOListElement>(null);
+  /** The gap nearest the pointer: before the first row whose middle is below
+      it (the dragged row itself counts where it started). */
+  const gapAt = (y: number, from: number): number => {
+    const rows = [...(stepList.current?.children ?? [])] as HTMLElement[];
+    for (let i = 0; i < rows.length; i++) {
+      const box = rows[i]!.getBoundingClientRect();
+      const top = i === from ? box.top - (drag?.dy ?? 0) : box.top;
+      if (y < top + box.height / 2) return i;
+    }
+    return rows.length;
+  };
+  /** Move step `from` into gap `to` (an index in the list before moving). */
+  const moveStep = (from: number, to: number) => {
+    if (!draft || to === from || to === from + 1) return;
+    const steps = [...draft.steps];
+    const [moved] = steps.splice(from, 1);
+    steps.splice(to > from ? to - 1 : to, 0, moved!);
+    change({ ...draft, steps });
   };
   const setStep = (index: number, step: WorkflowStep) =>
     draft && change({ ...draft, steps: draft.steps.map((s, i) => (i === index ? step : s)) });
@@ -131,7 +167,13 @@ export function WorkflowDesigner({ view }: { view: CollectionView }) {
                   version: 1,
                   name: t("wf_new_name"),
                   steps: [
-                    { key: "step_1", name: t("wf_new_step"), kind: "text", output: "independent" },
+                    {
+                      key: "step_1",
+                      name: t("wf_new_step"),
+                      kind: "text",
+                      output: "independent",
+                      count: null,
+                    },
                   ],
                 })
               }
@@ -225,9 +267,60 @@ export function WorkflowDesigner({ view }: { view: CollectionView }) {
                   </>
                 )}
               </div>
-              <ol className="designer__steps">
+              <ol className="designer__steps" ref={stepList}>
                 {draft.steps.map((step, index) => (
-                  <li key={step.key} className="designer__step designer__step--row">
+                  <li
+                    key={step.key}
+                    className={[
+                      "designer__step designer__step--row",
+                      drag?.from === index ? "is-dragging" : "",
+                      drag && moves(drag) && drag.to === index ? "is-drop-before" : "",
+                      drag && moves(drag) && drag.to === index + 1 && index === draft.steps.length - 1
+                        ? "is-drop-after"
+                        : "",
+                    ].join(" ")}
+                    style={drag?.from === index ? { transform: `translateY(${drag.dy}px)` } : undefined}
+                  >
+                    <button
+                      className="designer__grip"
+                      aria-label={t("wf_drag_step", { name: step.name })}
+                      title={t("wf_drag_hint")}
+                      // Drag by the grip: the row follows the pointer, and a line
+                      // shows the gap it lands in when released.
+                      onPointerDown={(e) => {
+                        if (e.button !== 0) return;
+                        e.preventDefault();
+                        e.currentTarget.setPointerCapture(e.pointerId);
+                        setDrag({ from: index, to: index, startY: e.clientY, dy: 0 });
+                      }}
+                      onPointerMove={(e) => {
+                        if (drag?.from !== index) return;
+                        setDrag({ ...drag, to: gapAt(e.clientY, index), dy: e.clientY - drag.startY });
+                      }}
+                      onPointerUp={() => {
+                        if (drag?.from === index) moveStep(drag.from, drag.to);
+                        setDrag(null);
+                      }}
+                      onPointerCancel={() => setDrag(null)}
+                      onKeyDown={(e) => {
+                        if (e.key === "ArrowUp" && index > 0) {
+                          e.preventDefault();
+                          moveStep(index, index - 1);
+                        } else if (e.key === "ArrowDown" && index < draft.steps.length - 1) {
+                          e.preventDefault();
+                          moveStep(index, index + 2);
+                        }
+                      }}
+                    >
+                      <svg viewBox="0 0 10 16" aria-hidden="true">
+                        <circle cx="3" cy="3" r="1.2" />
+                        <circle cx="7" cy="3" r="1.2" />
+                        <circle cx="3" cy="8" r="1.2" />
+                        <circle cx="7" cy="8" r="1.2" />
+                        <circle cx="3" cy="13" r="1.2" />
+                        <circle cx="7" cy="13" r="1.2" />
+                      </svg>
+                    </button>
                     <strong className="designer__n">{index + 1}</strong>
                     <label className="designer__field designer__field--grow">
                       <span>{t("wf_step_name")}</span>
@@ -237,7 +330,7 @@ export function WorkflowDesigner({ view }: { view: CollectionView }) {
                         onChange={(e) => setStep(index, { ...step, name: e.target.value })}
                       />
                     </label>
-                    <label className="designer__field">
+                    <label className="designer__field designer__field--kind">
                       <span>{t("wf_kind")}</span>
                       <select
                         value={step.kind}
@@ -263,37 +356,20 @@ export function WorkflowDesigner({ view }: { view: CollectionView }) {
                           })
                         }
                       >
-                        <option value="independent">{t("wf_output_independent")}</option>
+                        <option value="independent">
+                          {index === draft.steps.length - 1
+                            ? t("wf_output_independent_last")
+                            : t("wf_output_independent")}
+                        </option>
                         <option value="one_to_one">{t("wf_output_one_to_one")}</option>
                       </select>
                     </label>
+                    <CountField
+                      step={step}
+                      fed={index > 0 && draft.steps[index - 1]!.output === "one_to_one"}
+                      onChange={(count) => setStep(index, { ...step, count })}
+                    />
                     <div className="designer__step-tools">
-                      <button
-                        className="icon-button icon-button--plain"
-                        disabled={index === 0}
-                        onClick={() => {
-                          const steps = [...draft.steps];
-                          [steps[index - 1], steps[index]] = [steps[index]!, steps[index - 1]!];
-                          change({ ...draft, steps });
-                        }}
-                        aria-label={t("wf_move_up")}
-                        title={t("wf_move_up")}
-                      >
-                        ↑
-                      </button>
-                      <button
-                        className="icon-button icon-button--plain"
-                        disabled={index === draft.steps.length - 1}
-                        onClick={() => {
-                          const steps = [...draft.steps];
-                          [steps[index + 1], steps[index]] = [steps[index]!, steps[index + 1]!];
-                          change({ ...draft, steps });
-                        }}
-                        aria-label={t("wf_move_down")}
-                        title={t("wf_move_down")}
-                      >
-                        ↓
-                      </button>
                       <button
                         className="icon-button"
                         disabled={draft.steps.length === 1}
@@ -303,7 +379,9 @@ export function WorkflowDesigner({ view }: { view: CollectionView }) {
                         aria-label={t("wf_remove_step")}
                         title={t("wf_remove_step")}
                       >
-                        ×
+                        <svg viewBox="0 0 16 16" aria-hidden="true">
+                          <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5" />
+                        </svg>
                       </button>
                     </div>
                   </li>
@@ -321,6 +399,7 @@ export function WorkflowDesigner({ view }: { view: CollectionView }) {
                         name: t("wf_new_step"),
                         kind: "text",
                         output: "independent",
+                        count: null,
                       },
                     ],
                   })
@@ -335,6 +414,42 @@ export function WorkflowDesigner({ view }: { view: CollectionView }) {
         </div>
       </div>
     </main>
+  );
+}
+
+/** A step's default count: how many a run makes unless the project says
+    otherwise. Blank: no default. After a one-to-one step it doesn't apply
+    (the step before decides how many). */
+function CountField({
+  step,
+  fed,
+  onChange,
+}: {
+  step: WorkflowStep;
+  fed: boolean;
+  onChange: (count: number | null) => void;
+}) {
+  const t = useT();
+  return (
+    <label className="designer__field designer__field--count">
+      <span>{t("wf_count")}</span>
+      <input
+        type="number"
+        min={1}
+        max={MAX_RUN_ITEMS}
+        step={1}
+        inputMode="numeric"
+        disabled={fed}
+        placeholder={fed ? "—" : t("wf_count_none")}
+        title={fed ? t("wf_count_fed") : t("wf_count_help")}
+        value={fed ? "" : (step.count ?? "")}
+        onChange={(e) => {
+          const raw = e.target.value.trim();
+          const n = Math.floor(Number(raw));
+          onChange(raw === "" || !Number.isFinite(n) ? null : Math.max(1, Math.min(MAX_RUN_ITEMS, n)));
+        }}
+      />
+    </label>
   );
 }
 

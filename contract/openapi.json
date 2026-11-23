@@ -2681,6 +2681,19 @@
       "WorkflowStep": {
         "additionalProperties": false,
         "properties": {
+          "count": {
+            "anyOf": [
+              {
+                "maximum": 20.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
+          },
           "key": {
             "pattern": "^[a-z][a-z0-9_]{0,39}$",
             "title": "Key",
@@ -2704,7 +2717,8 @@
           "key",
           "name",
           "kind",
-          "output"
+          "output",
+          "count"
         ],
         "title": "WorkflowStep",
         "type": "object"

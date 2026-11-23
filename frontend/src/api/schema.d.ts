@@ -1996,6 +1996,8 @@ export interface components {
         };
         /** WorkflowStep */
         WorkflowStep: {
+            /** Count */
+            count: number | null;
             /** Key */
             key: string;
             kind: components["schemas"]["MediaKind"];

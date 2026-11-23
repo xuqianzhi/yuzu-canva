@@ -144,6 +144,21 @@ def test_projects_run_on_the_active_workflow(client):
     assert [w["id"] for w in workflows(client, collection)] == [builtin["id"]]
 
 
+def test_a_step_can_have_a_default_count(client):
+    collection = new_collection(client)
+    steps = [
+        {"key": "a", "name": "A", "kind": "text", "count": 4},
+        {"key": "b", "name": "B", "kind": "image"},
+    ]
+    made = add_workflow(client, collection, {**mini(), "steps": steps}).json()
+    assert [s["count"] for s in made["definition"]["steps"]] == [4, None]
+    for bad in (0, 21):
+        wrong = [{**steps[0], "count": bad}, steps[1]]
+        assert add_workflow(client, collection, {**mini(), "steps": wrong}).status_code == 422
+    [builtin] = [w for w in workflows(client, collection) if w["active"]]
+    assert [s["count"] for s in builtin["definition"]["steps"]] == [3, 3]
+
+
 def test_switching_workflows_hides_steps_without_deleting_them(client):
     collection = new_collection(client)
     [builtin] = workflows(client, collection)

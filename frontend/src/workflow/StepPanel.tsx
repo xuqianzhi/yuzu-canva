@@ -92,7 +92,9 @@ function RunForm({ view }: { view: StepView }) {
   const t = useT();
   const runStep = useCanvas((s) => s.runStep);
   const [prompt, setPrompt] = useState(view.run?.prompt ?? "");
-  const [count, setCount] = useState(view.run?.count ?? 3);
+  // The last run's count, else the workflow's default for the step; none:
+  // the field starts empty and asks for one.
+  const [count, setCount] = useState<number | null>(view.run?.count ?? view.step.count ?? null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   // The run happens on the server: it may still be going after a reload.
@@ -113,8 +115,10 @@ function RunForm({ view }: { view: StepView }) {
   );
   // Media fed by text: each text is its node's prompt; the prompt is optional.
   const direct = Boolean(fedBy) && media && fedOutputs.length > 0 && fedOutputs.every((k) => k === "text");
-  const total = fedBy ? sources.length : count;
-  const ready = (direct || Boolean(prompt.trim())) && (!fedBy || sources.length > 0);
+  const total = fedBy ? sources.length : (count ?? 0);
+  const missingCount = !fedBy && count === null;
+  const ready =
+    (direct || Boolean(prompt.trim())) && (!fedBy || sources.length > 0) && !missingCount;
   const example = useCanvas(
     (s) => Object.values(s.nodes).find((n) => n.name && n.workflow_step)?.name ?? "dishes_1",
   );
@@ -155,10 +159,16 @@ function RunForm({ view }: { view: StepView }) {
               type="number"
               min={1}
               max={MAX_RUN_ITEMS}
-              value={count}
-              onChange={(e) =>
-                setCount(Math.max(1, Math.min(MAX_RUN_ITEMS, Number(e.target.value) || 1)))
-              }
+              value={count ?? ""}
+              aria-invalid={missingCount}
+              className={missingCount ? "is-invalid" : undefined}
+              onChange={(e) => {
+                const raw = e.target.value.trim();
+                const n = Math.floor(Number(raw));
+                setCount(
+                  raw === "" || !Number.isFinite(n) ? null : Math.max(1, Math.min(MAX_RUN_ITEMS, n)),
+                );
+              }}
             />
           </label>
         )}
@@ -169,9 +179,11 @@ function RunForm({ view }: { view: StepView }) {
         >
           {running
             ? t("generating")
-            : view.nodes.length
-              ? t("run_again", { n: total })
-              : t("run_go", { n: total })}
+            : missingCount
+              ? t("run_go_plain")
+              : view.nodes.length
+                ? t("run_again", { n: total })
+                : t("run_go", { n: total })}
         </button>
         {running && <span className="spinner" />}
       </div>
@@ -183,6 +195,11 @@ function RunForm({ view }: { view: StepView }) {
           : t("run_uses_instruction", { example })}
         {media && !direct ? ` ${t("run_media_note")}` : ""}
       </p>
+      {missingCount && (
+        <p className="step-panel__error" role="alert">
+          {t("run_count_missing")}
+        </p>
+      )}
       {runError && !running && (
         <p className="step-panel__error" role="alert">
           {runError}

@@ -25,8 +25,8 @@ def builtin_workflow() -> WorkflowDefinition:
         version=1,
         name="Default",
         steps=[
-            WorkflowStep(key="dishes", name="Dish brainstorming", kind=MediaKind.text),
-            WorkflowStep(key="characters", name="Character", kind=MediaKind.image),
+            WorkflowStep(key="dishes", name="Dish brainstorming", kind=MediaKind.text, count=3),
+            WorkflowStep(key="characters", name="Character", kind=MediaKind.image, count=3),
         ],
     )
 
