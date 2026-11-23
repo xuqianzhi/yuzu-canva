@@ -80,11 +80,14 @@ export function Canvas() {
   const addConnectedNode = useCanvas((s) => s.addConnectedNode);
   const placeMaterial = useCanvas((s) => s.placeMaterial);
   const uploadFiles = useCanvas((s) => s.uploadFiles);
+  // Someone else is editing (see store/lock.ts): look, don't touch.
+  const readOnly = useCanvas((s) => s.lock.status !== "editing");
   const [dropTarget, setDropTarget] = useState(false);
 
   // Drop an asset from the Assets panel, or files from the desktop, on
   // the canvas: each becomes an uploaded node where it lands.
   const onDragOver = (event: React.DragEvent) => {
+    if (readOnly) return;
     const types = event.dataTransfer.types;
     if (!types.includes(MATERIAL_MIME) && !types.includes("Files")) return;
     event.preventDefault();
@@ -93,6 +96,7 @@ export function Canvas() {
   };
   const onDrop = async (event: React.DragEvent) => {
     setDropTarget(false);
+    if (readOnly) return;
     const materialId = event.dataTransfer.getData(MATERIAL_MIME);
     const files = [...event.dataTransfer.files];
     if (!materialId && !files.length) return;
@@ -155,6 +159,7 @@ export function Canvas() {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
       if (el?.closest("input, textarea, select, [contenteditable='true']")) return;
+      if (useCanvas.getState().lock.status !== "editing") return;
       if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
       const key = e.key.toLowerCase();
       if (key === "z") {
@@ -180,11 +185,11 @@ export function Canvas() {
   const onDoubleClick = useCallback(
     (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      if (!target.classList.contains("react-flow__pane")) return;
+      if (readOnly || !target.classList.contains("react-flow__pane")) return;
       const position = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY });
       void addNode("image", { x: position.x - 160, y: position.y - 24 });
     },
-    [flow, addNode],
+    [flow, addNode, readOnly],
   );
 
   // Animate the references feeding a node while it generates.
@@ -247,7 +252,10 @@ export function Canvas() {
         selectionKeyCode={null}
         selectionMode={SelectionMode.Partial}
         multiSelectionKeyCode={["Meta", "Control", "Shift"]}
-        deleteKeyCode={["Backspace", "Delete"]}
+        deleteKeyCode={readOnly ? null : ["Backspace", "Delete"]}
+        nodesDraggable={!readOnly}
+        nodesConnectable={!readOnly}
+        edgesReconnectable={!readOnly}
         minZoom={0.1}
         maxZoom={2.5}
         proOptions={{ hideAttribution: true }}
@@ -265,7 +273,7 @@ export function Canvas() {
             {notice.text}
           </div>
         )}
-        {(selectedNodeIds.length > 0 || selectedEdgeIds.length > 0) && (
+        {!readOnly && (selectedNodeIds.length > 0 || selectedEdgeIds.length > 0) && (
           <div className="selection-bar" role="toolbar" aria-label={t("selection_aria")}>
             <span>{selectionLabel(selectedNodeIds.length, selectedEdgeIds.length, t)}</span>
             <button
@@ -281,12 +289,12 @@ export function Canvas() {
             </button>
           </div>
         )}
-        {flowNodes.length > 0 && selectedNodeIds.length === 0 && selectedEdgeIds.length === 0 && (
+        {!readOnly && flowNodes.length > 0 && selectedNodeIds.length === 0 && selectedEdgeIds.length === 0 && (
           <div className="canvas__hint">
             {t("canvas_hint")}
           </div>
         )}
-        {flowNodes.length === 0 && (
+        {!readOnly && flowNodes.length === 0 && (
           <div className="canvas__empty">
             {t("canvas_empty")}
           </div>

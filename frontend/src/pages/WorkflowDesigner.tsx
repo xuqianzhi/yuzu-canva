@@ -1,11 +1,20 @@
-// The landing page's Workflows page: design the steps projects go through.
+// A collection's Workflows page: design the steps its projects go through.
 // A workflow is an ordered list of steps, each just a name and what it makes
 // (text, image, video). Names are the user's text and are never translated.
-// New projects copy the default workflow; projects keep their copy.
+// A collection has any number of workflows; every project in it runs on the
+// active one, so editing or switching it changes every project.
 import { useCallback, useEffect, useState } from "react";
-import { api, unwrap } from "../api/client";
-import type { MediaKind, WorkflowDefinition, WorkflowStep, WorkflowTemplate } from "../api/types";
+import { api, ApiError, unwrap } from "../api/client";
+import type {
+  CollectionWorkflow,
+  MediaKind,
+  WorkflowDefinition,
+  WorkflowStep,
+} from "../api/types";
 import { errorText, t as tr, useT } from "../i18n";
+import type { CollectionView } from "./HomePage";
+
+type WorkflowTemplate = CollectionWorkflow;
 
 const KINDS: MediaKind[] = ["text", "image", "video"];
 
@@ -17,8 +26,9 @@ function freeKey(steps: WorkflowStep[]): string {
   return `step_${n}`;
 }
 
-export function WorkflowDesigner() {
+export function WorkflowDesigner({ view }: { view: CollectionView }) {
   const t = useT();
+  const collectionId = view.collection.id;
   const [templates, setTemplates] = useState<WorkflowTemplate[] | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [draft, setDraft] = useState<WorkflowDefinition | null>(null);
@@ -28,9 +38,13 @@ export function WorkflowDesigner() {
 
   const load = useCallback(async (select?: string) => {
     try {
-      const list = unwrap(await api.GET("/api/workflow-templates"));
+      const list = unwrap(
+        await api.GET("/api/collections/{collection_id}/workflows", {
+          params: { path: { collection_id: collectionId } },
+        }),
+      );
       setTemplates(list);
-      const chosen = list.find((w) => w.id === select) ?? list.find((w) => w.is_default) ?? list[0];
+      const chosen = list.find((w) => w.id === select) ?? list.find((w) => w.active) ?? list[0];
       setSelected(chosen?.id ?? null);
       setDraft(chosen ? structuredClone(chosen.definition) : null);
       setDirty(false);
@@ -38,7 +52,7 @@ export function WorkflowDesigner() {
     } catch (e) {
       setError(errorText(e));
     }
-  }, []);
+  }, [collectionId]);
 
   useEffect(() => void load(), [load]);
 
@@ -66,13 +80,25 @@ export function WorkflowDesigner() {
     try {
       await load(await work());
     } catch (e) {
-      setError(errorText(e));
+      setError(
+        e instanceof ApiError && e.code === "edit_conflict"
+          ? tr("conflict", { email: e.body.error.context.by ?? "?" })
+          : errorText(e),
+      );
     } finally {
       setBusy(false);
     }
   };
   const create = (definition: WorkflowDefinition) =>
-    run(async () => unwrap(await api.POST("/api/workflow-templates", { body: { definition } })).id);
+    run(
+      async () =>
+        unwrap(
+          await api.POST("/api/collections/{collection_id}/workflows", {
+            params: { path: { collection_id: collectionId } },
+            body: { definition },
+          }),
+        ).id,
+    );
 
   return (
     <main className="home__page">
@@ -93,7 +119,7 @@ export function WorkflowDesigner() {
                 onClick={() => pickTemplate(w)}
               >
                 <span>{w.definition.name}</span>
-                {w.is_default && <small className="state-pill">{t("wf_default")}</small>}
+                {w.active && <small className="state-pill">{t("wf_active")}</small>}
               </button>
             ))}
             <button
@@ -112,6 +138,7 @@ export function WorkflowDesigner() {
             >
               + {t("wf_new")}
             </button>
+            <CopyFrom collectionId={collectionId} disabled={busy} onPick={(d) => void create(d)} />
           </nav>
           {draft && current ? (
             <section className="designer__editor">
@@ -136,9 +163,9 @@ export function WorkflowDesigner() {
                   onClick={() =>
                     void run(async () => {
                       unwrap(
-                        await api.PUT("/api/workflow-templates/{template_id}", {
-                          params: { path: { template_id: current.id } },
-                          body: { definition: draft },
+                        await api.PUT("/api/workflows/{workflow_id}", {
+                          params: { path: { workflow_id: current.id } },
+                          body: { definition: draft, base_version: current.definition.version },
                         }),
                       );
                       return current.id;
@@ -158,7 +185,7 @@ export function WorkflowDesigner() {
                 >
                   {t("wf_duplicate")}
                 </button>
-                {!current.is_default && (
+                {!current.active && (
                   <>
                     <button
                       className="button"
@@ -166,15 +193,15 @@ export function WorkflowDesigner() {
                       onClick={() =>
                         void run(async () => {
                           unwrap(
-                            await api.POST("/api/workflow-templates/{template_id}/default", {
-                              params: { path: { template_id: current.id } },
+                            await api.POST("/api/workflows/{workflow_id}/activate", {
+                              params: { path: { workflow_id: current.id } },
                             }),
                           );
                           return current.id;
                         })
                       }
                     >
-                      {t("wf_make_default")}
+                      {t("wf_make_active")}
                     </button>
                     <button
                       className="button"
@@ -185,8 +212,8 @@ export function WorkflowDesigner() {
                         }
                         void run(async () => {
                           unwrap(
-                            await api.DELETE("/api/workflow-templates/{template_id}", {
-                              params: { path: { template_id: current.id } },
+                            await api.DELETE("/api/workflows/{workflow_id}", {
+                              params: { path: { workflow_id: current.id } },
                             }),
                           );
                           return undefined;
@@ -308,5 +335,69 @@ export function WorkflowDesigner() {
         </div>
       </div>
     </main>
+  );
+}
+
+/** "Copy from…": a workflow from another collection you're in. */
+function CopyFrom({
+  collectionId,
+  disabled,
+  onPick,
+}: {
+  collectionId: string;
+  disabled: boolean;
+  onPick: (definition: WorkflowDefinition) => void;
+}) {
+  const t = useT();
+  const [options, setOptions] = useState<{ label: string; workflow: CollectionWorkflow }[] | null>(
+    null,
+  );
+  const load = async () => {
+    if (options) return;
+    try {
+      const collections = unwrap(await api.GET("/api/collections")).filter(
+        (c) => c.id !== collectionId,
+      );
+      const lists = await Promise.all(
+        collections.map(async (c) => ({
+          name: c.name,
+          workflows: unwrap(
+            await api.GET("/api/collections/{collection_id}/workflows", {
+              params: { path: { collection_id: c.id } },
+            }),
+          ),
+        })),
+      );
+      setOptions(
+        lists.flatMap(({ name, workflows }) =>
+          workflows.map((w) => ({ label: `${name} · ${w.definition.name}`, workflow: w })),
+        ),
+      );
+    } catch {
+      setOptions([]);
+    }
+  };
+  return (
+    <select
+      className="designer__copy"
+      aria-label={t("wf_copy_from")}
+      value=""
+      disabled={disabled}
+      onFocus={() => void load()}
+      onPointerDown={() => void load()}
+      onChange={(e) => {
+        const picked = options?.[Number(e.target.value)];
+        if (picked) onPick(structuredClone(picked.workflow.definition));
+      }}
+    >
+      <option value="">{t("wf_copy_from")}</option>
+      {options === null && <option disabled>{t("loading")}</option>}
+      {options?.length === 0 && <option disabled>{t("wf_copy_none")}</option>}
+      {options?.map((option, i) => (
+        <option key={option.workflow.id} value={i}>
+          {option.label}
+        </option>
+      ))}
+    </select>
   );
 }

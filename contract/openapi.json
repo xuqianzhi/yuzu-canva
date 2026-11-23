@@ -110,7 +110,7 @@
         "title": "Asset",
         "type": "object"
       },
-      "Body_uploadGlobalAsset": {
+      "Body_uploadCollectionAsset": {
         "properties": {
           "file": {
             "contentMediaType": "application/octet-stream",
@@ -127,7 +127,7 @@
           "file",
           "name"
         ],
-        "title": "Body_uploadGlobalAsset",
+        "title": "Body_uploadCollectionAsset",
         "type": "object"
       },
       "Body_uploadMaterial": {
@@ -236,6 +236,411 @@
         "title": "ChatRole",
         "type": "string"
       },
+      "Collection": {
+        "additionalProperties": false,
+        "properties": {
+          "active_workflow_id": {
+            "examples": [
+              "wfl_a7x2"
+            ],
+            "pattern": "^wfl_[A-Za-z0-9]+$",
+            "title": "Active Workflow Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "examples": [
+              "col_k2m9"
+            ],
+            "pattern": "^col_[A-Za-z0-9]+$",
+            "title": "Id",
+            "type": "string"
+          },
+          "instruction": {
+            "title": "Instruction",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "owner_email": {
+            "title": "Owner Email",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "updated_by_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated By Email"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "your_role": {
+            "$ref": "#/components/schemas/Role"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "instruction",
+          "active_workflow_id",
+          "version",
+          "your_role",
+          "owner_email",
+          "updated_by_email",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "Collection",
+        "type": "object"
+      },
+      "CollectionAsset": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes": {
+            "minimum": 0.0,
+            "title": "Bytes",
+            "type": "integer"
+          },
+          "collection_id": {
+            "examples": [
+              "col_k2m9"
+            ],
+            "pattern": "^col_[A-Za-z0-9]+$",
+            "title": "Collection Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "duration_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration S"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "id": {
+            "examples": [
+              "cas_k2m9"
+            ],
+            "pattern": "^cas_[A-Za-z0-9]+$",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/MediaKind"
+          },
+          "mime": {
+            "title": "Mime",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          }
+        },
+        "required": [
+          "id",
+          "collection_id",
+          "name",
+          "kind",
+          "mime",
+          "url",
+          "bytes",
+          "width",
+          "height",
+          "duration_s",
+          "created_at"
+        ],
+        "title": "CollectionAsset",
+        "type": "object"
+      },
+      "CollectionAssetUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "CollectionAssetUpdate",
+        "type": "object"
+      },
+      "CollectionCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "instruction": {
+            "default": "",
+            "maxLength": 20000,
+            "title": "Instruction",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "workflow": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkflowDefinition"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "CollectionCreate",
+        "type": "object"
+      },
+      "CollectionSummary": {
+        "additionalProperties": false,
+        "description": "A collection as listed on the landing page.",
+        "properties": {
+          "active_workflow_id": {
+            "examples": [
+              "wfl_a7x2"
+            ],
+            "pattern": "^wfl_[A-Za-z0-9]+$",
+            "title": "Active Workflow Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "examples": [
+              "col_k2m9"
+            ],
+            "pattern": "^col_[A-Za-z0-9]+$",
+            "title": "Id",
+            "type": "string"
+          },
+          "instruction": {
+            "title": "Instruction",
+            "type": "string"
+          },
+          "member_count": {
+            "default": 0,
+            "title": "Member Count",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "owner_email": {
+            "title": "Owner Email",
+            "type": "string"
+          },
+          "project_count": {
+            "default": 0,
+            "title": "Project Count",
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "updated_by_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated By Email"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "your_role": {
+            "$ref": "#/components/schemas/Role"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "instruction",
+          "active_workflow_id",
+          "version",
+          "your_role",
+          "owner_email",
+          "updated_by_email",
+          "created_at",
+          "updated_at",
+          "project_count",
+          "member_count"
+        ],
+        "title": "CollectionSummary",
+        "type": "object"
+      },
+      "CollectionUpdate": {
+        "additionalProperties": false,
+        "description": "Partial update; ``version`` is the one you last read.",
+        "properties": {
+          "instruction": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instruction"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "title": "CollectionUpdate",
+        "type": "object"
+      },
+      "CollectionWorkflow": {
+        "additionalProperties": false,
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "collection_id": {
+            "examples": [
+              "col_k2m9"
+            ],
+            "pattern": "^col_[A-Za-z0-9]+$",
+            "title": "Collection Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "definition": {
+            "$ref": "#/components/schemas/WorkflowDefinition"
+          },
+          "id": {
+            "examples": [
+              "wfl_a7x2"
+            ],
+            "pattern": "^wfl_[A-Za-z0-9]+$",
+            "title": "Id",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "updated_by_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated By Email"
+          }
+        },
+        "required": [
+          "id",
+          "collection_id",
+          "definition",
+          "active",
+          "updated_by_email",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "CollectionWorkflow",
+        "type": "object"
+      },
       "Edge": {
         "additionalProperties": false,
         "description": "``target_node_id`` references ``source_node_id``: the source's selected\noutput is one of the target's inputs.",
@@ -322,6 +727,55 @@
         "title": "EdgeCreate",
         "type": "object"
       },
+      "EditorLimits": {
+        "additionalProperties": false,
+        "description": "What an editor may generate per day (UTC) in one collection, paid by\nthe owner. Null: no limit of its own (the owner's daily limits still\napply to everything together); 0: none of that kind.",
+        "properties": {
+          "image": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "video": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Video"
+          }
+        },
+        "required": [
+          "text",
+          "image",
+          "video"
+        ],
+        "title": "EditorLimits",
+        "type": "object"
+      },
       "ErrorCode": {
         "enum": [
           "not_found",
@@ -345,7 +799,9 @@
           "unauthenticated",
           "forbidden",
           "quota_exceeded",
-          "generation_off"
+          "generation_off",
+          "project_locked",
+          "edit_conflict"
         ],
         "title": "ErrorCode",
         "type": "string"
@@ -397,142 +853,12 @@
         "title": "GenerateRequest",
         "type": "object"
       },
-      "GlobalAsset": {
-        "additionalProperties": false,
-        "properties": {
-          "bytes": {
-            "minimum": 0.0,
-            "title": "Bytes",
-            "type": "integer"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "duration_s": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Duration S"
-          },
-          "height": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Height"
-          },
-          "id": {
-            "examples": [
-              "gas_k2m9"
-            ],
-            "pattern": "^gas_[A-Za-z0-9]+$",
-            "title": "Id",
-            "type": "string"
-          },
-          "kind": {
-            "$ref": "#/components/schemas/MediaKind"
-          },
-          "mime": {
-            "title": "Mime",
-            "type": "string"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "url": {
-            "title": "Url",
-            "type": "string"
-          },
-          "width": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Width"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "kind",
-          "mime",
-          "url",
-          "bytes",
-          "width",
-          "height",
-          "duration_s",
-          "created_at"
-        ],
-        "title": "GlobalAsset",
-        "type": "object"
-      },
-      "GlobalAssetUpdate": {
-        "additionalProperties": false,
-        "properties": {
-          "name": {
-            "maxLength": 80,
-            "minLength": 1,
-            "title": "Name",
-            "type": "string"
-          }
-        },
-        "required": [
-          "name"
-        ],
-        "title": "GlobalAssetUpdate",
-        "type": "object"
-      },
-      "GlobalInstruction": {
-        "additionalProperties": false,
-        "properties": {
-          "instruction": {
-            "title": "Instruction",
-            "type": "string"
-          }
-        },
-        "required": [
-          "instruction"
-        ],
-        "title": "GlobalInstruction",
-        "type": "object"
-      },
-      "GlobalInstructionUpdate": {
-        "additionalProperties": false,
-        "properties": {
-          "instruction": {
-            "maxLength": 20000,
-            "title": "Instruction",
-            "type": "string"
-          }
-        },
-        "required": [
-          "instruction"
-        ],
-        "title": "GlobalInstructionUpdate",
-        "type": "object"
-      },
       "Health": {
         "additionalProperties": false,
         "properties": {
           "app": {
-            "const": "seedance-canvas",
-            "default": "seedance-canvas",
+            "const": "yuzu-canva",
+            "default": "yuzu-canva",
             "title": "App",
             "type": "string"
           },
@@ -593,6 +919,121 @@
           "quality"
         ],
         "title": "ImageParams",
+        "type": "object"
+      },
+      "Invitation": {
+        "additionalProperties": false,
+        "description": "An invite to you, as you see it.",
+        "properties": {
+          "collection_id": {
+            "examples": [
+              "col_k2m9"
+            ],
+            "pattern": "^col_[A-Za-z0-9]+$",
+            "title": "Collection Id",
+            "type": "string"
+          },
+          "collection_name": {
+            "title": "Collection Name",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "examples": [
+              "inv_q8w1"
+            ],
+            "pattern": "^inv_[A-Za-z0-9]+$",
+            "title": "Id",
+            "type": "string"
+          },
+          "invited_by_email": {
+            "title": "Invited By Email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "collection_id",
+          "collection_name",
+          "invited_by_email",
+          "created_at",
+          "expires_at"
+        ],
+        "title": "Invitation",
+        "type": "object"
+      },
+      "Invite": {
+        "additionalProperties": false,
+        "description": "An invite waiting for its person to accept it.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "examples": [
+              "inv_q8w1"
+            ],
+            "pattern": "^inv_[A-Za-z0-9]+$",
+            "title": "Id",
+            "type": "string"
+          },
+          "invited_by_email": {
+            "title": "Invited By Email",
+            "type": "string"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/EditorLimits"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "limits",
+          "invited_by_email",
+          "created_at",
+          "expires_at"
+        ],
+        "title": "Invite",
+        "type": "object"
+      },
+      "InviteCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "maxLength": 320,
+            "minLength": 3,
+            "pattern": "^\\s*[^@\\s]+@[^@\\s]+\\s*$",
+            "title": "Email",
+            "type": "string"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/EditorLimits"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "InviteCreate",
         "type": "object"
       },
       "Job": {
@@ -810,6 +1251,18 @@
         "title": "Language",
         "type": "string"
       },
+      "LockRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "take_over": {
+            "default": false,
+            "title": "Take Over",
+            "type": "boolean"
+          }
+        },
+        "title": "LockRequest",
+        "type": "object"
+      },
       "Material": {
         "additionalProperties": false,
         "properties": {
@@ -868,8 +1321,16 @@
       },
       "Me": {
         "additionalProperties": false,
-        "description": "Who you're signed in as, and what you used today (UTC) against your\ndaily limits (0 means no limit).",
+        "description": "Who you're signed in as, and what you pay for today (UTC): everything\ngenerated in your collections, by you or your editors, against your\ndaily limits (0 means no limit).",
         "properties": {
+          "breakdown": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/UsageLine"
+            },
+            "title": "Breakdown",
+            "type": "array"
+          },
           "daily_limits": {
             "$ref": "#/components/schemas/UsageCounts"
           },
@@ -884,7 +1345,8 @@
         "required": [
           "email",
           "used_today",
-          "daily_limits"
+          "daily_limits",
+          "breakdown"
         ],
         "title": "Me",
         "type": "object"
@@ -898,6 +1360,56 @@
         ],
         "title": "MediaKind",
         "type": "string"
+      },
+      "Member": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "joined_at": {
+            "format": "date-time",
+            "title": "Joined At",
+            "type": "string"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/EditorLimits"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "used_today": {
+            "$ref": "#/components/schemas/UsageCounts"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "email",
+          "role",
+          "limits",
+          "used_today",
+          "joined_at"
+        ],
+        "title": "Member",
+        "type": "object"
+      },
+      "MemberUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "limits": {
+            "$ref": "#/components/schemas/EditorLimits"
+          }
+        },
+        "required": [
+          "limits"
+        ],
+        "title": "MemberUpdate",
+        "type": "object"
       },
       "Node": {
         "additionalProperties": false,
@@ -1351,6 +1863,11 @@
       "Project": {
         "additionalProperties": false,
         "properties": {
+          "collection_id": {
+            "pattern": "^col_[A-Za-z0-9]+$",
+            "title": "Collection Id",
+            "type": "string"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -1386,6 +1903,7 @@
         },
         "required": [
           "id",
+          "collection_id",
           "name",
           "viewport",
           "instruction",
@@ -1417,17 +1935,6 @@
             "minLength": 1,
             "title": "Name",
             "type": "string"
-          },
-          "workflow_template_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Workflow Template Id"
           }
         },
         "title": "ProjectCreate",
@@ -1487,10 +1994,70 @@
         "title": "ProjectGraph",
         "type": "object"
       },
+      "ProjectLock": {
+        "additionalProperties": false,
+        "description": "Who may change a project right now, as seen by the asking tab.",
+        "properties": {
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "held": {
+            "title": "Held",
+            "type": "boolean"
+          },
+          "holder_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Holder Email"
+          },
+          "holder_is_you": {
+            "default": false,
+            "title": "Holder Is You",
+            "type": "boolean"
+          },
+          "project_id": {
+            "examples": [
+              "prj_8f2k1"
+            ],
+            "pattern": "^prj_[A-Za-z0-9]+$",
+            "title": "Project Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "held",
+          "holder_email",
+          "holder_is_you",
+          "expires_at"
+        ],
+        "title": "ProjectLock",
+        "type": "object"
+      },
       "ProjectSummary": {
         "additionalProperties": false,
         "description": "A project as listed on the landing page.",
         "properties": {
+          "collection_id": {
+            "pattern": "^col_[A-Za-z0-9]+$",
+            "title": "Collection Id",
+            "type": "string"
+          },
           "cover": {
             "anyOf": [
               {
@@ -1505,6 +2072,17 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "editing_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Editing By"
           },
           "id": {
             "examples": [
@@ -1556,6 +2134,7 @@
         },
         "required": [
           "id",
+          "collection_id",
           "name",
           "viewport",
           "instruction",
@@ -1566,7 +2145,8 @@
           "image_count",
           "video_count",
           "running_count",
-          "cover"
+          "cover",
+          "editing_by"
         ],
         "title": "ProjectSummary",
         "type": "object"
@@ -1717,6 +2297,14 @@
         ],
         "title": "RestoreResult",
         "type": "object"
+      },
+      "Role": {
+        "enum": [
+          "owner",
+          "editor"
+        ],
+        "title": "Role",
+        "type": "string"
       },
       "RunStatus": {
         "enum": [
@@ -1880,6 +2468,56 @@
         "title": "UsageCounts",
         "type": "object"
       },
+      "UsageLine": {
+        "additionalProperties": false,
+        "description": "Part of today's bill: what one person generated in one collection.",
+        "properties": {
+          "collection_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Collection Id"
+          },
+          "collection_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Collection Name"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "used": {
+            "$ref": "#/components/schemas/UsageCounts"
+          }
+        },
+        "required": [
+          "collection_id",
+          "collection_name",
+          "email",
+          "used"
+        ],
+        "title": "UsageLine",
+        "type": "object"
+      },
       "VideoParams": {
         "additionalProperties": false,
         "properties": {
@@ -2015,6 +2653,31 @@
         "title": "WorkflowDefinition",
         "type": "object"
       },
+      "WorkflowSave": {
+        "additionalProperties": false,
+        "description": "Create or replace a workflow (``definition.id`` and ``version`` are\nset by the server).",
+        "properties": {
+          "base_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Version"
+          },
+          "definition": {
+            "$ref": "#/components/schemas/WorkflowDefinition"
+          }
+        },
+        "required": [
+          "definition"
+        ],
+        "title": "WorkflowSave",
+        "type": "object"
+      },
       "WorkflowStep": {
         "additionalProperties": false,
         "properties": {
@@ -2045,64 +2708,12 @@
         ],
         "title": "WorkflowStep",
         "type": "object"
-      },
-      "WorkflowTemplate": {
-        "additionalProperties": false,
-        "description": "A workflow as designed: new projects copy the default one.",
-        "properties": {
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "definition": {
-            "$ref": "#/components/schemas/WorkflowDefinition"
-          },
-          "id": {
-            "pattern": "^wft_[A-Za-z0-9]+$",
-            "title": "Id",
-            "type": "string"
-          },
-          "is_default": {
-            "default": false,
-            "title": "Is Default",
-            "type": "boolean"
-          },
-          "updated_at": {
-            "format": "date-time",
-            "title": "Updated At",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "definition",
-          "is_default",
-          "created_at",
-          "updated_at"
-        ],
-        "title": "WorkflowTemplate",
-        "type": "object"
-      },
-      "WorkflowTemplateSave": {
-        "additionalProperties": false,
-        "description": "Create or replace a template (its ``definition.id`` and ``version``\nare set by the server).",
-        "properties": {
-          "definition": {
-            "$ref": "#/components/schemas/WorkflowDefinition"
-          }
-        },
-        "required": [
-          "definition"
-        ],
-        "title": "WorkflowTemplateSave",
-        "type": "object"
       }
     }
   },
   "info": {
-    "description": "Canvas of generation nodes. A node turns a prompt (plus the outputs of the nodes it references) into text, an image or a video.\n\nEvery route except /health and the media links needs `Authorization: Bearer <Firebase ID token>`.",
-    "title": "seedance-canvas API",
+    "description": "Canvas of generation nodes. A node turns a prompt (plus the outputs of the nodes it references) into text, an image or a video.\n\nEvery route except /health and the media links needs `Authorization: Bearer <Firebase ID token>`. Projects live in collections, shared by an owner with editors; a change to a project needs its lock (`X-Edit-Session`, see lockProject).",
+    "title": "yuzu-canva API",
     "version": "0.1.0"
   },
   "openapi": "3.1.0",
@@ -2245,166 +2856,10 @@
         ]
       }
     },
-    "/api/edges/{edge_id}": {
-      "delete": {
-        "description": "Soft delete: ``restoreDeleted`` can bring it back (undo). Workflow\nedges can't be deleted (409 ``workflow_locked``).",
-        "operationId": "deleteEdge",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "edge_id",
-            "required": true,
-            "schema": {
-              "examples": [
-                "edg_3m7q"
-              ],
-              "pattern": "^edg_[A-Za-z0-9]+$",
-              "title": "Edge Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not Found"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          }
-        },
-        "summary": "Delete Edge",
-        "tags": [
-          "edges"
-        ]
-      }
-    },
-    "/api/global-assets": {
-      "get": {
-        "description": "Your global assets, oldest first (the order new projects lay them out).",
-        "operationId": "listGlobalAssets",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/GlobalAsset"
-                  },
-                  "title": "Response Listglobalassets",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          }
-        },
-        "summary": "List Global Assets",
-        "tags": [
-          "global assets"
-        ]
-      },
-      "post": {
-        "description": "Upload one image (PNG, JPEG, WebP) or video (MP4, MOV) with a name.\n\nMultipart fields ``file`` and ``name``. The name is required and unique\namong global assets (409 ``duplicate_name``). Every project created from\nnow on starts with it as a node.",
-        "operationId": "uploadGlobalAsset",
-        "requestBody": {
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "$ref": "#/components/schemas/Body_uploadGlobalAsset"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GlobalAsset"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "413": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request Entity Too Large"
-          },
-          "415": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unsupported Media Type"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          }
-        },
-        "summary": "Upload Global Asset",
-        "tags": [
-          "global assets"
-        ]
-      }
-    },
-    "/api/global-assets/{asset_id}": {
+    "/api/collection-assets/{asset_id}": {
       "delete": {
         "description": "New projects stop getting it; projects made earlier keep their nodes.",
-        "operationId": "deleteGlobalAsset",
+        "operationId": "deleteCollectionAsset",
         "parameters": [
           {
             "in": "path",
@@ -2412,9 +2867,9 @@
             "required": true,
             "schema": {
               "examples": [
-                "gas_k2m9"
+                "cas_k2m9"
               ],
-              "pattern": "^gas_[A-Za-z0-9]+$",
+              "pattern": "^cas_[A-Za-z0-9]+$",
               "title": "Asset Id",
               "type": "string"
             }
@@ -2445,14 +2900,14 @@
             "description": "Unprocessable Entity"
           }
         },
-        "summary": "Delete Global Asset",
+        "summary": "Delete Collection Asset",
         "tags": [
-          "global assets"
+          "collection assets"
         ]
       },
       "patch": {
         "description": "Rename it. Projects created earlier keep their node names.",
-        "operationId": "renameGlobalAsset",
+        "operationId": "renameCollectionAsset",
         "parameters": [
           {
             "in": "path",
@@ -2460,9 +2915,9 @@
             "required": true,
             "schema": {
               "examples": [
-                "gas_k2m9"
+                "cas_k2m9"
               ],
-              "pattern": "^gas_[A-Za-z0-9]+$",
+              "pattern": "^cas_[A-Za-z0-9]+$",
               "title": "Asset Id",
               "type": "string"
             }
@@ -2472,7 +2927,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/GlobalAssetUpdate"
+                "$ref": "#/components/schemas/CollectionAssetUpdate"
               }
             }
           },
@@ -2483,7 +2938,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GlobalAsset"
+                  "$ref": "#/components/schemas/CollectionAsset"
                 }
               }
             },
@@ -2520,15 +2975,15 @@
             "description": "Unprocessable Entity"
           }
         },
-        "summary": "Rename Global Asset",
+        "summary": "Rename Collection Asset",
         "tags": [
-          "global assets"
+          "collection assets"
         ]
       }
     },
-    "/api/global-assets/{asset_id}/content": {
+    "/api/collection-assets/{asset_id}/content": {
       "get": {
-        "operationId": "getGlobalAssetContent",
+        "operationId": "getCollectionAssetContent",
         "parameters": [
           {
             "in": "path",
@@ -2536,9 +2991,9 @@
             "required": true,
             "schema": {
               "examples": [
-                "gas_k2m9"
+                "cas_k2m9"
               ],
-              "pattern": "^gas_[A-Za-z0-9]+$",
+              "pattern": "^cas_[A-Za-z0-9]+$",
               "title": "Asset Id",
               "type": "string"
             }
@@ -2595,22 +3050,26 @@
             "description": "Unprocessable Entity"
           }
         },
-        "summary": "Get Global Asset Content",
+        "summary": "Get Collection Asset Content",
         "tags": [
           "assets"
         ]
       }
     },
-    "/api/global-instruction": {
+    "/api/collections": {
       "get": {
-        "description": "The instruction every new project of yours starts with.",
-        "operationId": "getGlobalInstruction",
+        "description": "The collections you own or edit, most recently changed first.",
+        "operationId": "listCollections",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GlobalInstruction"
+                  "items": {
+                    "$ref": "#/components/schemas/CollectionSummary"
+                  },
+                  "title": "Response Listcollections",
+                  "type": "array"
                 }
               }
             },
@@ -2627,19 +3086,188 @@
             "description": "Unprocessable Entity"
           }
         },
-        "summary": "Get Global Instruction",
+        "summary": "List Collections",
         "tags": [
-          "instructions"
+          "collections"
         ]
       },
-      "put": {
-        "description": "Replace it. Existing projects keep their own instruction.",
-        "operationId": "setGlobalInstruction",
+      "post": {
+        "description": "A new collection, yours (its owner), with one workflow: ``workflow``\nif given (copy one from another collection), else the built-in one.",
+        "operationId": "createCollection",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/GlobalInstructionUpdate"
+                "$ref": "#/components/schemas/CollectionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Collection"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Create Collection",
+        "tags": [
+          "collections"
+        ]
+      }
+    },
+    "/api/collections/{collection_id}": {
+      "delete": {
+        "description": "Owner only. Deletes it for everyone, with every project in it, its\nworkflows, assets, members and invites, and their files. Usage records\nstay (they still count today).",
+        "operationId": "deleteCollection",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "collection_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "col_k2m9"
+              ],
+              "pattern": "^col_[A-Za-z0-9]+$",
+              "title": "Collection Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Delete Collection",
+        "tags": [
+          "collections"
+        ]
+      },
+      "get": {
+        "operationId": "getCollection",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "collection_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "col_k2m9"
+              ],
+              "pattern": "^col_[A-Za-z0-9]+$",
+              "title": "Collection Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Collection"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Get Collection",
+        "tags": [
+          "collections"
+        ]
+      },
+      "patch": {
+        "description": "Rename it or change its instruction (new projects start with a copy).\n409 ``edit_conflict`` if someone saved since ``version``.",
+        "operationId": "updateCollection",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "collection_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "col_k2m9"
+              ],
+              "pattern": "^col_[A-Za-z0-9]+$",
+              "title": "Collection Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectionUpdate"
               }
             }
           },
@@ -2650,11 +3278,31 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GlobalInstruction"
+                  "$ref": "#/components/schemas/Collection"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
           },
           "422": {
             "content": {
@@ -2667,9 +3315,919 @@
             "description": "Unprocessable Entity"
           }
         },
-        "summary": "Set Global Instruction",
+        "summary": "Update Collection",
         "tags": [
-          "instructions"
+          "collections"
+        ]
+      }
+    },
+    "/api/collections/{collection_id}/assets": {
+      "get": {
+        "description": "The collection's assets, oldest first (the order new projects lay\nthem out).",
+        "operationId": "listCollectionAssets",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "collection_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "col_k2m9"
+              ],
+              "pattern": "^col_[A-Za-z0-9]+$",
+              "title": "Collection Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CollectionAsset"
+                  },
+                  "title": "Response Listcollectionassets",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "List Collection Assets",
+        "tags": [
+          "collection assets"
+        ]
+      },
+      "post": {
+        "description": "Upload one image (PNG, JPEG, WebP) or video (MP4, MOV) with a name.\n\nMultipart fields ``file`` and ``name``. The name is required and unique\nin the collection (409 ``duplicate_name``). Every project created in the\ncollection from now on starts with it as a node.",
+        "operationId": "uploadCollectionAsset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "collection_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "col_k2m9"
+              ],
+              "pattern": "^col_[A-Za-z0-9]+$",
+              "title": "Collection Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_uploadCollectionAsset"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionAsset"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unsupported Media Type"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Upload Collection Asset",
+        "tags": [
+          "collection assets"
+        ]
+      }
+    },
+    "/api/collections/{collection_id}/invites": {
+      "get": {
+        "description": "Invites waiting to be accepted, newest first.",
+        "operationId": "listInvites",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "collection_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "col_k2m9"
+              ],
+              "pattern": "^col_[A-Za-z0-9]+$",
+              "title": "Collection Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Invite"
+                  },
+                  "title": "Response Listinvites",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "List Invites",
+        "tags": [
+          "collections"
+        ]
+      },
+      "post": {
+        "description": "Owner only: invite an email as an editor, with their daily limits\nhere. They see it after signing in (no email is sent) and accept it to\nget in; it expires after 30 days. Inviting the same email again renews\nit. 409 if they're already a member. They also need to be on the app's\nallowlist to sign in at all.",
+        "operationId": "createInvite",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "collection_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "col_k2m9"
+              ],
+              "pattern": "^col_[A-Za-z0-9]+$",
+              "title": "Collection Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invite"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Create Invite",
+        "tags": [
+          "collections"
+        ]
+      }
+    },
+    "/api/collections/{collection_id}/invites/{invite_id}": {
+      "delete": {
+        "operationId": "cancelInvite",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "collection_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "col_k2m9"
+              ],
+              "pattern": "^col_[A-Za-z0-9]+$",
+              "title": "Collection Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "invite_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "inv_q8w1"
+              ],
+              "pattern": "^inv_[A-Za-z0-9]+$",
+              "title": "Invite Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Cancel Invite",
+        "tags": [
+          "collections"
+        ]
+      }
+    },
+    "/api/collections/{collection_id}/members": {
+      "get": {
+        "description": "The owner first, then editors, each with their limits and what they\ngenerated here today.",
+        "operationId": "listMembers",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "collection_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "col_k2m9"
+              ],
+              "pattern": "^col_[A-Za-z0-9]+$",
+              "title": "Collection Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Member"
+                  },
+                  "title": "Response Listmembers",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "List Members",
+        "tags": [
+          "collections"
+        ]
+      }
+    },
+    "/api/collections/{collection_id}/members/{user_id}": {
+      "delete": {
+        "description": "The owner removes an editor, or an editor leaves (their own user ID).\nWhat they made stays. The owner can't leave (409).",
+        "operationId": "removeMember",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "collection_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "col_k2m9"
+              ],
+              "pattern": "^col_[A-Za-z0-9]+$",
+              "title": "Collection Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Remove Member",
+        "tags": [
+          "collections"
+        ]
+      },
+      "patch": {
+        "description": "Owner only: set an editor's daily limits here.",
+        "operationId": "updateMember",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "collection_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "col_k2m9"
+              ],
+              "pattern": "^col_[A-Za-z0-9]+$",
+              "title": "Collection Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Member"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Update Member",
+        "tags": [
+          "collections"
+        ]
+      }
+    },
+    "/api/collections/{collection_id}/projects": {
+      "get": {
+        "description": "The collection's projects, most recently updated first, with counts,\na cover, and who else is editing each right now.",
+        "operationId": "listProjects",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "collection_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "col_k2m9"
+              ],
+              "pattern": "^col_[A-Za-z0-9]+$",
+              "title": "Collection Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectSummary"
+                  },
+                  "title": "Response Listprojects",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "List Projects",
+        "tags": [
+          "collections"
+        ]
+      },
+      "post": {
+        "description": "Create a project. It runs on the collection's active workflow and\nstarts with one uploaded node per collection asset, down the left side\nof its canvas.",
+        "operationId": "createProject",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "collection_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "col_k2m9"
+              ],
+              "pattern": "^col_[A-Za-z0-9]+$",
+              "title": "Collection Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Create Project",
+        "tags": [
+          "collections"
+        ]
+      }
+    },
+    "/api/collections/{collection_id}/workflows": {
+      "get": {
+        "description": "The collection's workflows, oldest first; one is active.",
+        "operationId": "listWorkflows",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "collection_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "col_k2m9"
+              ],
+              "pattern": "^col_[A-Za-z0-9]+$",
+              "title": "Collection Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CollectionWorkflow"
+                  },
+                  "title": "Response Listworkflows",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "List Workflows",
+        "tags": [
+          "collections"
+        ]
+      },
+      "post": {
+        "description": "A new workflow, not active yet (422 if two steps share a key). To\ncopy one from another collection, send its definition.",
+        "operationId": "createWorkflow",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "collection_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "col_k2m9"
+              ],
+              "pattern": "^col_[A-Za-z0-9]+$",
+              "title": "Collection Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionWorkflow"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Create Workflow",
+        "tags": [
+          "collections"
+        ]
+      }
+    },
+    "/api/edges/{edge_id}": {
+      "delete": {
+        "description": "Soft delete: ``restoreDeleted`` can bring it back (undo). Workflow\nedges can't be deleted (409 ``workflow_locked``).",
+        "operationId": "deleteEdge",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "edge_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "edg_3m7q"
+              ],
+              "pattern": "^edg_[A-Za-z0-9]+$",
+              "title": "Edge Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Delete Edge",
+        "tags": [
+          "edges"
         ]
       }
     },
@@ -2691,6 +4249,148 @@
         "summary": "Get Health",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/api/invitations": {
+      "get": {
+        "description": "Invites to you (by your sign-in email), newest first.",
+        "operationId": "listInvitations",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Invitation"
+                  },
+                  "title": "Response Listinvitations",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "List Invitations",
+        "tags": [
+          "collections"
+        ]
+      }
+    },
+    "/api/invitations/{invite_id}/accept": {
+      "post": {
+        "description": "Join the collection as an editor.",
+        "operationId": "acceptInvitation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "invite_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "inv_q8w1"
+              ],
+              "pattern": "^inv_[A-Za-z0-9]+$",
+              "title": "Invite Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Collection"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Accept Invitation",
+        "tags": [
+          "collections"
+        ]
+      }
+    },
+    "/api/invitations/{invite_id}/decline": {
+      "post": {
+        "operationId": "declineInvitation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "invite_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "inv_q8w1"
+              ],
+              "pattern": "^inv_[A-Za-z0-9]+$",
+              "title": "Invite Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Decline Invitation",
+        "tags": [
+          "collections"
         ]
       }
     },
@@ -2936,7 +4636,7 @@
     },
     "/api/me": {
       "get": {
-        "description": "Who you're signed in as (401 if not, 403 if not on the allowlist),\nand today's usage against your limits.",
+        "description": "Who you're signed in as (401 if not, 403 if not on the allowlist),\nand what you pay for today (everything generated in your collections,\nby anyone) against your limits.",
         "operationId": "getMe",
         "responses": {
           "200": {
@@ -3493,85 +5193,9 @@
         ]
       }
     },
-    "/api/projects": {
-      "get": {
-        "description": "Your projects, most recently updated first, with counts and a cover.",
-        "operationId": "listProjects",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ProjectSummary"
-                  },
-                  "title": "Response Listprojects",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          }
-        },
-        "summary": "List Projects",
-        "tags": [
-          "projects"
-        ]
-      },
-      "post": {
-        "description": "Create a project. It starts with one uploaded node per global asset,\ndown the left side of its canvas. ``workflow_template_id`` must be one\nof yours (404 otherwise); by default, your default workflow.",
-        "operationId": "createProject",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProjectCreate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Project"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          }
-        },
-        "summary": "Create Project",
-        "tags": [
-          "projects"
-        ]
-      }
-    },
     "/api/projects/{project_id}": {
       "delete": {
-        "description": "Deletes the project with its nodes, edges, jobs, outputs and assets.",
+        "description": "Owner only; even while someone is editing it (their next request\ngets 404). Deletes the project with its nodes, edges, jobs, outputs,\nassets and their files.",
         "operationId": "deleteProject",
         "parameters": [
           {
@@ -3591,6 +5215,16 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
           },
           "404": {
             "content": {
@@ -3812,6 +5446,250 @@
         "summary": "Create Edge",
         "tags": [
           "edges"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/lock": {
+      "delete": {
+        "description": "Release the lock, if this tab holds it.",
+        "operationId": "unlockProject",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "prj_8f2k1"
+              ],
+              "pattern": "^prj_[A-Za-z0-9]+$",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "This browser tab's own random ID, the same for all its requests.",
+            "in": "header",
+            "name": "X-Edit-Session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "This browser tab's own random ID, the same for all its requests.",
+              "title": "X-Edit-Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Unlock Project",
+        "tags": [
+          "projects"
+        ]
+      },
+      "get": {
+        "description": "Who holds the project's lock right now, as seen by this tab.",
+        "operationId": "getProjectLock",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "prj_8f2k1"
+              ],
+              "pattern": "^prj_[A-Za-z0-9]+$",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "This browser tab's own random ID, the same for all its requests.",
+            "in": "header",
+            "name": "X-Edit-Session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "This browser tab's own random ID, the same for all its requests.",
+              "title": "X-Edit-Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectLock"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Get Project Lock",
+        "tags": [
+          "projects"
+        ]
+      },
+      "post": {
+        "description": "Take or renew the lock for this tab: only the tab holding it may\nchange the project. It lasts 60 s; renew it (call again) every 20 s\nwhile the project is open, and release it on leaving.\n\n409 ``project_locked`` while someone else holds it (``context``:\n``holder_email``, ``holder_is_you``). With ``take_over``, you take it\nfrom your own other tab (never from someone else). Any change to the\nproject also takes the lock if it's free.",
+        "operationId": "lockProject",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "prj_8f2k1"
+              ],
+              "pattern": "^prj_[A-Za-z0-9]+$",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "This browser tab's own random ID, the same for all its requests.",
+            "in": "header",
+            "name": "X-Edit-Session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "This browser tab's own random ID, the same for all its requests.",
+              "title": "X-Edit-Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/LockRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectLock"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Lock Project",
+        "tags": [
+          "projects"
         ]
       }
     },
@@ -4273,93 +6151,21 @@
         ]
       }
     },
-    "/api/workflow-templates": {
-      "get": {
-        "description": "Your workflow templates, oldest first; one is your default.",
-        "operationId": "listWorkflowTemplates",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/WorkflowTemplate"
-                  },
-                  "title": "Response Listworkflowtemplates",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          }
-        },
-        "summary": "List Workflow Templates",
-        "tags": [
-          "workflow"
-        ]
-      },
-      "post": {
-        "description": "A new template (422 if two steps share a key).",
-        "operationId": "createWorkflowTemplate",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/WorkflowTemplateSave"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkflowTemplate"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          }
-        },
-        "summary": "Create Workflow Template",
-        "tags": [
-          "workflow"
-        ]
-      }
-    },
-    "/api/workflow-templates/{template_id}": {
+    "/api/workflows/{workflow_id}": {
       "delete": {
-        "description": "Not the default one (409).",
-        "operationId": "deleteWorkflowTemplate",
+        "description": "Not the active one (409).",
+        "operationId": "deleteWorkflow",
         "parameters": [
           {
             "in": "path",
-            "name": "template_id",
+            "name": "workflow_id",
             "required": true,
             "schema": {
-              "title": "Template Id",
+              "examples": [
+                "wfl_a7x2"
+              ],
+              "pattern": "^wfl_[A-Za-z0-9]+$",
+              "title": "Workflow Id",
               "type": "string"
             }
           }
@@ -4399,21 +6205,25 @@
             "description": "Unprocessable Entity"
           }
         },
-        "summary": "Delete Workflow Template",
+        "summary": "Delete Workflow",
         "tags": [
-          "workflow"
+          "collections"
         ]
       },
       "put": {
-        "description": "Replace a template (its version goes up). Projects already made keep\ntheir own copy.",
-        "operationId": "updateWorkflowTemplate",
+        "description": "Replace a workflow (its version goes up). Editing the active one\nchanges it for every project in the collection, so it's refused (409)\nwhile a step runs there; 409 ``edit_conflict`` if someone saved since\n``base_version``.",
+        "operationId": "updateWorkflow",
         "parameters": [
           {
             "in": "path",
-            "name": "template_id",
+            "name": "workflow_id",
             "required": true,
             "schema": {
-              "title": "Template Id",
+              "examples": [
+                "wfl_a7x2"
+              ],
+              "pattern": "^wfl_[A-Za-z0-9]+$",
+              "title": "Workflow Id",
               "type": "string"
             }
           }
@@ -4422,7 +6232,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/WorkflowTemplateSave"
+                "$ref": "#/components/schemas/WorkflowSave"
               }
             }
           },
@@ -4433,7 +6243,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/WorkflowTemplate"
+                  "$ref": "#/components/schemas/CollectionWorkflow"
                 }
               }
             },
@@ -4449,6 +6259,16 @@
             },
             "description": "Not Found"
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -4460,23 +6280,27 @@
             "description": "Unprocessable Entity"
           }
         },
-        "summary": "Update Workflow Template",
+        "summary": "Update Workflow",
         "tags": [
-          "workflow"
+          "collections"
         ]
       }
     },
-    "/api/workflow-templates/{template_id}/default": {
+    "/api/workflows/{workflow_id}/activate": {
       "post": {
-        "description": "Your new projects copy this template.",
-        "operationId": "setDefaultWorkflowTemplate",
+        "description": "Every project in the collection runs on this workflow from now on;\ntheir steps keep their results by step key (steps it doesn't have are\nhidden until a workflow with them is active again). 409 while a step\nruns in the collection.",
+        "operationId": "activateWorkflow",
         "parameters": [
           {
             "in": "path",
-            "name": "template_id",
+            "name": "workflow_id",
             "required": true,
             "schema": {
-              "title": "Template Id",
+              "examples": [
+                "wfl_a7x2"
+              ],
+              "pattern": "^wfl_[A-Za-z0-9]+$",
+              "title": "Workflow Id",
               "type": "string"
             }
           }
@@ -4486,7 +6310,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/WorkflowTemplate"
+                  "$ref": "#/components/schemas/CollectionWorkflow"
                 }
               }
             },
@@ -4502,6 +6326,16 @@
             },
             "description": "Not Found"
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -4513,9 +6347,9 @@
             "description": "Unprocessable Entity"
           }
         },
-        "summary": "Set Default Workflow Template",
+        "summary": "Activate Workflow",
         "tags": [
-          "workflow"
+          "collections"
         ]
       }
     }

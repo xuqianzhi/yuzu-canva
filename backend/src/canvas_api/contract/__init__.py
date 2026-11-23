@@ -5,6 +5,35 @@ repo root is generated from it, and the frontend's TypeScript types are
 generated from that file. Change models here, then run ``make contract``.
 """
 
+from .collections import (
+    ASSET_NODE_STEP,
+    ASSET_NODE_X,
+    ASSET_NODE_Y,
+    EDIT_SESSION_HEADER,
+    INVITE_DAYS,
+    LOCK_SECONDS,
+    Collection,
+    CollectionAsset,
+    CollectionAssetId,
+    CollectionAssetUpdate,
+    CollectionCreate,
+    CollectionId,
+    CollectionSummary,
+    CollectionUpdate,
+    CollectionWorkflow,
+    EditorLimits,
+    Invitation,
+    Invite,
+    InviteCreate,
+    InviteId,
+    LockRequest,
+    Member,
+    MemberUpdate,
+    ProjectLock,
+    Role,
+    WorkflowId,
+    WorkflowSave,
+)
 from .common import (
     AssetId,
     CompleteModel,
@@ -40,14 +69,6 @@ from .generation import (
     Provider,
     ResolvedRef,
 )
-from .global_assets import (
-    GLOBAL_NODE_STEP,
-    GLOBAL_NODE_X,
-    GLOBAL_NODE_Y,
-    GlobalAsset,
-    GlobalAssetId,
-    GlobalAssetUpdate,
-)
 from .graph import (
     Edge,
     EdgeCreate,
@@ -62,10 +83,10 @@ from .graph import (
     name_key,
     normalize_name,
 )
-from .instructions import MAX_INSTRUCTION_CHARS, GlobalInstruction, GlobalInstructionUpdate
+from .instructions import MAX_INSTRUCTION_CHARS
 from .materials import MAX_UPLOAD_BYTES, UPLOAD_MIME_TYPES, Material, MaterialPlace
 from .projects import Project, ProjectCreate, ProjectUpdate
-from .users import Me, UsageCounts
+from .users import Me, UsageCounts, UsageLine
 from .views import ProjectGraph, ProjectSummary, RestoreRequest, RestoreResult
 from .workflow import (
     MAX_ITEMS,
@@ -81,21 +102,39 @@ from .workflow import (
     TakeCreate,
     WorkflowDefinition,
     WorkflowStep,
-    WorkflowTemplate,
-    WorkflowTemplateSave,
 )
 
 __all__ = [
     "Me",
     "UsageCounts",
-    "GLOBAL_NODE_STEP",
-    "GLOBAL_NODE_X",
-    "GLOBAL_NODE_Y",
-    "GlobalAsset",
-    "GlobalAssetId",
-    "GlobalAssetUpdate",
-    "GlobalInstruction",
-    "GlobalInstructionUpdate",
+    "UsageLine",
+    "ASSET_NODE_STEP",
+    "ASSET_NODE_X",
+    "ASSET_NODE_Y",
+    "EDIT_SESSION_HEADER",
+    "INVITE_DAYS",
+    "LOCK_SECONDS",
+    "Collection",
+    "CollectionAsset",
+    "CollectionAssetId",
+    "CollectionAssetUpdate",
+    "CollectionCreate",
+    "CollectionId",
+    "CollectionSummary",
+    "CollectionUpdate",
+    "CollectionWorkflow",
+    "EditorLimits",
+    "Invitation",
+    "Invite",
+    "InviteCreate",
+    "InviteId",
+    "LockRequest",
+    "Member",
+    "MemberUpdate",
+    "ProjectLock",
+    "Role",
+    "WorkflowId",
+    "WorkflowSave",
     "MAX_INSTRUCTION_CHARS",
     "AppSettings",
     "AppSettingsUpdate",
@@ -106,8 +145,6 @@ __all__ = [
     "RunStatus",
     "StepRun",
     "StepRunRequest",
-    "WorkflowTemplate",
-    "WorkflowTemplateSave",
     "ChatMessage",
     "ChatRequest",
     "ChatRole",

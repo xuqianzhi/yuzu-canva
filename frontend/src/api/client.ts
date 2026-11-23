@@ -2,6 +2,7 @@
 // are all checked against the generated contract.
 import createClient from "openapi-fetch";
 import { authHeader, signedOutByServer } from "../auth";
+import { EDIT_SESSION, lockLostByServer } from "../store/session";
 import type { paths } from "./schema";
 import type { ErrorResponse } from "./types";
 
@@ -10,18 +11,31 @@ export const API_BASE = "";
 
 export const api = createClient<paths>({ baseUrl: API_BASE });
 
-// Every request carries the sign-in; a 401 means it's gone (back to sign-in).
+// Every request carries the sign-in and this tab's edit session (see
+// store/session.ts); a 401 means the sign-in is gone (back to sign-in), and
+// a 409 "project_locked" that someone else now holds the open project.
 api.use({
   async onRequest({ request }) {
     const header = await authHeader();
     if (header) request.headers.set("Authorization", header);
+    request.headers.set("X-Edit-Session", EDIT_SESSION);
     return request;
   },
-  onResponse({ response }) {
+  async onResponse({ response }) {
     if (response.status === 401) signedOutByServer();
+    if (response.status === 409) await noticeLock(response);
     return response;
   },
 });
+
+async function noticeLock(response: Response) {
+  try {
+    const body = (await response.clone().json()) as ErrorResponse;
+    if (body.error.code === "project_locked") lockLostByServer(body.error.context);
+  } catch {
+    // not an error body
+  }
+}
 
 /** `fetch` with the sign-in, for requests openapi-fetch doesn't make
     (multipart uploads). */
@@ -29,8 +43,10 @@ export async function authedFetch(url: string, init: RequestInit = {}): Promise<
   const headers = new Headers(init.headers);
   const header = await authHeader();
   if (header) headers.set("Authorization", header);
+  headers.set("X-Edit-Session", EDIT_SESSION);
   const response = await fetch(url, { ...init, headers });
   if (response.status === 401) signedOutByServer();
+  if (response.status === 409) await noticeLock(response);
   return response;
 }
 

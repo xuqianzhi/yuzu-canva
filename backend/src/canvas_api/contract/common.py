@@ -1,7 +1,7 @@
 """Shared building blocks for the API contract.
 
 IDs are opaque strings with a type prefix, so a stray ID in a log or URL says
-what it points at: prj_, nod_, edg_, out_, ast_, job_. Clients must treat them
+what it points at: col_, prj_, nod_, edg_, out_, ast_, job_. Clients must treat them
 as opaque and never parse them.
 
 All timestamps are UTC, ISO 8601.
@@ -140,6 +140,10 @@ class ErrorCode(StrEnum):
     quota_exceeded = "quota_exceeded"
     # Generation is turned off for now (503).
     generation_off = "generation_off"
+    # Someone else (or your other tab) is editing the project (409).
+    project_locked = "project_locked"
+    # Someone saved this since you read it: reload and try again (409).
+    edit_conflict = "edit_conflict"
 
 
 class ErrorDetail(CompleteModel):

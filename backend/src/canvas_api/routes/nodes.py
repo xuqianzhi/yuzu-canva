@@ -14,7 +14,7 @@ from ..contract import (
     Output,
     ProjectId,
 )
-from ..deps import SpendingDep, StoreDep, WorkerDep
+from ..deps import SpendingDep, StoreDep, UserDep, WorkerDep
 from ..errors import ApiError, responses
 from ..jobs.queue import queue_generation
 
@@ -86,6 +86,7 @@ async def generate_node(
     store: StoreDep,
     worker: WorkerDep,
     spending: SpendingDep,
+    user: UserDep,
     body: GenerateRequest | None = None,
 ) -> Job:
     """Queue a generation from the node's saved prompt, params and references.
@@ -109,4 +110,4 @@ async def generate_node(
             f"node {node_id} already has job {active.id} in progress",
             {"job_id": active.id},
         )
-    return queue_generation(store, worker, node, spending)
+    return queue_generation(store, worker, node, user.id, spending)

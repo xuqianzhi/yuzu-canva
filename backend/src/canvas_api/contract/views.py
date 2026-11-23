@@ -35,6 +35,8 @@ class ProjectSummary(Project):
     running_count: int = 0
     # The newest image or video output, to show on the project's card.
     cover: Asset | None = None
+    # Someone else editing it right now (holding its lock), if anyone.
+    editing_by: str | None = None
 
 
 class RestoreRequest(ContractModel):

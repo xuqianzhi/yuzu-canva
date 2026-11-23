@@ -165,6 +165,98 @@ CREATE TABLE global_assets (
 );
 CREATE INDEX global_assets_owner ON global_assets(owner_id);
 """,
+    # 2: collections (shared, each with its workflows, instruction and
+    # assets) replace per-user projects, templates and global assets; project
+    # locks; usage records who generated and who pays. Written for a
+    # database with no projects or global assets yet (it refuses otherwise).
+    """
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM projects) OR EXISTS (SELECT 1 FROM global_assets) THEN
+        RAISE EXCEPTION 'migration 2 expects no projects or global assets yet';
+    END IF;
+END $$;
+DROP TABLE workflow_templates;
+DROP TABLE global_assets;
+DELETE FROM user_settings WHERE key IN ('instruction', 'default_workflow');
+CREATE TABLE collections (
+    id TEXT PRIMARY KEY,
+    owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    instruction TEXT NOT NULL DEFAULT '',
+    active_workflow_id TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    updated_by TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX collections_owner ON collections(owner_id);
+CREATE TABLE collection_workflows (
+    id TEXT PRIMARY KEY,
+    collection_id TEXT NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
+    definition TEXT NOT NULL,
+    updated_by TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX collection_workflows_collection ON collection_workflows(collection_id);
+CREATE TABLE collection_members (
+    collection_id TEXT NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role TEXT NOT NULL,
+    limit_text INTEGER,
+    limit_image INTEGER,
+    limit_video INTEGER,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (collection_id, user_id)
+);
+CREATE INDEX collection_members_user ON collection_members(user_id);
+CREATE TABLE collection_invites (
+    id TEXT PRIMARY KEY,
+    collection_id TEXT NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
+    email TEXT NOT NULL,
+    invited_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    limit_text INTEGER,
+    limit_image INTEGER,
+    limit_video INTEGER,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    UNIQUE (collection_id, email)
+);
+CREATE INDEX collection_invites_email ON collection_invites(email);
+CREATE TABLE collection_assets (
+    id TEXT PRIMARY KEY,
+    collection_id TEXT NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    mime TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    bytes BIGINT NOT NULL,
+    width INTEGER,
+    height INTEGER,
+    duration_s DOUBLE PRECISION,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX collection_assets_collection ON collection_assets(collection_id);
+DROP INDEX projects_owner;
+ALTER TABLE projects DROP COLUMN owner_id;
+ALTER TABLE projects DROP COLUMN workflow;
+ALTER TABLE projects ADD COLUMN collection_id TEXT NOT NULL
+    REFERENCES collections(id) ON DELETE CASCADE;
+CREATE INDEX projects_collection ON projects(collection_id);
+CREATE TABLE project_locks (
+    project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    session_id TEXT NOT NULL,
+    expires_at TEXT NOT NULL
+);
+DROP INDEX usage_user_time;
+ALTER TABLE usage RENAME COLUMN user_id TO payer_id;
+ALTER TABLE usage ADD COLUMN actor_id TEXT REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE usage ADD COLUMN collection_id TEXT REFERENCES collections(id) ON DELETE SET NULL;
+CREATE INDEX usage_payer_time ON usage(payer_id, created_at);
+CREATE INDEX usage_collection_actor_time ON usage(collection_id, actor_id, created_at);
+""",
 ]
 
 # Row-level security with no policies on every table: Supabase's public Data
@@ -180,9 +272,13 @@ TABLES = [
     "assets",
     "jobs",
     "outputs",
-    "workflow_templates",
     "step_runs",
     "messages",
     "materials",
-    "global_assets",
+    "collections",
+    "collection_workflows",
+    "collection_members",
+    "collection_invites",
+    "collection_assets",
+    "project_locks",
 ]

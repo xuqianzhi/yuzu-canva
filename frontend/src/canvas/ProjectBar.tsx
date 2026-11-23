@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { homeHref } from "../router";
+import { collectionHref, homeHref } from "../router";
 import { UNDO_KEY, useCanvas } from "../store/canvas";
 import { useT } from "../i18n";
 
@@ -15,6 +15,7 @@ export function ProjectBar() {
   const canRedo = useCanvas((s) => s.canRedo);
   const undo = useCanvas((s) => s.undo);
   const redo = useCanvas((s) => s.redo);
+  const readOnly = useCanvas((s) => s.lock.status !== "editing");
   const [name, setName] = useState(project?.name ?? "");
 
   const projectId = project?.id;
@@ -23,18 +24,22 @@ export function ProjectBar() {
   // Follow the project when it loads or changes (but not while typing).
   useEffect(() => setName(useCanvas.getState().project?.name ?? ""), [projectId]);
   useEffect(() => {
-    document.title = projectName ? `${projectName} · Seedance Canvas` : "Seedance Canvas";
+    document.title = projectName ? `${projectName} · Yuzu Canva` : "Yuzu Canva";
   }, [projectName]);
 
   return (
     <header className="topbar">
-      <a className="button button--ghost" href={homeHref}>
+      <a
+        className="button button--ghost"
+        href={project ? collectionHref(project.collection_id) : homeHref}
+      >
         {t("back")}
       </a>
       {project && (
         <input
           className="topbar__name"
-          value={name}
+          value={readOnly ? project.name : name}
+          readOnly={readOnly}
           maxLength={200}
           aria-label={t("project_name")}
           spellCheck={false}
@@ -53,7 +58,7 @@ export function ProjectBar() {
         <button
           className="icon-button icon-button--plain"
           onClick={() => void undo()}
-          disabled={!canUndo}
+          disabled={!canUndo || readOnly}
           title={t("undo_title", { key: UNDO_KEY })}
           aria-label={t("undo")}
         >
@@ -64,7 +69,7 @@ export function ProjectBar() {
         <button
           className="icon-button icon-button--plain"
           onClick={() => void redo()}
-          disabled={!canRedo}
+          disabled={!canRedo || readOnly}
           title={t("redo_title", { key: REDO_KEY })}
           aria-label={t("redo")}
         >
@@ -73,7 +78,9 @@ export function ProjectBar() {
           </svg>
         </button>
       </div>
-      <span className="topbar__save">{pendingSaves > 0 ? t("saving") : t("saved")}</span>
+      <span className="topbar__save">
+        {readOnly ? t("view_only") : pendingSaves > 0 ? t("saving") : t("saved")}
+      </span>
     </header>
   );
 }

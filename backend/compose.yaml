@@ -6,7 +6,7 @@
 # (your Supabase database) is ignored, so local work never touches it.
 
 # Explicit, so it never collides with another repo's `backend/` folder.
-name: seedance-canvas
+name: yuzu-canva
 
 x-base-image: &base-image ${BASE_IMAGE:-python:3.12-slim}
 
@@ -63,7 +63,7 @@ services:
       target: base
       args:
         BASE_IMAGE: *base-image
-    image: seedance-canvas/backend:dev
+    image: yuzu-canva/backend:dev
     environment: *env
     ports:
       - "127.0.0.1:8788:8788"
@@ -84,7 +84,7 @@ services:
       target: dev
       args:
         BASE_IMAGE: *base-image
-    image: seedance-canvas/backend:test
+    image: yuzu-canva/backend:test
     environment:
       OPENAI_API_KEY: test-key-not-real
       ARK_API_KEY: test-key-not-real

@@ -1,8 +1,6 @@
-"""Workflow templates and running a project's steps."""
+"""Running a project's workflow steps."""
 
 from __future__ import annotations
-
-import json
 
 from ..contract import (
     ErrorCode,
@@ -15,15 +13,12 @@ from ..contract import (
     Position,
     RunStatus,
     StepRun,
-    WorkflowDefinition,
-    WorkflowTemplate,
     default_params,
 )
 from ..domain.mentions import (
     mentioned,
 )
 from ..domain.workflow import (
-    builtin_workflow,
     position_for,
     step_by_key,
 )
@@ -33,7 +28,6 @@ from .base import (
     ACTIVE,
     WORKFLOW_HANDLE,
     Db,
-    Row,
     _dt,
     _not_found,
     _ts,
@@ -42,125 +36,7 @@ from .base import (
 
 
 class WorkflowMixin:
-    """Workflow templates and running a project's steps."""
-
-    @staticmethod
-    def _template(r: Row, default_id: str | None) -> WorkflowTemplate:
-        return WorkflowTemplate(
-            id=r["id"],
-            definition=WorkflowDefinition.model_validate_json(r["definition"]),
-            is_default=r["id"] == default_id,
-            created_at=_dt(r["created_at"]),
-            updated_at=_dt(r["updated_at"]),
-        )
-
-    def _default_template_id(self, db: Db, owner: str) -> str | None:
-        return self._setting(db, owner, "default_workflow")
-
-    def _seed_templates(self, db: Db, owner: str) -> None:
-        """The user has a template (a copy of the built-in one to start
-        with), and one of theirs is the default."""
-        first = db.execute(
-            "SELECT id FROM workflow_templates WHERE owner_id = ? ORDER BY created_at, id "
-            "LIMIT 1",
-            (owner,),
-        ).fetchone()
-        if first is None:
-            template_id, ts = new_id("wft"), _ts(now())
-            definition = builtin_workflow().model_copy(update={"id": template_id})
-            db.execute(
-                "INSERT INTO workflow_templates (id, owner_id, definition, created_at, "
-                "updated_at) VALUES (?, ?, ?, ?, ?)",
-                (template_id, owner, definition.model_dump_json(), ts, ts),
-            )
-            first = {"id": template_id}
-        default = self._default_template_id(db, owner)
-        known = (
-            default
-            and db.execute(
-                "SELECT 1 FROM workflow_templates WHERE id = ? AND owner_id = ?",
-                (default, owner),
-            ).fetchone()
-        )
-        if not known:
-            self._put_setting(db, owner, "default_workflow", first["id"])
-
-    def list_templates(self, owner: str) -> list[WorkflowTemplate]:
-        with self._conn() as db:
-            default = self._default_template_id(db, owner)
-            rows = db.execute(
-                "SELECT * FROM workflow_templates WHERE owner_id = ? ORDER BY created_at, id",
-                (owner,),
-            ).fetchall()
-        return [self._template(r, default) for r in rows]
-
-    def get_template(self, template_id: str) -> WorkflowTemplate:
-        with self._conn() as db:
-            row = db.execute(
-                "SELECT * FROM workflow_templates WHERE id = ?", (template_id,)
-            ).fetchone()
-            if not row:
-                raise _not_found("workflow template", template_id)
-            default = self._default_template_id(db, row["owner_id"])
-        return self._template(row, default)
-
-    def save_template(
-        self, owner: str, template_id: str | None, definition: WorkflowDefinition
-    ) -> WorkflowTemplate:
-        """Create (no id) or replace a template; its version goes up by one."""
-        ts = _ts(now())
-        with self._tx() as db:
-            if template_id is None:
-                template_id = new_id("wft")
-                saved = definition.model_copy(update={"id": template_id, "version": 1})
-                db.execute(
-                    "INSERT INTO workflow_templates (id, owner_id, definition, created_at, "
-                    "updated_at) VALUES (?, ?, ?, ?, ?)",
-                    (template_id, owner, saved.model_dump_json(), ts, ts),
-                )
-            else:
-                row = db.execute(
-                    "SELECT definition FROM workflow_templates WHERE id = ? AND owner_id = ?",
-                    (template_id, owner),
-                ).fetchone()
-                if not row:
-                    raise _not_found("workflow template", template_id)
-                version = json.loads(row["definition"]).get("version", 0) + 1
-                saved = definition.model_copy(update={"id": template_id, "version": version})
-                db.execute(
-                    "UPDATE workflow_templates SET definition = ?, updated_at = ? WHERE id = ?",
-                    (saved.model_dump_json(), ts, template_id),
-                )
-        return self.get_template(template_id)
-
-    def delete_template(self, template_id: str) -> None:
-        template = self.get_template(template_id)
-        if template.is_default:
-            raise ApiError(
-                409,
-                ErrorCode.validation_error,
-                "this is the default workflow: make another one the default first",
-            )
-        with self._tx() as db:
-            db.execute("DELETE FROM workflow_templates WHERE id = ?", (template_id,))
-
-    def set_default_template(self, template_id: str) -> WorkflowTemplate:
-        owner = self.owner_of("template", template_id)
-        with self._tx() as db:
-            self._put_setting(db, owner, "default_workflow", template_id)
-        return self.get_template(template_id)
-
-    def _template_for_project(self, db: Db, owner: str, template_id: str | None) -> str:
-        """The definition (JSON) a new project copies: one of the owner's
-        templates (their default if none is named)."""
-        template_id = template_id or self._default_template_id(db, owner)
-        row = db.execute(
-            "SELECT definition FROM workflow_templates WHERE id = ? AND owner_id = ?",
-            (template_id, owner),
-        ).fetchone()
-        if not row:
-            raise _not_found("workflow template", str(template_id))
-        return row["definition"]
+    """Running a project's workflow steps."""
 
     def list_runs(self, project_id: str) -> list[StepRun]:
         rows = self._all(

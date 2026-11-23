@@ -21,10 +21,10 @@ from .providers.openai_text import OpenAITextModel, TextGenerator, TextModel
 from .providers.seedance_video import SeedanceVideoGenerator
 from .routes import (
     assets,
+    collection_assets,
+    collections,
     edges,
-    global_assets,
     health,
-    instructions,
     jobs,
     materials,
     me,
@@ -121,13 +121,15 @@ def create_app(
 
     app = FastAPI(
         lifespan=lifespan,
-        title="seedance-canvas API",
+        title="yuzu-canva API",
         version=__version__,
         description=(
             "Canvas of generation nodes. A node turns a prompt (plus the outputs of "
             "the nodes it references) into text, an image or a video.\n\n"
             "Every route except /health and the media links needs "
-            "`Authorization: Bearer <Firebase ID token>`."
+            "`Authorization: Bearer <Firebase ID token>`. Projects live in "
+            "collections, shared by an owner with editors; a change to a project "
+            "needs its lock (`X-Edit-Session`, see lockProject)."
         ),
         # Split input/output schemas would generate Node and Node-Input types;
         # one schema per model keeps the TypeScript names clean.
@@ -137,16 +139,16 @@ def create_app(
     # Open: the health check, and media (signed links instead of sign-in).
     for module in (health, assets):
         app.include_router(module.router, prefix=API_PREFIX)
-    # Signed in, and only your own things (see deps.authorize).
+    # Signed in, and only things in your collections (see deps.authorize).
     signed_in = [Depends(authorize)]
     for module in (
+        collections,
         projects,
         nodes,
         edges,
         jobs,
         materials,
-        global_assets,
-        instructions,
+        collection_assets,
         workflow,
         me,
     ):

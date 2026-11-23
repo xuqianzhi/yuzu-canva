@@ -1,7 +1,7 @@
 """Where media files live, and the signed links that serve them.
 
-Files are named by key, e.g. "assets/ast_x.png" or "global/gas_x.jpg":
-- LocalFiles keeps them under a folder (data/assets, data/global), served by
+Files are named by key, e.g. "assets/ast_x.png" or "collection/cas_x.jpg":
+- LocalFiles keeps them under a folder (data/assets, data/collection), served by
   the API itself;
 - GcsFiles keeps them in a Cloud Storage bucket; the API answers a media link
   with a redirect to a short-lived Cloud Storage link, so the bytes never pass

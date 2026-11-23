@@ -37,7 +37,7 @@ const firebaseConfig = {
 export const USES_FIREBASE =
   Boolean(firebaseConfig.apiKey) && (!env.DEV || env.VITE_FIREBASE_IN_DEV === "1");
 
-const DEV_KEY = "seedance-canvas.dev-email";
+const DEV_KEY = "yuzu-canva.dev-email";
 
 export type AuthState =
   /** Finding out whether a sign-in is remembered. */
@@ -82,7 +82,7 @@ export const useAuth = create<AuthStore>()((set, get) => ({
     set({ state: { status: "signed_in", email: cleaned, allowed: null } });
   },
   async signOut() {
-    document.title = "Seedance Canvas";
+    document.title = "Yuzu Canva";
     if (firebaseAuth) {
       await firebaseSignOut(firebaseAuth);
     } else {

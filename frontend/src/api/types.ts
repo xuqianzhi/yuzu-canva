@@ -30,7 +30,18 @@ export type WorkflowDefinition = S["WorkflowDefinition"];
 export type WorkflowStep = S["WorkflowStep"];
 export type ChatMessage = S["ChatMessage"];
 export type StepRun = S["StepRun"];
-export type WorkflowTemplate = S["WorkflowTemplate"];
+
+export type Collection = S["Collection"];
+export type CollectionSummary = S["CollectionSummary"];
+export type CollectionWorkflow = S["CollectionWorkflow"];
+export type CollectionAsset = S["CollectionAsset"];
+export type Member = S["Member"];
+export type Invite = S["Invite"];
+export type Invitation = S["Invitation"];
+export type EditorLimits = S["EditorLimits"];
+export type ProjectLock = S["ProjectLock"];
+export type ProjectSummary = S["ProjectSummary"];
+export type Me = S["Me"];
 
 /** The most nodes one run of a workflow step may make (contract MAX_ITEMS). */
 export const MAX_RUN_ITEMS = 20;

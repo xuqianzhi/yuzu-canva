@@ -9,11 +9,11 @@ the backend on 8788, and opens in a chromeless Chrome window.
 From the repo root:
 
 ```bash
-./seedance-canvas            # start API + UI, open the window
-./seedance-canvas --fake     # same, with offline placeholder images and videos (no API calls)
-./seedance-canvas --stop     # close the window, stop both
-./seedance-canvas --status
-./seedance-canvas --install  # optional: a `seedance-canvas` command on PATH
+./yuzu-canva            # start API + UI, open the window
+./yuzu-canva --fake     # same, with offline placeholder images and videos (no API calls)
+./yuzu-canva --stop     # close the window, stop both
+./yuzu-canva --status
+./yuzu-canva --install  # optional: a `yuzu-canva` command on PATH
 ```
 
 Or by hand: `cd backend && docker compose up -d api`, then
@@ -28,24 +28,43 @@ Or by hand: `cd backend && docker compose up -d api`, then
   choice is remembered (on the backend, cached in the browser) until you
   change it. Strings live in `src/i18n.ts`; error messages from the API
   are shown by error code in Chinese.
-- **Landing page:** a menu down the left edge (like the one inside a
-  project) switches between three full-height pages, each scrolling on its
-  own. The address follows the page (`#/`, `#/assets`, `#/instruction`).
-  - **Projects** (`#/`): every project, newest first, with a cover and
-    counts. **+ New project** creates one; hover a card for **Delete**.
-  - **Assets** (`#/assets`, under *Defaults*): global assets, named images
-    and videos that every *new* project starts with, as uploaded nodes down
-    the left side of its canvas (oldest first). **Upload** or drop files on
-    the page: each is added at once, named after its file (with "_2",
-    "_3"… if that name is taken). Names are required and unique (ignoring
-    case) and become the node's ID; click one to rename it, or hover a card
-    for ×. Changes never touch projects already made; each has its own copy.
-  - **Instruction** (`#/instruction`, under *Defaults*): the global
-    instruction, plain text that every *new* project starts with as its own
-    instruction, like a chat project's custom instructions. Saved as you
-    type. Nothing uses it yet.
-- Inside a project, **← Projects** goes back, and the name in the
-  header can be edited in place.
+- **Landing pages:** a menu down the left edge (like the one inside a
+  project) switches between full-height pages, each scrolling on its own.
+  The address follows the page.
+  - **Collections** (`#/`): every collection you own or edit, with
+    **Invitations** to accept or decline on top, and **+ New collection**.
+  - Inside a collection (`#/c/<id>`), its menu items:
+    - **Projects**: its projects, newest first, with a cover, counts, and
+      who is editing each right now. **+ New project** creates one; the
+      owner can hover a card for **Delete**, or **Delete collection** (type
+      its name to confirm).
+    - **Assets** (`/assets`): named images and videos that every *new*
+      project in the collection starts with, as uploaded nodes down the left
+      side of its canvas (oldest first). **Upload** or drop files on the
+      page: each is added at once, named after its file (with "_2", "_3"… if
+      that name is taken). Names are required and unique in the collection
+      (ignoring case) and become the node's ID; click one to rename it, or
+      hover a card for ×. Changes never touch projects already made.
+    - **Instruction** (`/instruction`): plain text that every *new* project
+      starts with as its own instruction. Saved as you type; if someone else
+      saved in between, it says so and offers **Reload**.
+    - **Workflows** (`/workflows`): the collection's workflows; one is
+      **Active** and every project runs on it. **Make active** switches all
+      projects (steps the new one lacks are hidden, not deleted);
+      **Copy from another collection…** brings one in.
+    - **Share** (`/share`): the people (owner and editors, with what each
+      generated today), inviting an editor by email with daily limits
+      (blank: no limit; the owner pays), pending invites, removing an
+      editor, or leaving.
+  - **Settings** (`#/settings`): language, account, and today's usage, by
+    collection and person.
+- Inside a project, **← Projects** goes back to its collection, and the
+  name in the header can be edited in place.
+- **One editor at a time:** opening a project takes its lock (renewed every
+  20 s, released on leaving; see `src/store/lock.ts`). If someone else (or
+  your other tab) holds it, the project opens **view only**: a banner says
+  who, every control is off, and the view refreshes every 5 s; once they
+  leave, **Start editing**. Your own other tab can be taken over.
 - **Menu (left edge):**
   - **Assets** — the project's uploaded images (PNG, JPEG, WebP) and
     videos (MP4, MOV). **Upload**, or drop files on the panel. Drag one onto
@@ -53,8 +72,8 @@ Or by hand: `cd backend && docker compose up -d api`, then
     straight onto the canvas uploads and places them in one go.
   - **Nodes** — every node by name. Rename here, or click a row to select
     the node and bring it to the middle of the view.
-  - **Instruction** — this project's instruction, a copy of the global one
-    made when the project was created. Editing it (saved as you type)
+  - **Instruction** — this project's instruction, a copy of its
+    collection's made when the project was created. Editing it (saved as you type)
     changes only this project.
 - **IDs:** optional, shown above each node; click to edit (Enter saves,
   Escape cancels). Unique in the canvas (ignoring case), and made of letters
@@ -174,7 +193,7 @@ src/
               this page open" while generating), WorkflowBar.tsx,
               StepPanel.tsx, ChatThread.tsx
   styles.css  light/dark tokens
-bin/seedance-canvas       the launcher
+bin/yuzu-canva       the launcher
 ```
 
 `npm run typecheck`, `npm run build`, and `npm run gen:api` (after the

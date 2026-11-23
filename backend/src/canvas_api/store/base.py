@@ -56,6 +56,15 @@ LIVE_ASSETS = (
 PURGE_AFTER = timedelta(days=1)
 
 
+# A project row as `_project` reads it: with its collection's active
+# workflow as `workflow`. Add "WHERE ..." (projects are `p`).
+PROJECT_SQL = (
+    "SELECT p.*, w.definition AS workflow FROM projects p "
+    "JOIN collections c ON c.id = p.collection_id "
+    "JOIN collection_workflows w ON w.id = c.active_workflow_id "
+)
+
+
 WORKFLOW_HANDLE = "workflow"
 
 Row = dict[str, Any]
@@ -78,7 +87,7 @@ def _not_found(what: str, id_: str) -> ApiError:
 
 
 def _workflow_of(stored: str) -> WorkflowDefinition:
-    """A project's copy of its workflow; the built-in one if it can't be read."""
+    """A stored workflow; the built-in one if it can't be read."""
     try:
         return WorkflowDefinition.model_validate_json(stored)
     except ValueError:
@@ -191,6 +200,7 @@ class StoreBase:
     def _project(r: Row) -> Project:
         return Project(
             id=r["id"],
+            collection_id=r["collection_id"],
             name=r["name"],
             viewport=Viewport.model_validate_json(r["viewport"]),
             instruction=r["instruction"],

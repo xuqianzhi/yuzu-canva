@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Launch Seedance Canvas in a chromeless Chrome window.
+# Launch Yuzu Canva in a chromeless Chrome window.
 #
 # Starts the API container (backend/, Docker) and the UI dev server
 # (frontend/, Vite), then opens the UI in a Chromium `--app=` window with its
@@ -10,7 +10,7 @@
 
 set -euo pipefail
 
-# Resolve symlinks (this is reached through <repo>/seedance-canvas and maybe a
+# Resolve symlinks (this is reached through <repo>/yuzu-canva and maybe a
 # link on PATH). macOS has no `readlink -f`, so use python3.
 SELF="$(python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "${BASH_SOURCE[0]}")"
 FRONTEND_DIR="$(cd "$(dirname "$SELF")/.." && pwd)"
@@ -23,9 +23,9 @@ UI_URL="http://127.0.0.1:${UI_PORT}"
 
 STATE_DIR="${TMPDIR:-/tmp}"
 STATE_DIR="${STATE_DIR%/}"
-PIDFILE="${STATE_DIR}/seedance-canvas-ui.pid"
-LOGFILE="${STATE_DIR}/seedance-canvas-ui.log"
-PROFILE_DIR="${STATE_DIR}/seedance-canvas-profile"
+PIDFILE="${STATE_DIR}/yuzu-canva-ui.pid"
+LOGFILE="${STATE_DIR}/yuzu-canva-ui.log"
+PROFILE_DIR="${STATE_DIR}/yuzu-canva-profile"
 
 ACTION="start"
 NO_OPEN=0
@@ -34,7 +34,7 @@ BROWSER_OVERRIDE=""
 
 usage() {
   cat <<'USAGE'
-Usage: seedance-canvas [options]
+Usage: yuzu-canva [options]
 
   (no options)    Start the API and UI if needed, and open the window
   --stop          Close the window, stop the UI server and the API container
@@ -42,10 +42,10 @@ Usage: seedance-canvas [options]
   --fake          Use offline placeholder images instead of OpenAI
   --no-open       Start everything without opening a window
   --browser PATH  Use this browser binary instead of probing for Chrome
-  --install       Put a `seedance-canvas` command on your PATH
+  --install       Put a `yuzu-canva` command on your PATH
   -h, --help      Show this message
 
-Logs: the UI server logs to $TMPDIR/seedance-canvas-ui.log;
+Logs: the UI server logs to $TMPDIR/yuzu-canva-ui.log;
       the API: cd backend && docker compose logs -f api
 USAGE
 }
@@ -73,7 +73,7 @@ try:
     c = http.client.HTTPConnection(u.hostname, u.port, timeout=2)
     c.request("GET", "/api/health")
     r = c.getresponse()
-    ok = r.status == 200 and json.load(r).get("app") == "seedance-canvas"
+    ok = r.status == 200 and json.load(r).get("app") == "yuzu-canva"
 except Exception:
     sys.exit(1)
 sys.exit(0 if ok else 1)
@@ -89,7 +89,7 @@ try:
     c = http.client.HTTPConnection(u.hostname, u.port, timeout=2)
     c.request("GET", "/")
     r = c.getresponse()
-    ok = r.status == 200 and b"<title>Seedance Canvas</title>" in r.read()
+    ok = r.status == 200 and b"<title>Yuzu Canva</title>" in r.read()
 except Exception:
     sys.exit(1)
 sys.exit(0 if ok else 1)
@@ -246,8 +246,8 @@ install_cmd() {
     echo "  no writable folder on PATH; add ~/.local/bin to PATH and re-run" >&2
     return 1
   fi
-  ln -sf "$SELF" "${dir}/seedance-canvas"
-  echo "  installed ${dir}/seedance-canvas -> ${SELF}"
+  ln -sf "$SELF" "${dir}/yuzu-canva"
+  echo "  installed ${dir}/yuzu-canva -> ${SELF}"
 }
 
 # ── Main ────────────────────────────────────────────────────────────────────

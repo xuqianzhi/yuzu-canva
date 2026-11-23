@@ -1437,6 +1437,8 @@ a.button {
 .home__rail {
   flex: none;
   overflow-y: auto;
+  /* Wider than a project's rail: "Collections", "Instruction" fit. */
+  width: 76px;
 }
 
 a.rail-button {
@@ -2723,4 +2725,277 @@ a.rail-button {
 .settings__usage dd {
   margin: 0;
   font-variant-numeric: tabular-nums;
+}
+
+/* --- collections and sharing ----------------------------------------------------- */
+
+/* The rail's heading over a collection's sections: its name. */
+.home__rail-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 10.5px;
+}
+
+.collection__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.button--danger-ghost {
+  flex: none;
+  border-color: transparent;
+  background: transparent;
+  color: var(--danger);
+}
+
+.button--danger-ghost:hover:not(:disabled) {
+  background: var(--danger-bg);
+}
+
+.collection-card__cover,
+.pj-cover {
+  position: relative;
+}
+
+.role-pill {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  max-width: calc(100% - 16px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.role-pill--editing {
+  color: var(--warn);
+}
+
+.role-pill--inline {
+  position: static;
+  display: inline-block;
+  vertical-align: 1px;
+  padding: 0 6px;
+  font-size: 10.5px;
+}
+
+.invitations {
+  max-width: 720px;
+  margin: 0 0 20px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+}
+
+.invitations ul {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.invitation {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.invitation + .invitation {
+  border-top: 1px solid var(--border);
+}
+
+.share__section {
+  max-width: 820px;
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+}
+
+.share__list {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.share__row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  padding: 10px 0;
+}
+
+.share__row + .share__row {
+  border-top: 1px dashed var(--border);
+}
+
+.share__who {
+  display: flex;
+  flex: 1 1 260px;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.share__who strong {
+  overflow-wrap: anywhere;
+}
+
+.share__who small,
+.share__note {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.share__you {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.share__limits {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.limits-editor {
+  display: flex;
+  gap: 8px;
+}
+
+.limits-editor__field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.limits-editor__field input {
+  width: 84px;
+  padding: 5px 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.limits-editor__field input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.invite-form {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+}
+
+.invite-form .designer__field--grow {
+  min-width: 240px;
+}
+
+.invite-form__help {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.designer__copy {
+  width: 100%;
+  margin-top: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+}
+
+.settings__row--stack {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.usage-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.usage-table th,
+.usage-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+}
+
+.usage-table th:nth-child(-n + 2),
+.usage-table td:nth-child(-n + 2) {
+  text-align: left;
+}
+
+.usage-table th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 12px;
+}
+
+/* --- one editor per project ------------------------------------------------------ */
+
+/* Wraps the canvas and step panel so `disabled` turns every control off
+   while viewing; it takes no space of its own. */
+.readonly-fence {
+  display: contents;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.lock-banner {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100% - 32px);
+  padding: 7px 8px 7px 14px;
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--border));
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  transform: translateX(-50%);
+}
+
+.lock-banner svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: var(--warn);
+  stroke-width: 1.5;
+}
+
+.lock-banner > span {
+  padding-right: 6px;
 }

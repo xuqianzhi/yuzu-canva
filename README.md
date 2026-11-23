@@ -1,4 +1,4 @@
-# seedance-canvas
+# yuzu-canva
 
 A canvas for AI generation. Each node takes a prompt and generates text, an
 image or a video, and can reference other nodes' outputs.
@@ -6,7 +6,7 @@ image or a video, and can reference other nodes' outputs.
 - Text and images: OpenAI. Video: Seedance (Volcengine Ark).
 
 ```
-seedance-canvas/
+yuzu-canva/
 ├── contract/   openapi.json, generated from the backend models
 ├── backend/    FastAPI, runs in Docker on 127.0.0.1:8788
 └── frontend/   React canvas (coming next), opens in Chrome; typed API client
@@ -15,12 +15,19 @@ seedance-canvas/
 ## Status
 
 The canvas works: add, move, name and delete nodes, upload your own images
-and videos as nodes (per project, or as global assets every new project
-starts with), connect one node's output into another, generate
+and videos as nodes (per project, or as a collection's assets every new
+project in it starts with), connect one node's output into another, generate
 images and videos, and see the result; everything saves, and ⌘Z undoes it.
 
-- **Workflows**: designed once on the landing page (a list of steps, each a
-  name and what it makes) and copied by every new project. In a project,
+- **Collections**: projects (one video each) live in collections ("Anime",
+  "Educational"), each with its own workflows (one active, which all its
+  projects run on), instruction and assets. A collection's owner invites
+  editors by email; editors can do everything but delete projects or the
+  collection. The owner pays for everything generated there and can limit
+  each editor per day. One person (one browser tab) edits a project at a
+  time; others see it view-only until it's free.
+- **Workflows**: designed per collection (a list of steps, each a
+  name and what it makes); its projects run on the active one. In a project,
   each step runs with a prompt and a number: with the project instruction
   and the step before's results, the AI writes that many results (text) or
   prompts (images, videos, generated at once). See frontend/README.md.

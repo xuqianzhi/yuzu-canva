@@ -10,7 +10,7 @@ from fastapi import APIRouter, Query
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, RedirectResponse, Response
 
-from ..contract import AssetId, ErrorCode, GlobalAssetId
+from ..contract import AssetId, CollectionAssetId, ErrorCode
 from ..deps import StoreDep
 from ..errors import ApiError, responses
 from ..files import IMMUTABLE
@@ -57,15 +57,15 @@ async def get_asset_content(
 
 
 @router.get(
-    "/global-assets/{asset_id}/content",
-    operation_id="getGlobalAssetContent",
+    "/collection-assets/{asset_id}/content",
+    operation_id="getCollectionAssetContent",
     response_class=FileResponse,
     responses=_CONTENT,
 )
-async def get_global_asset_content(
-    asset_id: GlobalAssetId, store: StoreDep, e: Expiry, s: Signature
+async def get_collection_asset_content(
+    asset_id: CollectionAssetId, store: StoreDep, e: Expiry, s: Signature
 ) -> Response:
-    asset, key = await run_in_threadpool(store.global_asset_file, asset_id)
+    asset, key = await run_in_threadpool(store.collection_asset_file, asset_id)
     return await run_in_threadpool(
-        _serve, store, "global-assets", asset_id, key, asset.mime, e, s
+        _serve, store, "collection-assets", asset_id, key, asset.mime, e, s
     )

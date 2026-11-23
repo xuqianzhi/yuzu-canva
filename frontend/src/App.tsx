@@ -1,10 +1,11 @@
 import { ReactFlowProvider } from "@xyflow/react";
 import { useEffect } from "react";
 import { Canvas } from "./canvas/Canvas";
+import { LockBanner } from "./canvas/LockBanner";
 import { ProjectBar } from "./canvas/ProjectBar";
 import { HomePage } from "./pages/HomePage";
 import { SignInGate } from "./pages/SignIn";
-import { homeHref, syncProject, useRoute } from "./router";
+import { collectionHref, homeHref, syncProject, useRoute } from "./router";
 import { useCanvas } from "./store/canvas";
 import { loadLanguage, useT } from "./i18n";
 import { StepPanel } from "./workflow/StepPanel";
@@ -30,13 +31,14 @@ function SignedInApp() {
     void syncProject(projectId ? { page: "project", projectId } : { page: "home" });
   }, [projectId]);
 
-  return route.page === "home" ? <HomePage tab={route.tab ?? "projects"} /> : <ProjectPage />;
+  return route.page === "project" ? <ProjectPage /> : <HomePage route={route} />;
 }
 
 function ProjectPage() {
   const t = useT();
   const load = useCanvas((s) => s.load);
   const project = useCanvas((s) => s.project);
+  const readOnly = useCanvas((s) => s.lock.status !== "editing");
 
   return (
     <ReactFlowProvider>
@@ -48,7 +50,7 @@ function ProjectPage() {
             <div className="app__notice app__notice--error">
               <strong>{t("open_error")}</strong>
               <span>{load.message}</span>
-              <a className="button" href={homeHref}>
+              <a className="button" href={project ? collectionHref(project.collection_id) : homeHref}>
                 {t("back_to_projects")}
               </a>
             </div>
@@ -56,9 +58,14 @@ function ProjectPage() {
             <div className="app__notice">{t("loading")}</div>
           ) : (
             <>
-              {/* Remount per project so the saved viewport applies. */}
-              <Canvas key={project.id} />
-              <StepPanel />
+              <LockBanner />
+              {/* View-only while someone else edits: every control inside
+                  is disabled (the server refuses changes anyway). */}
+              <fieldset className="readonly-fence" disabled={readOnly}>
+                {/* Remount per project so the saved viewport applies. */}
+                <Canvas key={project.id} />
+                <StepPanel />
+              </fieldset>
               <KeepOpenNotice />
             </>
           )}

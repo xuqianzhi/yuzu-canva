@@ -11,7 +11,7 @@ router = APIRouter(tags=["health"])
 
 class Health(CompleteModel):
     # Lets launchers tell this API apart from anything else on the port.
-    app: Literal["seedance-canvas"] = "seedance-canvas"
+    app: Literal["yuzu-canva"] = "yuzu-canva"
     status: Literal["ok"] = "ok"
     version: str
 

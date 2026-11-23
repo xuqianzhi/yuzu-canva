@@ -84,8 +84,13 @@ Run everything from the repo root, on your Mac, signed in to `gcloud` and
   it off.
 - **Logs and errors:** Cloud Run → `yuzu-canva-api` → Logs; exceptions are
   grouped in Error Reporting (turn on its email notifications there).
-- **Your local projects:** `backend/scripts/copy_local_data.py` copies the old
-  local SQLite projects and files into your account (see its help).
+- **Your old local data:** `python -m canvas_api.copy_local_data` copies the
+  old local app's global assets, instruction and workflow templates into a
+  new collection of yours (see the help at the top of
+  `backend/src/canvas_api/copy_local_data.py`).
+- **Sharing:** whoever creates a collection owns it and pays for what's
+  generated in it; they invite editors from its Share page. An invited
+  person also needs to be in `ALLOWED_EMAILS` to sign in at all.
 
 ## Settings the deploy uses
 

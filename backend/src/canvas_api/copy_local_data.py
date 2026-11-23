@@ -1,7 +1,8 @@
-"""Copy what the old local (SQLite) app kept into one user's account in the
-new database: global assets (with their files), the global instruction, the
-language, and custom workflow templates. Projects are not copied (copy them
-by hand if you ever need one).
+"""Copy what the old local (SQLite) app kept into a new collection of one
+user's in the new database: global assets (with their files) become the
+collection's assets, the global instruction its instruction, and workflow
+templates its workflows (the old default one active); the language goes to
+the user. Projects are not copied (copy them by hand if you ever need one).
 
 The user must have signed in to the deployed app once (that creates their
 account). Run it in the API image, which has the dependencies, with the
@@ -18,12 +19,13 @@ bucket:
 
 with TARGET_DATABASE_URL set in your shell to the Supabase string (the same
 as DATABASE_URL in backend/.env). Add --dry-run to only see what it would do.
-Running it twice is safe: what's already there is skipped.
+Each run makes a new collection (--name, default "Imported").
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sqlite3
 import sys
@@ -32,9 +34,7 @@ from pathlib import Path
 from .files import FileMissing, LocalFiles, make_files
 from .ids import new_id
 from .store.base import _ts, now
-from .store.media import global_key
-
-BUILTIN_TEMPLATE = "wft_builtin"
+from .store.media import collection_key
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -42,6 +42,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--email", required=True, help="the account to copy into")
     parser.add_argument("--data-dir", default=os.environ.get("CANVAS_DATA_DIR", "./data"))
     parser.add_argument("--bucket", default="", help="target bucket ('' = local files)")
+    parser.add_argument("--name", default="Imported", help="the new collection's name")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
 
@@ -62,6 +63,8 @@ def main(argv: list[str] | None = None) -> int:
     old.row_factory = sqlite3.Row
     source_files = LocalFiles(data_dir)
     files = make_files("gcs" if args.bucket else "local", args.bucket, data_dir)
+    settings = dict(old.execute("SELECT key, value FROM settings").fetchall())
+    ts = _ts(now())
 
     with psycopg.connect(target, row_factory=dict_row) as db:
         user = db.execute(
@@ -71,38 +74,64 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{args.email} has no account yet: sign in to the app once first.")
             return 1
         owner = user["id"]
-        print(f"Copying into {args.email} ({'dry run' if args.dry_run else 'for real'}):")
+        mode = "dry run" if args.dry_run else "for real"
+        print(f"Copying into a new collection “{args.name}” of {args.email} ({mode}):")
+        collection_id = new_id("col")
 
-        # Global assets: rows and files, under new IDs (skipped if the name is taken).
-        taken = {
-            r["name"].lower()
-            for r in db.execute(
-                "SELECT name FROM global_assets WHERE owner_id = %s", (owner,)
-            ).fetchall()
-        }
+        # Workflows: every old template (the old default becomes active).
+        workflows = []
+        for row in old.execute("SELECT * FROM workflow_templates ORDER BY created_at, id"):
+            workflow_id = new_id("wfl")
+            definition = json.loads(row["definition"])
+            definition.update(id=workflow_id, version=1)
+            workflows.append((workflow_id, row["id"], json.dumps(definition)))
+            print(f"  workflow {definition.get('name', row['id'])}")
+        if not workflows:
+            print("No workflow templates in the local database.", file=sys.stderr)
+            return 2
+        default = settings.get("default_workflow")
+        active = next((w for w, old_id, _ in workflows if old_id == default), workflows[0][0])
+
+        instruction = settings.get("instruction") or ""
+        print(f"  instruction: {len(instruction)} characters")
+        if not args.dry_run:
+            db.execute(
+                "INSERT INTO collections (id, owner_id, name, instruction, active_workflow_id, "
+                "version, created_at, updated_at) VALUES (%s, %s, %s, %s, %s, 1, %s, %s)",
+                (collection_id, owner, args.name, instruction, active, ts, ts),
+            )
+            db.execute(
+                "INSERT INTO collection_members (collection_id, user_id, role, created_at) "
+                "VALUES (%s, %s, 'owner', %s)",
+                (collection_id, owner, ts),
+            )
+            for workflow_id, _, definition in workflows:
+                db.execute(
+                    "INSERT INTO collection_workflows (id, collection_id, definition, "
+                    "created_at, updated_at) VALUES (%s, %s, %s, %s, %s)",
+                    (workflow_id, collection_id, definition, ts, ts),
+                )
+
+        # Global assets -> the collection's assets: rows and files, new IDs.
         for row in old.execute("SELECT * FROM global_assets ORDER BY created_at, id"):
-            if row["name"].lower() in taken:
-                print(f"  global asset {row['name']}: already there, skipped")
-                continue
-            key = global_key(row["filename"])
             try:
-                data = source_files.read(key)
+                data = source_files.read(f"global/{row['filename']}")
             except FileMissing:
-                print(f"  global asset {row['name']}: file missing, skipped")
+                print(f"  asset {row['name']}: file missing, skipped")
                 continue
-            new = new_id("gas")
+            new = new_id("cas")
             filename = f"{new}{Path(row['filename']).suffix}"
-            print(f"  global asset {row['name']} ({len(data) // 1024} KB)")
+            print(f"  asset {row['name']} ({len(data) // 1024} KB)")
             if args.dry_run:
                 continue
-            files.write(global_key(filename), data, row["mime"])
+            files.write(collection_key(filename), data, row["mime"])
             db.execute(
-                "INSERT INTO global_assets (id, owner_id, name, kind, mime, filename, bytes, "
-                "width, height, duration_s, created_at) "
+                "INSERT INTO collection_assets (id, collection_id, name, kind, mime, filename, "
+                "bytes, width, height, duration_s, created_at) "
                 "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                 (
                     new,
-                    owner,
+                    collection_id,
                     row["name"],
                     row["kind"],
                     row["mime"],
@@ -115,43 +144,14 @@ def main(argv: list[str] | None = None) -> int:
                 ),
             )
 
-        # Settings: the instruction and language, unless already set there.
-        settings = dict(old.execute("SELECT key, value FROM settings").fetchall())
-        for key in ("instruction", "language"):
-            value = settings.get(key)
-            if not value:
-                continue
-            if db.execute(
-                "SELECT 1 FROM user_settings WHERE user_id = %s AND key = %s AND value <> ''",
-                (owner, key),
-            ).fetchone():
-                print(f"  {key}: already set there, kept")
-                continue
-            print(f"  {key}: {len(value)} characters")
-            if not args.dry_run:
-                db.execute(
-                    "INSERT INTO user_settings (user_id, key, value) VALUES (%s, %s, %s) "
-                    "ON CONFLICT (user_id, key) DO UPDATE SET value = excluded.value",
-                    (owner, key, value),
-                )
-
-        # Custom workflow templates (the built-in one every account has).
-        ts = _ts(now())
-        for row in old.execute("SELECT * FROM workflow_templates ORDER BY created_at, id"):
-            if row["id"] == BUILTIN_TEMPLATE:
-                continue
-            if db.execute(
-                "SELECT 1 FROM workflow_templates WHERE id = %s", (row["id"],)
-            ).fetchone():
-                print(f"  template {row['id']}: already there, skipped")
-                continue
-            print(f"  template {row['id']}")
-            if not args.dry_run:
-                db.execute(
-                    "INSERT INTO workflow_templates (id, owner_id, definition, created_at, "
-                    "updated_at) VALUES (%s, %s, %s, %s, %s)",
-                    (row["id"], owner, row["definition"], row["created_at"], ts),
-                )
+        # The language, unless already set.
+        language = settings.get("language")
+        if language and not args.dry_run:
+            db.execute(
+                "INSERT INTO user_settings (user_id, key, value) VALUES (%s, 'language', %s) "
+                "ON CONFLICT (user_id, key) DO NOTHING",
+                (owner, language),
+            )
         if args.dry_run:
             db.rollback()
     print("Done.")

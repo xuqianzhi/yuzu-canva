@@ -1,5 +1,5 @@
-"""Workflows: templates (steps are a name and a kind), and running a step
-with a prompt and a count."""
+"""Workflows: several per collection, one active (steps are a name and a
+kind), and running a step with a prompt and a count."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from canvas_api.domain.workflow import builtin_workflow, parse_run
 
 from .conftest import wait_for_job
-from .test_api import error_code, new_node, new_project
+from .test_api import default_collection, error_code, new_collection, new_node, new_project
 
 
 class Finished:
@@ -78,41 +78,125 @@ def mini() -> dict:
     }
 
 
-def test_templates_are_designed_once_and_copied_by_projects(client):
-    [builtin] = client.get("/api/workflow-templates").json()
-    assert builtin["id"].startswith("wft_") and builtin["is_default"]
+def workflows(client: TestClient, collection: str) -> list[dict]:
+    return client.get(f"/api/collections/{collection}/workflows").json()
+
+
+def add_workflow(client: TestClient, collection: str, definition: dict):
+    return client.post(
+        f"/api/collections/{collection}/workflows", json={"definition": definition}
+    )
+
+
+def test_a_collection_starts_with_the_builtin_workflow_active(client):
+    collection = new_collection(client)
+    [builtin] = workflows(client, collection)
+    assert builtin["id"].startswith("wfl_") and builtin["active"]
+    assert (
+        client.get(f"/api/collections/{collection}").json()["active_workflow_id"]
+        == (builtin["id"])
+    )
     assert [(s["name"], s["kind"]) for s in builtin["definition"]["steps"]] == [
         ("Dish brainstorming", "text"),
         ("Character", "image"),
     ]
-    project = graph_of(client, new_project(client))["project"]
+    project = graph_of(client, new_project(client, collection=collection))["project"]
     expected = builtin_workflow().model_copy(update={"id": builtin["id"]})
     assert project["workflow"] == expected.model_dump(mode="json")
+    # Or start it with a copy of another workflow.
+    copied = new_collection(client, "Copy", workflow=mini())
+    [only] = workflows(client, copied)
+    assert only["definition"]["name"] == "Mini" and only["id"] != "ignored"
 
-    made = client.post("/api/workflow-templates", json={"definition": mini()})
+
+def test_projects_run_on_the_active_workflow(client):
+    collection = new_collection(client)
+    [builtin] = workflows(client, collection)
+    project = new_project(client, collection=collection)
+    made = add_workflow(client, collection, mini())
     assert made.status_code == 201, made.text
-    template = made.json()
-    on_mini = client.post(
-        "/api/projects", json={"name": "M", "workflow_template_id": template["id"]}
-    ).json()["id"]
-    edited = {**mini(), "name": "Mini 2"}
-    updated = client.put(
-        f"/api/workflow-templates/{template['id']}", json={"definition": edited}
+    other = made.json()
+    assert not other["active"]
+    assert graph_of(client, project)["project"]["workflow"]["name"] != "Mini"
+
+    activated = client.post(f"/api/workflows/{other['id']}/activate")
+    assert activated.status_code == 200 and activated.json()["active"]
+    assert graph_of(client, project)["project"]["workflow"]["name"] == "Mini"
+    # Editing the active one changes it for every project too.
+    edited = client.put(
+        f"/api/workflows/{other['id']}",
+        json={"definition": {**mini(), "name": "Mini 2"}, "base_version": 1},
     )
-    assert updated.json()["definition"]["version"] == 2
-    assert graph_of(client, on_mini)["project"]["workflow"]["name"] == "Mini"  # kept its copy
+    assert edited.json()["definition"]["version"] == 2
+    assert graph_of(client, project)["project"]["workflow"]["name"] == "Mini 2"
+    # Someone else's newer save isn't overwritten.
+    stale = client.put(
+        f"/api/workflows/{other['id']}", json={"definition": mini(), "base_version": 1}
+    )
+    assert (stale.status_code, error_code(stale)) == (409, "edit_conflict")
 
     twice = {**mini(), "steps": [mini()["steps"][0], mini()["steps"][0]]}
-    assert client.post("/api/workflow-templates", json={"definition": twice}).status_code == 422
-    client.post(f"/api/workflow-templates/{template['id']}/default")
-    assert client.delete(f"/api/workflow-templates/{template['id']}").status_code == 409
-    client.post(f"/api/workflow-templates/{builtin['id']}/default")
-    assert client.delete(f"/api/workflow-templates/{template['id']}").status_code == 204
+    assert add_workflow(client, collection, twice).status_code == 422
+    active = client.delete(f"/api/workflows/{other['id']}")
+    assert (active.status_code, error_code(active)) == (409, "validation_error")
+    client.post(f"/api/workflows/{builtin['id']}/activate")
+    assert client.delete(f"/api/workflows/{other['id']}").status_code == 204
+    assert [w["id"] for w in workflows(client, collection)] == [builtin["id"]]
+
+
+def test_switching_workflows_hides_steps_without_deleting_them(client):
+    collection = new_collection(client)
+    [builtin] = workflows(client, collection)
+    project = new_project(client, collection=collection)
+    graph = run_step(client, project, "dishes", "soups", 2).json()
+    dishes = [n["id"] for n in step_nodes(graph, "dishes")]
+    other = add_workflow(client, collection, mini()).json()
+
+    client.post(f"/api/workflows/{other['id']}/activate")
+    graph = graph_of(client, project)
+    assert step_nodes(graph, "dishes") == [] and graph["runs"] == []
+    client.post(f"/api/workflows/{builtin['id']}/activate")
+    graph = graph_of(client, project)
+    assert [n["id"] for n in step_nodes(graph, "dishes")] == dishes
+    assert [r["step"] for r in graph["runs"]] == ["dishes"]
+
+
+def test_the_active_workflow_cant_change_while_a_step_runs(settings, fake_image):
+    from canvas_api.app import create_app
+    from canvas_api.contract import Operation
+    from canvas_api.providers.fake import FakeTextModel
+
+    from .conftest import signed_in
+
+    slow = FakeTextModel(delay_s=0.5)
+    with signed_in(
+        create_app(settings, {Operation.image_generate: fake_image}, slow)
+    ) as client:
+        collection = new_collection(client)
+        [builtin] = workflows(client, collection)
+        other = add_workflow(client, collection, mini()).json()
+        project = new_project(client, collection=collection)
+        started = client.post(
+            f"/api/projects/{project}/workflow/steps/dishes/run",
+            json={"prompt": "soups", "count": 1},
+        )
+        assert started.status_code == 202
+        busy = client.post(f"/api/workflows/{other['id']}/activate")
+        assert (busy.status_code, error_code(busy)) == (409, "workflow_locked")
+        edit = client.put(
+            f"/api/workflows/{builtin['id']}", json={"definition": builtin["definition"]}
+        )
+        assert edit.status_code == 409
+        # An inactive one can be edited meanwhile.
+        assert (
+            client.put(f"/api/workflows/{other['id']}", json={"definition": mini()}).status_code
+            == 200
+        )
 
 
 def test_a_text_step_makes_one_node_per_result(client, fake_text):
-    client.put("/api/global-instruction", json={"instruction": "Cozy, for kids."})
-    project = new_project(client)
+    collection = new_collection(client, "Kids", instruction="Cozy, for kids.")
+    project = new_project(client, collection=collection)
     response = run_step(client, project, "dishes", "winter soups", 3)
     assert response.status_code == 200, response.text
     graph = response.json()
@@ -197,12 +281,8 @@ def one_to_one_template(client, first: str = "text", second: str = "image") -> s
             {"key": "scenes", "name": "Scenes", "kind": second},
         ],
     }
-    made = client.post("/api/workflow-templates", json={"definition": definition})
-    assert made.status_code == 201, made.text
-    response = client.post(
-        "/api/projects", json={"name": "P", "workflow_template_id": made.json()["id"]}
-    )
-    return response.json()["id"]
+    collection = new_collection(client, "Pipeline", workflow=definition)
+    return new_project(client, "P", collection)
 
 
 def test_one_to_one_feeds_each_result_to_its_own_node(client, fake_text, fake_image):
@@ -266,8 +346,12 @@ def test_the_last_step_cant_feed_one_to_one(client):
         "name": "Bad",
         "steps": [{"key": "a", "name": "A", "kind": "text", "output": "one_to_one"}],
     }
+    collection = default_collection(client)
+    assert add_workflow(client, collection, definition).status_code == 422
     assert (
-        client.post("/api/workflow-templates", json={"definition": definition}).status_code
+        client.post(
+            "/api/collections", json={"name": "Bad", "workflow": definition}
+        ).status_code
         == 422
     )
 

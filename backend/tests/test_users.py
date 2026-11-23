@@ -11,13 +11,13 @@ from canvas_api.config import Limits
 from canvas_api.contract import Operation
 
 from .conftest import ALICE, BOB, PNG, auth, open_store, signed_in, wait_for_job
-from .test_api import error_code, generate, new_node, new_project
+from .test_api import default_collection, error_code, generate, new_node, new_project
 
 
 def test_every_route_but_health_needs_a_sign_in(client):
     assert client.get("/api/health", headers={"Authorization": ""}).status_code == 200
     for headers in ({"Authorization": ""}, {"Authorization": "Bearer nonsense"}):
-        response = client.get("/api/projects", headers=headers)
+        response = client.get("/api/collections", headers=headers)
         assert (response.status_code, error_code(response)) == (401, "unauthenticated")
 
 
@@ -36,40 +36,41 @@ def test_only_allowlisted_emails_get_in(settings, fake_image):
         assert (response.status_code, error_code(response)) == (403, "forbidden")
 
 
-def test_users_only_see_and_touch_their_own_things(client):
-    project = new_project(client)
+def test_people_only_see_and_touch_collections_theyre_in(client):
+    collection = default_collection(client)
+    project = new_project(client, collection=collection)
     node = new_node(client, project)["id"]
     job = generate(client, node).json()["id"]
     wait_for_job(client, job)
-    client.put("/api/global-instruction", json={"instruction": "Alice's"})
-    [template] = client.get("/api/workflow-templates").json()
+    [workflow] = client.get(f"/api/collections/{collection}/workflows").json()
 
     bob = auth(BOB)
-    assert client.get("/api/projects", headers=bob).json() == []
-    assert client.get("/api/global-instruction", headers=bob).json()["instruction"] == ""
-    [bobs_template] = client.get("/api/workflow-templates", headers=bob).json()
-    assert bobs_template["id"] != template["id"]
+    assert client.get("/api/collections", headers=bob).json() == []
     # Anything of Alice's is "not found" for Bob, whatever he tries.
     for method, path in [
+        ("GET", f"/api/collections/{collection}"),
+        ("PATCH", f"/api/collections/{collection}"),
+        ("DELETE", f"/api/collections/{collection}"),
+        ("GET", f"/api/collections/{collection}/projects"),
+        ("POST", f"/api/collections/{collection}/projects"),
+        ("GET", f"/api/collections/{collection}/members"),
+        ("POST", f"/api/collections/{collection}/invites"),
+        ("GET", f"/api/collections/{collection}/assets"),
         ("GET", f"/api/projects/{project}"),
         ("PATCH", f"/api/projects/{project}"),
         ("DELETE", f"/api/projects/{project}"),
+        ("POST", f"/api/projects/{project}/lock"),
         ("PATCH", f"/api/nodes/{node}"),
         ("POST", f"/api/nodes/{node}/generate"),
         ("GET", f"/api/nodes/{node}/outputs"),
         ("GET", f"/api/jobs/{job}"),
         ("POST", f"/api/jobs/{job}/cancel"),
-        ("PUT", f"/api/workflow-templates/{template['id']}"),
-        ("POST", f"/api/workflow-templates/{template['id']}/default"),
+        ("PUT", f"/api/workflows/{workflow['id']}"),
+        ("POST", f"/api/workflows/{workflow['id']}/activate"),
     ]:
-        body = {"name": "x"} if method in ("PATCH", "PUT") else None
+        body = {"name": "x", "version": 1} if method in ("PATCH", "PUT", "POST") else None
         response = client.request(method, path, headers=bob, json=body)
         assert (response.status_code, error_code(response)) == (404, "not_found"), path
-    # Nor can he start a project from her template.
-    response = client.post(
-        "/api/projects", headers=bob, json={"name": "P", "workflow_template_id": template["id"]}
-    )
-    assert response.status_code == 404
     assert client.get(f"/api/projects/{project}").status_code == 200
 
 

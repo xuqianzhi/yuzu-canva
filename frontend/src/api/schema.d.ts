@@ -41,6 +41,272 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/collection-assets/{asset_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Collection Asset
+         * @description New projects stop getting it; projects made earlier keep their nodes.
+         */
+        delete: operations["deleteCollectionAsset"];
+        options?: never;
+        head?: never;
+        /**
+         * Rename Collection Asset
+         * @description Rename it. Projects created earlier keep their node names.
+         */
+        patch: operations["renameCollectionAsset"];
+        trace?: never;
+    };
+    "/api/collection-assets/{asset_id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Collection Asset Content */
+        get: operations["getCollectionAssetContent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/collections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Collections
+         * @description The collections you own or edit, most recently changed first.
+         */
+        get: operations["listCollections"];
+        put?: never;
+        /**
+         * Create Collection
+         * @description A new collection, yours (its owner), with one workflow: ``workflow``
+         *     if given (copy one from another collection), else the built-in one.
+         */
+        post: operations["createCollection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/collections/{collection_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Collection */
+        get: operations["getCollection"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Collection
+         * @description Owner only. Deletes it for everyone, with every project in it, its
+         *     workflows, assets, members and invites, and their files. Usage records
+         *     stay (they still count today).
+         */
+        delete: operations["deleteCollection"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Collection
+         * @description Rename it or change its instruction (new projects start with a copy).
+         *     409 ``edit_conflict`` if someone saved since ``version``.
+         */
+        patch: operations["updateCollection"];
+        trace?: never;
+    };
+    "/api/collections/{collection_id}/assets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Collection Assets
+         * @description The collection's assets, oldest first (the order new projects lay
+         *     them out).
+         */
+        get: operations["listCollectionAssets"];
+        put?: never;
+        /**
+         * Upload Collection Asset
+         * @description Upload one image (PNG, JPEG, WebP) or video (MP4, MOV) with a name.
+         *
+         *     Multipart fields ``file`` and ``name``. The name is required and unique
+         *     in the collection (409 ``duplicate_name``). Every project created in the
+         *     collection from now on starts with it as a node.
+         */
+        post: operations["uploadCollectionAsset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/collections/{collection_id}/invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Invites
+         * @description Invites waiting to be accepted, newest first.
+         */
+        get: operations["listInvites"];
+        put?: never;
+        /**
+         * Create Invite
+         * @description Owner only: invite an email as an editor, with their daily limits
+         *     here. They see it after signing in (no email is sent) and accept it to
+         *     get in; it expires after 30 days. Inviting the same email again renews
+         *     it. 409 if they're already a member. They also need to be on the app's
+         *     allowlist to sign in at all.
+         */
+        post: operations["createInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/collections/{collection_id}/invites/{invite_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Cancel Invite */
+        delete: operations["cancelInvite"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/collections/{collection_id}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Members
+         * @description The owner first, then editors, each with their limits and what they
+         *     generated here today.
+         */
+        get: operations["listMembers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/collections/{collection_id}/members/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Member
+         * @description The owner removes an editor, or an editor leaves (their own user ID).
+         *     What they made stays. The owner can't leave (409).
+         */
+        delete: operations["removeMember"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Member
+         * @description Owner only: set an editor's daily limits here.
+         */
+        patch: operations["updateMember"];
+        trace?: never;
+    };
+    "/api/collections/{collection_id}/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Projects
+         * @description The collection's projects, most recently updated first, with counts,
+         *     a cover, and who else is editing each right now.
+         */
+        get: operations["listProjects"];
+        put?: never;
+        /**
+         * Create Project
+         * @description Create a project. It runs on the collection's active workflow and
+         *     starts with one uploaded node per collection asset, down the left side
+         *     of its canvas.
+         */
+        post: operations["createProject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/collections/{collection_id}/workflows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Workflows
+         * @description The collection's workflows, oldest first; one is active.
+         */
+        get: operations["listWorkflows"];
+        put?: never;
+        /**
+         * Create Workflow
+         * @description A new workflow, not active yet (422 if two steps share a key). To
+         *     copy one from another collection, send its definition.
+         */
+        post: operations["createWorkflow"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/edges/{edge_id}": {
         parameters: {
             query?: never;
@@ -62,99 +328,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/global-assets": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Global Assets
-         * @description Your global assets, oldest first (the order new projects lay them out).
-         */
-        get: operations["listGlobalAssets"];
-        put?: never;
-        /**
-         * Upload Global Asset
-         * @description Upload one image (PNG, JPEG, WebP) or video (MP4, MOV) with a name.
-         *
-         *     Multipart fields ``file`` and ``name``. The name is required and unique
-         *     among global assets (409 ``duplicate_name``). Every project created from
-         *     now on starts with it as a node.
-         */
-        post: operations["uploadGlobalAsset"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/global-assets/{asset_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Delete Global Asset
-         * @description New projects stop getting it; projects made earlier keep their nodes.
-         */
-        delete: operations["deleteGlobalAsset"];
-        options?: never;
-        head?: never;
-        /**
-         * Rename Global Asset
-         * @description Rename it. Projects created earlier keep their node names.
-         */
-        patch: operations["renameGlobalAsset"];
-        trace?: never;
-    };
-    "/api/global-assets/{asset_id}/content": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Global Asset Content */
-        get: operations["getGlobalAssetContent"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/global-instruction": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Global Instruction
-         * @description The instruction every new project of yours starts with.
-         */
-        get: operations["getGlobalInstruction"];
-        /**
-         * Set Global Instruction
-         * @description Replace it. Existing projects keep their own instruction.
-         */
-        put: operations["setGlobalInstruction"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -166,6 +339,63 @@ export interface paths {
         get: operations["getHealth"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Invitations
+         * @description Invites to you (by your sign-in email), newest first.
+         */
+        get: operations["listInvitations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/invitations/{invite_id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept Invitation
+         * @description Join the collection as an editor.
+         */
+        post: operations["acceptInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/invitations/{invite_id}/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Decline Invitation */
+        post: operations["declineInvitation"];
         delete?: never;
         options?: never;
         head?: never;
@@ -262,7 +492,8 @@ export interface paths {
         /**
          * Get Me
          * @description Who you're signed in as (401 if not, 403 if not on the allowlist),
-         *     and today's usage against your limits.
+         *     and what you pay for today (everything generated in your collections,
+         *     by anyone) against your limits.
          */
         get: operations["getMe"];
         put?: never;
@@ -400,32 +631,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/projects": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Projects
-         * @description Your projects, most recently updated first, with counts and a cover.
-         */
-        get: operations["listProjects"];
-        put?: never;
-        /**
-         * Create Project
-         * @description Create a project. It starts with one uploaded node per global asset,
-         *     down the left side of its canvas. ``workflow_template_id`` must be one
-         *     of yours (404 otherwise); by default, your default workflow.
-         */
-        post: operations["createProject"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/projects/{project_id}": {
         parameters: {
             query?: never;
@@ -442,7 +647,9 @@ export interface paths {
         post?: never;
         /**
          * Delete Project
-         * @description Deletes the project with its nodes, edges, jobs, outputs and assets.
+         * @description Owner only; even while someone is editing it (their next request
+         *     gets 404). Deletes the project with its nodes, edges, jobs, outputs,
+         *     assets and their files.
          */
         delete: operations["deleteProject"];
         options?: never;
@@ -473,6 +680,41 @@ export interface paths {
          */
         post: operations["createEdge"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/lock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Project Lock
+         * @description Who holds the project's lock right now, as seen by this tab.
+         */
+        get: operations["getProjectLock"];
+        put?: never;
+        /**
+         * Lock Project
+         * @description Take or renew the lock for this tab: only the tab holding it may
+         *     change the project. It lasts 60 s; renew it (call again) every 20 s
+         *     while the project is open, and release it on leaving.
+         *
+         *     409 ``project_locked`` while someone else holds it (``context``:
+         *     ``holder_email``, ``holder_is_you``). With ``take_over``, you take it
+         *     from your own other tab (never from someone else). Any change to the
+         *     project also takes the lock if it's free.
+         */
+        post: operations["lockProject"];
+        /**
+         * Unlock Project
+         * @description Release the lock, if this tab holds it.
+         */
+        delete: operations["unlockProject"];
         options?: never;
         head?: never;
         patch?: never;
@@ -599,31 +841,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/workflow-templates": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Workflow Templates
-         * @description Your workflow templates, oldest first; one is your default.
-         */
-        get: operations["listWorkflowTemplates"];
-        put?: never;
-        /**
-         * Create Workflow Template
-         * @description A new template (422 if two steps share a key).
-         */
-        post: operations["createWorkflowTemplate"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/workflow-templates/{template_id}": {
+    "/api/workflows/{workflow_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -632,23 +850,25 @@ export interface paths {
         };
         get?: never;
         /**
-         * Update Workflow Template
-         * @description Replace a template (its version goes up). Projects already made keep
-         *     their own copy.
+         * Update Workflow
+         * @description Replace a workflow (its version goes up). Editing the active one
+         *     changes it for every project in the collection, so it's refused (409)
+         *     while a step runs there; 409 ``edit_conflict`` if someone saved since
+         *     ``base_version``.
          */
-        put: operations["updateWorkflowTemplate"];
+        put: operations["updateWorkflow"];
         post?: never;
         /**
-         * Delete Workflow Template
-         * @description Not the default one (409).
+         * Delete Workflow
+         * @description Not the active one (409).
          */
-        delete: operations["deleteWorkflowTemplate"];
+        delete: operations["deleteWorkflow"];
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/workflow-templates/{template_id}/default": {
+    "/api/workflows/{workflow_id}/activate": {
         parameters: {
             query?: never;
             header?: never;
@@ -658,10 +878,13 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Set Default Workflow Template
-         * @description Your new projects copy this template.
+         * Activate Workflow
+         * @description Every project in the collection runs on this workflow from now on;
+         *     their steps keep their results by step key (steps it doesn't have are
+         *     hidden until a workflow with them is active again). 409 while a step
+         *     runs in the collection.
          */
-        post: operations["setDefaultWorkflowTemplate"];
+        post: operations["activateWorkflow"];
         delete?: never;
         options?: never;
         head?: never;
@@ -713,8 +936,8 @@ export interface components {
             /** Width */
             width: number | null;
         };
-        /** Body_uploadGlobalAsset */
-        Body_uploadGlobalAsset: {
+        /** Body_uploadCollectionAsset */
+        Body_uploadCollectionAsset: {
             /** File */
             file: string;
             /** Name */
@@ -762,6 +985,176 @@ export interface components {
          * @enum {string}
          */
         ChatRole: "user" | "assistant";
+        /** Collection */
+        Collection: {
+            /**
+             * Active Workflow Id
+             * @example wfl_a7x2
+             */
+            active_workflow_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * @example col_k2m9
+             */
+            id: string;
+            /** Instruction */
+            instruction: string;
+            /** Name */
+            name: string;
+            /** Owner Email */
+            owner_email: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Updated By Email */
+            updated_by_email: string | null;
+            /** Version */
+            version: number;
+            your_role: components["schemas"]["Role"];
+        };
+        /** CollectionAsset */
+        CollectionAsset: {
+            /** Bytes */
+            bytes: number;
+            /**
+             * Collection Id
+             * @example col_k2m9
+             */
+            collection_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Duration S */
+            duration_s: number | null;
+            /** Height */
+            height: number | null;
+            /**
+             * Id
+             * @example cas_k2m9
+             */
+            id: string;
+            kind: components["schemas"]["MediaKind"];
+            /** Mime */
+            mime: string;
+            /** Name */
+            name: string;
+            /** Url */
+            url: string;
+            /** Width */
+            width: number | null;
+        };
+        /** CollectionAssetUpdate */
+        CollectionAssetUpdate: {
+            /** Name */
+            name: string;
+        };
+        /** CollectionCreate */
+        CollectionCreate: {
+            /**
+             * Instruction
+             * @default
+             */
+            instruction?: string;
+            /** Name */
+            name: string;
+            workflow?: components["schemas"]["WorkflowDefinition"] | null;
+        };
+        /**
+         * CollectionSummary
+         * @description A collection as listed on the landing page.
+         */
+        CollectionSummary: {
+            /**
+             * Active Workflow Id
+             * @example wfl_a7x2
+             */
+            active_workflow_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * @example col_k2m9
+             */
+            id: string;
+            /** Instruction */
+            instruction: string;
+            /**
+             * Member Count
+             * @default 0
+             */
+            member_count: number;
+            /** Name */
+            name: string;
+            /** Owner Email */
+            owner_email: string;
+            /**
+             * Project Count
+             * @default 0
+             */
+            project_count: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Updated By Email */
+            updated_by_email: string | null;
+            /** Version */
+            version: number;
+            your_role: components["schemas"]["Role"];
+        };
+        /**
+         * CollectionUpdate
+         * @description Partial update; ``version`` is the one you last read.
+         */
+        CollectionUpdate: {
+            /** Instruction */
+            instruction?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Version */
+            version: number;
+        };
+        /** CollectionWorkflow */
+        CollectionWorkflow: {
+            /** Active */
+            active: boolean;
+            /**
+             * Collection Id
+             * @example col_k2m9
+             */
+            collection_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            definition: components["schemas"]["WorkflowDefinition"];
+            /**
+             * Id
+             * @example wfl_a7x2
+             */
+            id: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Updated By Email */
+            updated_by_email: string | null;
+        };
         /**
          * Edge
          * @description ``target_node_id`` references ``source_node_id``: the source's selected
@@ -820,10 +1213,24 @@ export interface components {
             target_node_id: string;
         };
         /**
+         * EditorLimits
+         * @description What an editor may generate per day (UTC) in one collection, paid by
+         *     the owner. Null: no limit of its own (the owner's daily limits still
+         *     apply to everything together); 0: none of that kind.
+         */
+        EditorLimits: {
+            /** Image */
+            image: number | null;
+            /** Text */
+            text: number | null;
+            /** Video */
+            video: number | null;
+        };
+        /**
          * ErrorCode
          * @enum {string}
          */
-        ErrorCode: "not_found" | "validation_error" | "cycle" | "duplicate_edge" | "self_reference" | "missing_ref_output" | "unsupported_ref" | "too_many_refs" | "job_in_progress" | "job_finished" | "provider_error" | "duplicate_name" | "no_id" | "not_generatable" | "unsupported_media" | "too_large" | "workflow_locked" | "workflow_blocked" | "unauthenticated" | "forbidden" | "quota_exceeded" | "generation_off";
+        ErrorCode: "not_found" | "validation_error" | "cycle" | "duplicate_edge" | "self_reference" | "missing_ref_output" | "unsupported_ref" | "too_many_refs" | "job_in_progress" | "job_finished" | "provider_error" | "duplicate_name" | "no_id" | "not_generatable" | "unsupported_media" | "too_large" | "workflow_locked" | "workflow_blocked" | "unauthenticated" | "forbidden" | "quota_exceeded" | "generation_off" | "project_locked" | "edit_conflict";
         /** ErrorDetail */
         ErrorDetail: {
             code: components["schemas"]["ErrorCode"];
@@ -847,57 +1254,14 @@ export interface components {
          *     saved prompt and params are used, so save before generating.
          */
         GenerateRequest: Record<string, never>;
-        /** GlobalAsset */
-        GlobalAsset: {
-            /** Bytes */
-            bytes: number;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Duration S */
-            duration_s: number | null;
-            /** Height */
-            height: number | null;
-            /**
-             * Id
-             * @example gas_k2m9
-             */
-            id: string;
-            kind: components["schemas"]["MediaKind"];
-            /** Mime */
-            mime: string;
-            /** Name */
-            name: string;
-            /** Url */
-            url: string;
-            /** Width */
-            width: number | null;
-        };
-        /** GlobalAssetUpdate */
-        GlobalAssetUpdate: {
-            /** Name */
-            name: string;
-        };
-        /** GlobalInstruction */
-        GlobalInstruction: {
-            /** Instruction */
-            instruction: string;
-        };
-        /** GlobalInstructionUpdate */
-        GlobalInstructionUpdate: {
-            /** Instruction */
-            instruction: string;
-        };
         /** Health */
         Health: {
             /**
              * App
-             * @default seedance-canvas
+             * @default yuzu-canva
              * @constant
              */
-            app: "seedance-canvas";
+            app: "yuzu-canva";
             /**
              * Status
              * @default ok
@@ -926,6 +1290,68 @@ export interface components {
              * @enum {string}
              */
             size: "auto" | "1024x1024" | "1536x1024" | "1024x1536";
+        };
+        /**
+         * Invitation
+         * @description An invite to you, as you see it.
+         */
+        Invitation: {
+            /**
+             * Collection Id
+             * @example col_k2m9
+             */
+            collection_id: string;
+            /** Collection Name */
+            collection_name: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * @example inv_q8w1
+             */
+            id: string;
+            /** Invited By Email */
+            invited_by_email: string;
+        };
+        /**
+         * Invite
+         * @description An invite waiting for its person to accept it.
+         */
+        Invite: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Email */
+            email: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * @example inv_q8w1
+             */
+            id: string;
+            /** Invited By Email */
+            invited_by_email: string;
+            limits: components["schemas"]["EditorLimits"];
+        };
+        /** InviteCreate */
+        InviteCreate: {
+            /** Email */
+            email: string;
+            limits?: components["schemas"]["EditorLimits"];
         };
         /** Job */
         Job: {
@@ -997,6 +1423,14 @@ export interface components {
          * @enum {string}
          */
         Language: "en" | "zh";
+        /** LockRequest */
+        LockRequest: {
+            /**
+             * Take Over
+             * @default false
+             */
+            take_over?: boolean;
+        };
         /** Material */
         Material: {
             asset: components["schemas"]["Asset"];
@@ -1027,10 +1461,16 @@ export interface components {
         };
         /**
          * Me
-         * @description Who you're signed in as, and what you used today (UTC) against your
+         * @description Who you're signed in as, and what you pay for today (UTC): everything
+         *     generated in your collections, by you or your editors, against your
          *     daily limits (0 means no limit).
          */
         Me: {
+            /**
+             * Breakdown
+             * @default []
+             */
+            breakdown: components["schemas"]["UsageLine"][];
             daily_limits: components["schemas"]["UsageCounts"];
             /** Email */
             email: string;
@@ -1042,6 +1482,25 @@ export interface components {
          * @enum {string}
          */
         MediaKind: "text" | "image" | "video";
+        /** Member */
+        Member: {
+            /** Email */
+            email: string;
+            /**
+             * Joined At
+             * Format: date-time
+             */
+            joined_at: string;
+            limits: components["schemas"]["EditorLimits"];
+            role: components["schemas"]["Role"];
+            used_today: components["schemas"]["UsageCounts"];
+            /** User Id */
+            user_id: string;
+        };
+        /** MemberUpdate */
+        MemberUpdate: {
+            limits: components["schemas"]["EditorLimits"];
+        };
         /** Node */
         Node: {
             /**
@@ -1180,6 +1639,8 @@ export interface components {
         };
         /** Project */
         Project: {
+            /** Collection Id */
+            collection_id: string;
             /**
              * Created At
              * Format: date-time
@@ -1211,8 +1672,6 @@ export interface components {
              * @default Untitled
              */
             name?: string;
-            /** Workflow Template Id */
-            workflow_template_id?: string | null;
         };
         /**
          * ProjectGraph
@@ -1232,16 +1691,42 @@ export interface components {
             runs: components["schemas"]["StepRun"][];
         };
         /**
+         * ProjectLock
+         * @description Who may change a project right now, as seen by the asking tab.
+         */
+        ProjectLock: {
+            /** Expires At */
+            expires_at: string | null;
+            /** Held */
+            held: boolean;
+            /** Holder Email */
+            holder_email: string | null;
+            /**
+             * Holder Is You
+             * @default false
+             */
+            holder_is_you: boolean;
+            /**
+             * Project Id
+             * @example prj_8f2k1
+             */
+            project_id: string;
+        };
+        /**
          * ProjectSummary
          * @description A project as listed on the landing page.
          */
         ProjectSummary: {
+            /** Collection Id */
+            collection_id: string;
             cover: components["schemas"]["Asset"] | null;
             /**
              * Created At
              * Format: date-time
              */
             created_at: string;
+            /** Editing By */
+            editing_by: string | null;
             /**
              * Id
              * @example prj_8f2k1
@@ -1338,6 +1823,11 @@ export interface components {
             outputs: components["schemas"]["Output"][];
         };
         /**
+         * Role
+         * @enum {string}
+         */
+        Role: "owner" | "editor";
+        /**
          * RunStatus
          * @enum {string}
          */
@@ -1414,6 +1904,19 @@ export interface components {
             /** Video */
             video: number;
         };
+        /**
+         * UsageLine
+         * @description Part of today's bill: what one person generated in one collection.
+         */
+        UsageLine: {
+            /** Collection Id */
+            collection_id: string | null;
+            /** Collection Name */
+            collection_name: string | null;
+            /** Email */
+            email: string | null;
+            used: components["schemas"]["UsageCounts"];
+        };
         /** VideoParams */
         VideoParams: {
             /**
@@ -1481,6 +1984,16 @@ export interface components {
              */
             version: number;
         };
+        /**
+         * WorkflowSave
+         * @description Create or replace a workflow (``definition.id`` and ``version`` are
+         *     set by the server).
+         */
+        WorkflowSave: {
+            /** Base Version */
+            base_version?: number | null;
+            definition: components["schemas"]["WorkflowDefinition"];
+        };
         /** WorkflowStep */
         WorkflowStep: {
             /** Key */
@@ -1490,38 +2003,6 @@ export interface components {
             name: string;
             /** @default independent */
             output: components["schemas"]["OutputUse"];
-        };
-        /**
-         * WorkflowTemplate
-         * @description A workflow as designed: new projects copy the default one.
-         */
-        WorkflowTemplate: {
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            definition: components["schemas"]["WorkflowDefinition"];
-            /** Id */
-            id: string;
-            /**
-             * Is Default
-             * @default false
-             */
-            is_default: boolean;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-        };
-        /**
-         * WorkflowTemplateSave
-         * @description Create or replace a template (its ``definition.id`` and ``version``
-         *     are set by the server).
-         */
-        WorkflowTemplateSave: {
-            definition: components["schemas"]["WorkflowDefinition"];
         };
     };
     responses: never;
@@ -1632,134 +2113,7 @@ export interface operations {
             };
         };
     };
-    deleteEdge: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                edge_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    listGlobalAssets: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GlobalAsset"][];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    uploadGlobalAsset: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "multipart/form-data": components["schemas"]["Body_uploadGlobalAsset"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GlobalAsset"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Request Entity Too Large */
-            413: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unsupported Media Type */
-            415: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    deleteGlobalAsset: {
+    deleteCollectionAsset: {
         parameters: {
             query?: never;
             header?: never;
@@ -1797,7 +2151,7 @@ export interface operations {
             };
         };
     };
-    renameGlobalAsset: {
+    renameCollectionAsset: {
         parameters: {
             query?: never;
             header?: never;
@@ -1808,7 +2162,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["GlobalAssetUpdate"];
+                "application/json": components["schemas"]["CollectionAssetUpdate"];
             };
         };
         responses: {
@@ -1818,7 +2172,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GlobalAsset"];
+                    "application/json": components["schemas"]["CollectionAsset"];
                 };
             };
             /** @description Not Found */
@@ -1850,7 +2204,7 @@ export interface operations {
             };
         };
     };
-    getGlobalAssetContent: {
+    getCollectionAssetContent: {
         parameters: {
             query: {
                 e: number;
@@ -1901,7 +2255,7 @@ export interface operations {
             };
         };
     };
-    getGlobalInstruction: {
+    listCollections: {
         parameters: {
             query?: never;
             header?: never;
@@ -1916,7 +2270,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GlobalInstruction"];
+                    "application/json": components["schemas"]["CollectionSummary"][];
                 };
             };
             /** @description Unprocessable Entity */
@@ -1930,7 +2284,7 @@ export interface operations {
             };
         };
     };
-    setGlobalInstruction: {
+    createCollection: {
         parameters: {
             query?: never;
             header?: never;
@@ -1939,7 +2293,129 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["GlobalInstructionUpdate"];
+                "application/json": components["schemas"]["CollectionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Collection"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getCollection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Collection"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deleteCollection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateCollection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CollectionUpdate"];
             };
         };
         responses: {
@@ -1949,7 +2425,652 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GlobalInstruction"];
+                    "application/json": components["schemas"]["Collection"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listCollectionAssets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionAsset"][];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    uploadCollectionAsset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_uploadCollectionAsset"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionAsset"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unsupported Media Type */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listInvites: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invite"][];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invite"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    cancelInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: string;
+                invite_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listMembers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Member"][];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    removeMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: string;
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: string;
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Member"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listProjects: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectSummary"][];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Project"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listWorkflows: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionWorkflow"][];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createWorkflow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkflowSave"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionWorkflow"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deleteEdge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                edge_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Unprocessable Entity */
@@ -1979,6 +3100,113 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Health"];
+                };
+            };
+        };
+    };
+    listInvitations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invitation"][];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    acceptInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invite_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Collection"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    declineInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invite_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -2549,68 +3777,6 @@ export interface operations {
             };
         };
     };
-    listProjects: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProjectSummary"][];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    createProject: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ProjectCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Project"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     getProjectGraph: {
         parameters: {
             query?: never;
@@ -2668,6 +3834,15 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
             };
             /** @description Not Found */
             404: {
@@ -2768,6 +3943,146 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getProjectLock: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description This browser tab's own random ID, the same for all its requests. */
+                "X-Edit-Session"?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectLock"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    lockProject: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description This browser tab's own random ID, the same for all its requests. */
+                "X-Edit-Session"?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["LockRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectLock"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    unlockProject: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description This browser tab's own random ID, the same for all its requests. */
+                "X-Edit-Session"?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3110,80 +4425,18 @@ export interface operations {
             };
         };
     };
-    listWorkflowTemplates: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WorkflowTemplate"][];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    createWorkflowTemplate: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WorkflowTemplateSave"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WorkflowTemplate"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    updateWorkflowTemplate: {
+    updateWorkflow: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                template_id: string;
+                workflow_id: string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["WorkflowTemplateSave"];
+                "application/json": components["schemas"]["WorkflowSave"];
             };
         };
         responses: {
@@ -3193,7 +4446,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["WorkflowTemplate"];
+                    "application/json": components["schemas"]["CollectionWorkflow"];
                 };
             };
             /** @description Not Found */
@@ -3205,6 +4458,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Unprocessable Entity */
             422: {
                 headers: {
@@ -3216,12 +4478,12 @@ export interface operations {
             };
         };
     };
-    deleteWorkflowTemplate: {
+    deleteWorkflow: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                template_id: string;
+                workflow_id: string;
             };
             cookie?: never;
         };
@@ -3263,12 +4525,12 @@ export interface operations {
             };
         };
     };
-    setDefaultWorkflowTemplate: {
+    activateWorkflow: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                template_id: string;
+                workflow_id: string;
             };
             cookie?: never;
         };
@@ -3280,11 +4542,20 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["WorkflowTemplate"];
+                    "application/json": components["schemas"]["CollectionWorkflow"];
                 };
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

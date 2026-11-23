@@ -1,6 +1,7 @@
-"""What each user may spend on the model APIs: daily limits, a per-minute
-rate for text calls, a cap on jobs waiting at once, and a switch that turns
-every model call off.
+"""What may be spent on the model APIs: each owner's daily limits (for
+everything generated in their collections), editors' own limits there, a
+per-minute rate for text calls (per person), a cap on jobs waiting at once
+(per owner), and a switch that turns every model call off.
 
 Calls are counted when they are made, whether or not they succeed (the
 provider usually bills them either way).
@@ -46,35 +47,60 @@ class Spending:
                 503, ErrorCode.generation_off, "generation is turned off for now; try later"
             )
 
-    def charge(self, owner: str, kind: str, amount: int = 1) -> None:
-        """Count `amount` calls of `kind` ("text", "image", "video"), or
-        refuse (429) if that would pass a limit."""
+    def charge(self, actor: str, collection_id: str, kind: str, amount: int = 1) -> None:
+        """Count `amount` calls of `kind` ("text", "image", "video") made by
+        `actor` in a collection, paid by its owner; or refuse (429) if that
+        would pass the owner's daily limit, or the actor's own limit there."""
         self.check_on()
         if amount <= 0:
             return
         if kind == "text":
-            self._rate(owner, amount)
+            self._rate(actor, amount)
+        start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        payer = self._store.owner_of_collection(collection_id)
         limit = self._daily(kind)
         if limit:
-            start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
-            used = self._store.usage_since(owner, start).get(kind, 0)
+            used = self._store.usage_since(payer, start).get(kind, 0)
             if used + amount > limit:
+                whose = "today" if payer == actor else "today by this collection's owner"
                 raise ApiError(
                     429,
                     ErrorCode.quota_exceeded,
-                    f"daily limit reached: {used} of {limit} {_WORDS[kind]} used today "
+                    f"daily limit reached: {used} of {limit} {_WORDS[kind]} used {whose} "
                     "(resets at 00:00 UTC)",
                     {"kind": kind, "used": str(used), "limit": str(limit)},
                 )
-        self._store.record_usage(owner, kind, amount)
+        own = self._store.member_limits(collection_id, actor)
+        own_limit = getattr(own, kind) if own is not None else None
+        if own_limit is not None:
+            used = self._store.usage_in(collection_id, actor, start).get(kind, 0)
+            if used + amount > own_limit:
+                message = (
+                    f"you can't generate {_WORDS[kind]} in this collection"
+                    if own_limit == 0
+                    else f"your limit here is reached: {used} of {own_limit} {_WORDS[kind]} "
+                    "used today (resets at 00:00 UTC; the owner can raise it)"
+                )
+                raise ApiError(
+                    429,
+                    ErrorCode.quota_exceeded,
+                    message,
+                    {
+                        "kind": kind,
+                        "used": str(used),
+                        "limit": str(own_limit),
+                        "scope": "editor",
+                    },
+                )
+        self._store.record_usage(payer, actor, collection_id, kind, amount)
 
-    def _rate(self, owner: str, amount: int) -> None:
+    def _rate(self, person: str, amount: int) -> None:
         limit = self._limits.text_per_minute
         if not limit:
             return
         now = time.monotonic()
         with self._lock:
-            recent = self._recent[owner]
+            recent = self._recent[person]
             while recent and recent[0] < now - 60:
                 recent.popleft()
             if len(recent) + amount > limit:
@@ -86,12 +112,13 @@ class Spending:
                 )
             recent.extend([now] * amount)
 
-    def check_jobs(self, owner: str, adding: int) -> None:
-        """Refuse (429) if `adding` more jobs would pass the waiting cap."""
+    def check_jobs(self, collection_id: str, adding: int) -> None:
+        """Refuse (429) if `adding` more jobs would pass the waiting cap (for
+        everything the collection's owner pays for)."""
         limit = self._limits.active_jobs
         if not limit:
             return
-        active = self._store.active_job_count(owner)
+        active = self._store.active_job_count(self._store.owner_of_collection(collection_id))
         if active + adding > limit:
             raise ApiError(
                 429,

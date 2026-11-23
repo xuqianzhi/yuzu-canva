@@ -78,7 +78,7 @@ function SignInPage({ error }: { error?: string }) {
 
   return (
     <Centered>
-      <h1 className="signin__brand">Seedance Canvas</h1>
+      <h1 className="signin__brand">Yuzu Canva</h1>
       <p className="signin__help">{t("signin_help")}</p>
       {USES_FIREBASE ? (
         <button

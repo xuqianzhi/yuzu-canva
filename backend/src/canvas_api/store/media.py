@@ -1,7 +1,7 @@
-"""Stored files: materials, uploaded nodes, global assets, outputs.
+"""Stored files: materials, uploaded nodes, collection assets, outputs.
 
-A project asset's file is "assets/<asset id>.<ext>", a global asset's
-"global/<id>.<ext>" (see files.py). Files are written before their rows and
+A project asset's file is "assets/<asset id>.<ext>", a collection asset's
+"collection/<id>.<ext>" (see files.py). Files are written before their rows and
 removed again if the row can't be written.
 """
 
@@ -11,8 +11,8 @@ from pathlib import PurePath
 
 from ..contract import (
     Asset,
+    CollectionAsset,
     ErrorCode,
-    GlobalAsset,
     Material,
     MediaKind,
     Node,
@@ -44,8 +44,8 @@ def asset_key(filename: str) -> str:
     return f"assets/{filename}"
 
 
-def global_key(filename: str) -> str:
-    return f"global/{filename}"
+def collection_key(filename: str) -> str:
+    return f"collection/{filename}"
 
 
 def _ext(filename: str) -> str:
@@ -53,7 +53,7 @@ def _ext(filename: str) -> str:
 
 
 class MediaMixin:
-    """Stored files: materials, uploaded nodes, global assets, outputs."""
+    """Stored files: materials, uploaded nodes, collection assets, outputs."""
 
     def _material(self, r: Row) -> Material:
         asset = self._asset(self._one("SELECT * FROM assets WHERE id = ?", r["asset_id"]))
@@ -266,13 +266,14 @@ class MediaMixin:
             raise
         return self.get_node(node_id)
 
-    def _global(self, r: Row) -> GlobalAsset:
-        return GlobalAsset(
+    def _collection_asset(self, r: Row) -> CollectionAsset:
+        return CollectionAsset(
             id=r["id"],
+            collection_id=r["collection_id"],
             name=r["name"],
             kind=r["kind"],
             mime=r["mime"],
-            url=self.signer.url("global-assets", r["id"]),
+            url=self.signer.url("collection-assets", r["id"]),
             bytes=r["bytes"],
             width=r["width"],
             height=r["height"],
@@ -280,36 +281,35 @@ class MediaMixin:
             created_at=_dt(r["created_at"]),
         )
 
-    def list_global_assets(self, owner: str) -> list[GlobalAsset]:
+    def list_collection_assets(self, collection_id: str) -> list[CollectionAsset]:
         rows = self._all(
-            "SELECT * FROM global_assets WHERE owner_id = ? ORDER BY created_at, id", owner
+            "SELECT * FROM collection_assets WHERE collection_id = ? ORDER BY created_at, id",
+            collection_id,
         )
-        return [self._global(r) for r in rows]
+        return [self._collection_asset(r) for r in rows]
 
-    def get_global_asset(self, asset_id: str) -> GlobalAsset:
-        row = self._one("SELECT * FROM global_assets WHERE id = ?", asset_id)
+    def get_collection_asset(self, asset_id: str) -> CollectionAsset:
+        return self.collection_asset_file(asset_id)[0]
+
+    def collection_asset_file(self, asset_id: str) -> tuple[CollectionAsset, str]:
+        row = self._one("SELECT * FROM collection_assets WHERE id = ?", asset_id)
         if not row:
-            raise _not_found("global asset", asset_id)
-        return self._global(row)
+            raise _not_found("asset", asset_id)
+        return self._collection_asset(row), collection_key(row["filename"])
 
-    def global_asset_file(self, asset_id: str) -> tuple[GlobalAsset, str]:
-        row = self._one("SELECT * FROM global_assets WHERE id = ?", asset_id)
-        if not row:
-            raise _not_found("global asset", asset_id)
-        return self._global(row), global_key(row["filename"])
-
-    def _global_name(self, db: Db, owner: str, name: str, exclude_id: str | None) -> str:
-        """Validate a global asset's name: required, unique (for its owner)
-        ignoring case."""
+    def _asset_name(self, db: Db, collection_id: str, name: str, exclude_id: str | None) -> str:
+        """Validate a collection asset's name: required, unique in the
+        collection ignoring case."""
         cleaned = normalize_name(name)
         if not cleaned:
-            raise ApiError(422, ErrorCode.validation_error, "a global asset needs an ID")
+            raise ApiError(422, ErrorCode.validation_error, "an asset needs an ID")
         if not is_valid_id(cleaned):
             raise ApiError(422, ErrorCode.validation_error, ID_RULE, {"name": cleaned})
         taken = {
             name_key(r["name"])
             for r in db.execute(
-                "SELECT id, name FROM global_assets WHERE owner_id = ?", (owner,)
+                "SELECT id, name FROM collection_assets WHERE collection_id = ?",
+                (collection_id,),
             ).fetchall()
             if r["id"] != exclude_id
         }
@@ -317,14 +317,14 @@ class MediaMixin:
             raise ApiError(
                 409,
                 ErrorCode.duplicate_name,
-                f"another global asset already has the ID “{cleaned}”",
+                f"another asset in this collection already has the ID “{cleaned}”",
                 {"name": cleaned},
             )
         return cleaned
 
-    def create_global_asset(
+    def create_collection_asset(
         self,
-        owner: str,
+        collection_id: str,
         name: str,
         kind: MediaKind,
         data: bytes,
@@ -333,23 +333,23 @@ class MediaMixin:
         width: int | None = None,
         height: int | None = None,
         duration_s: float | None = None,
-    ) -> GlobalAsset:
-        asset_id = new_id("gas")
+    ) -> CollectionAsset:
+        asset_id = new_id("cas")
         filename = f"{asset_id}.{ext}"
-        key = global_key(filename)
+        key = collection_key(filename)
         with self._tx() as db:  # check the name before writing the file
-            cleaned = self._global_name(db, owner, name, None)
+            self._asset_name(db, collection_id, name, None)
         self.files.write(key, data, mime)
         try:
             with self._tx() as db:
-                cleaned = self._global_name(db, owner, name, None)
+                cleaned = self._asset_name(db, collection_id, name, None)
                 db.execute(
-                    "INSERT INTO global_assets (id, owner_id, name, kind, mime, filename, "
-                    "bytes, width, height, duration_s, created_at) "
+                    "INSERT INTO collection_assets (id, collection_id, name, kind, mime, "
+                    "filename, bytes, width, height, duration_s, created_at) "
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         asset_id,
-                        owner,
+                        collection_id,
                         cleaned,
                         kind.value,
                         mime,
@@ -364,20 +364,22 @@ class MediaMixin:
         except BaseException:
             delete_all(self.files, [key])
             raise
-        return self.get_global_asset(asset_id)
+        return self.get_collection_asset(asset_id)
 
-    def rename_global_asset(self, asset_id: str, name: str) -> GlobalAsset:
-        owner = self.owner_of("global_asset", asset_id)
+    def rename_collection_asset(self, asset_id: str, name: str) -> CollectionAsset:
+        asset = self.get_collection_asset(asset_id)
         with self._tx() as db:
-            cleaned = self._global_name(db, owner, name, asset_id)
-            db.execute("UPDATE global_assets SET name = ? WHERE id = ?", (cleaned, asset_id))
-        return self.get_global_asset(asset_id)
+            cleaned = self._asset_name(db, asset.collection_id, name, asset_id)
+            db.execute(
+                "UPDATE collection_assets SET name = ? WHERE id = ?", (cleaned, asset_id)
+            )
+        return self.get_collection_asset(asset_id)
 
-    def delete_global_asset(self, asset_id: str) -> str:
+    def delete_collection_asset(self, asset_id: str) -> str:
         """Returns the file to remove. Projects made earlier keep their copies."""
-        _, key = self.global_asset_file(asset_id)
+        _, key = self.collection_asset_file(asset_id)
         with self._tx() as db:
-            db.execute("DELETE FROM global_assets WHERE id = ?", (asset_id,))
+            db.execute("DELETE FROM collection_assets WHERE id = ?", (asset_id,))
         return key
 
     def list_outputs(self, node_id: str) -> list[Output]:

@@ -1,7 +1,7 @@
-"""Workflows: templates designed once, run per project.
+"""Workflows: designed once per collection, run per project.
 
-A **workflow template** (designed on the landing page) is an ordered list
-of steps; a step is a name, the kind of node it makes, and how its results
+A **workflow** (designed in a collection, see contract/collections.py) is an
+ordered list of steps; a step is a name, the kind of node it makes, and how its results
 are used (``OutputUse``):
 
 - ``independent``: its nodes get IDs ("<key>_<n>") and don't flow anywhere
@@ -12,14 +12,14 @@ are used (``OutputUse``):
 
 Names are the user's own text, sent and shown as written in every language.
 
-A project keeps its own copy of the template it was created from
-(``Project.workflow``). In a project, each step is **run** with a prompt
-and a count (after a one-to-one step, the count is that step's number of
-nodes): the prompt, the project instruction, the nodes it mentions and any
-one-to-one inputs go to a text model, which writes that many results (a
-text step) or prompts (an image or video step, then generated). An image
-or video step fed one-to-one by text uses each text as its prompt directly.
-Running a step again replaces its nodes.
+A project runs on its collection's active workflow (``Project.workflow``).
+In a project, each step is **run** with a prompt and a count (after a
+one-to-one step, the count is that step's number of nodes): the prompt, the
+project instruction, the nodes it mentions and any one-to-one inputs go to a
+text model, which writes that many results (a text step) or prompts (an
+image or video step, then generated). An image or video step fed one-to-one
+by text uses each text as its prompt directly. Running a step again replaces
+its nodes.
 """
 
 from __future__ import annotations
@@ -73,23 +73,6 @@ class WorkflowDefinition(CompleteModel):
         if self.steps[-1].output == OutputUse.one_to_one:
             raise ValueError("the last step has no next step to feed one-to-one")
         return self
-
-
-class WorkflowTemplate(CompleteModel):
-    """A workflow as designed: new projects copy the default one."""
-
-    id: str = Field(pattern=r"^wft_[A-Za-z0-9]+$")
-    definition: WorkflowDefinition
-    is_default: bool = False
-    created_at: Timestamp
-    updated_at: Timestamp
-
-
-class WorkflowTemplateSave(ContractModel):
-    """Create or replace a template (its ``definition.id`` and ``version``
-    are set by the server)."""
-
-    definition: WorkflowDefinition
 
 
 # --- per project: runs -----------------------------------------------------------------

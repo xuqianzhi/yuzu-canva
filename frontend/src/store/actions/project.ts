@@ -1,5 +1,6 @@
 // Opening and closing a project; its name, instruction and viewport.
-import { api, unwrap } from "../../api/client";
+import { api, ApiError, unwrap } from "../../api/client";
+import { t } from "../../i18n";
 import { currentStep, stepViews } from "../../workflow/status";
 import { type Job } from "../../api/types";
 import type { CanvasState, GetState, SetState } from "../types";
@@ -13,6 +14,8 @@ export function projectActions(
 ): Pick<
   CanvasState,
   | "openProject"
+  | "refreshProject"
+  | "startEditing"
   | "closeProject"
   | "renameProject"
   | "setProjectInstruction"
@@ -28,9 +31,12 @@ export function projectActions(
     clearHistory,
     step,
     watchRuns,
+    lock,
   } = core;
-  return {
-  async openProject(projectId) {
+  const editing = () => get().lock.status === "editing";
+
+  async function open(projectId: string, takeOver = false) {
+    lock.stop();
     resetProjectState();
     clearHistory();
     set({
@@ -76,15 +82,72 @@ export function projectActions(
       for (const job of Object.values(jobs)) poll(job.node_id, job.id);
       // A step may still be running (started before a reload).
       void watchRuns(graph.project.id);
+      // One tab at a time may change it (see store/lock.ts).
+      await lock.start(projectId, takeOver);
     } catch (error) {
       set({ load: { status: "error", message: message(error) } });
     }
+  }
+
+  return {
+  openProject: (projectId) => open(projectId),
+
+  async startEditing(takeOver = false) {
+    const project = get().project;
+    if (project) await open(project.id, takeOver);
+  },
+
+  async refreshProject() {
+    const project = get().project;
+    if (!project) return;
+    let graph;
+    let materials;
+    try {
+      graph = unwrap(
+        await api.GET("/api/projects/{project_id}", {
+          params: { path: { project_id: project.id } },
+        }),
+      );
+      materials = unwrap(
+        await api.GET("/api/projects/{project_id}/materials", {
+          params: { path: { project_id: project.id } },
+        }),
+      );
+    } catch (error) {
+      if (get().project?.id !== project.id) return;
+      if (error instanceof ApiError && error.status === 404) {
+        set({ load: { status: "error", message: t("project_gone") } });
+      }
+      return;
+    }
+    if (get().project?.id !== project.id || editing()) return;
+    const jobs: Record<string, Job> = {};
+    for (const job of graph.active_jobs ?? []) jobs[job.node_id] = job;
+    set((s) => {
+      const flow = new Map(s.flowNodes.map((n) => [n.id, n]));
+      return {
+        project: graph.project,
+        nodes: Object.fromEntries(graph.nodes.map((n) => [n.id, n])),
+        // Their positions (they may have moved nodes), our selection.
+        flowNodes: graph.nodes.map((n) => ({
+          ...(flow.get(n.id) ?? toFlowNode(n)),
+          position: n.position,
+        })),
+        edges: graph.edges,
+        flowEdges: graph.edges.map(toFlowEdge),
+        outputs: Object.fromEntries(graph.outputs.map((o) => [o.id, o])),
+        materials,
+        jobs,
+        runs: Object.fromEntries((graph.runs ?? []).map((r) => [r.step, r])),
+      };
+    });
   },
 
   async closeProject() {
     await flushTyping();
     await Promise.all([flushViewport(), flushName(), flushInstruction()]);
     await session.historyChain;
+    lock.stop();
     resetProjectState();
     clearHistory();
     set({
@@ -105,7 +168,7 @@ export function projectActions(
   renameProject(name) {
     const project = get().project;
     const trimmed = name.replace(/\s+/g, " ").trim();
-    if (!project || !trimmed) return;
+    if (!project || !trimmed || !editing()) return;
     set({ project: { ...project, name: trimmed } });
     session.pendingName = { projectId: project.id, name: trimmed };
     clearTimeout(session.renameTimer);
@@ -114,7 +177,7 @@ export function projectActions(
 
   setProjectInstruction(instruction) {
     const project = get().project;
-    if (!project) return;
+    if (!project || !editing()) return;
     set({ project: { ...project, instruction } });
     session.pendingInstruction = { projectId: project.id, instruction };
     clearTimeout(session.instructionTimer);
@@ -123,7 +186,7 @@ export function projectActions(
 
   saveViewport(viewport) {
     const project = get().project;
-    if (!project) return;
+    if (!project || !editing()) return;
     session.pendingViewport = { projectId: project.id, viewport };
     clearTimeout(session.viewportTimer);
     session.viewportTimer = setTimeout(() => void flushViewport(), 500);

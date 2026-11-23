@@ -107,9 +107,15 @@ def auth(email: str = ALICE) -> dict[str, str]:
     return {"Authorization": f"Bearer dev:{email}"}
 
 
-def signed_in(app, email: str = ALICE) -> TestClient:
-    """A test client that sends `email`'s dev sign-in with every request."""
-    return TestClient(app, headers=auth(email))
+# The edit session (browser tab) test clients send: a change to a project
+# takes its lock for this "tab" if it's free.
+TEST_TAB = "test-tab"
+
+
+def signed_in(app, email: str = ALICE, tab: str = TEST_TAB) -> TestClient:
+    """A test client that sends `email`'s dev sign-in with every request,
+    from one browser tab."""
+    return TestClient(app, headers={**auth(email), "X-Edit-Session": tab})
 
 
 def open_store(settings: Settings):

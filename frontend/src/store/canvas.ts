@@ -34,6 +34,7 @@ export const useCanvas = create<CanvasState>()((set, get) => {
     jobs: {},
     nodeErrors: {},
     pendingSaves: 0,
+    lock: { status: "checking" },
     activeStep: null,
     activeNodeId: null,
     runs: {},

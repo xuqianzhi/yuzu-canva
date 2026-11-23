@@ -21,10 +21,32 @@ def error_code(response) -> str:
     return ErrorResponse.model_validate(response.json()).error.code
 
 
-def new_project(client: TestClient, name: str = "Demo") -> str:
-    response = client.post("/api/projects", json={"name": name})
-    assert response.status_code == 201
+def new_collection(client: TestClient, name: str = "Tests", **body) -> str:
+    response = client.post("/api/collections", json={"name": name, **body})
+    assert response.status_code == 201, response.text
     return response.json()["id"]
+
+
+def default_collection(client: TestClient) -> str:
+    """The signed-in user's first own collection (made if there's none)."""
+    mine = [c for c in client.get("/api/collections").json() if c["your_role"] == "owner"]
+    return mine[-1]["id"] if mine else new_collection(client)
+
+
+def new_project(
+    client: TestClient, name: str = "Demo", collection: str | None = None, **body
+) -> str:
+    collection = collection or default_collection(client)
+    response = client.post(
+        f"/api/collections/{collection}/projects", json={"name": name, **body}
+    )
+    assert response.status_code == 201, response.text
+    return response.json()["id"]
+
+
+def list_projects(client: TestClient, collection: str | None = None) -> list[dict]:
+    collection = collection or default_collection(client)
+    return client.get(f"/api/collections/{collection}/projects").json()
 
 
 _ids = itertools.count(1)
@@ -98,7 +120,7 @@ def test_project_list_summaries(client):
     wait_for_job(client, generate(client, still).json()["id"])
     take = wait_for_job(client, generate(client, still).json()["id"])["output_id"]
 
-    listed = {p["id"]: p for p in client.get("/api/projects").json()}
+    listed = {p["id"]: p for p in list_projects(client)}
     assert (listed[empty]["node_count"], listed[empty]["cover"]) == (0, None)
     summary = listed[busy]
     assert (summary["node_count"], summary["image_count"], summary["video_count"]) == (2, 2, 0)
@@ -111,7 +133,7 @@ def test_project_list_summaries(client):
 def test_project_lifecycle(client):
     first = new_project(client, "First")
     second = new_project(client, "Second")
-    assert [p["id"] for p in client.get("/api/projects").json()] == [second, first]
+    assert [p["id"] for p in list_projects(client)] == [second, first]
 
     response = client.patch(
         f"/api/projects/{first}",
@@ -120,7 +142,7 @@ def test_project_lifecycle(client):
     assert response.json()["name"] == "Renamed"
     assert response.json()["viewport"] == {"x": 5, "y": 6, "zoom": 2}
     # Updating bumps it to the top.
-    assert client.get("/api/projects").json()[0]["id"] == first
+    assert list_projects(client)[0]["id"] == first
 
     graph = client.get(f"/api/projects/{first}").json()
     assert graph["project"]["name"] == "Renamed"
@@ -616,7 +638,7 @@ def test_deleted_nodes_leave_the_project_summary(client):
     node = new_node(client, project)["id"]
     wait_for_job(client, generate(client, node).json()["id"])
     client.delete(f"/api/nodes/{node}")
-    summary = next(p for p in client.get("/api/projects").json() if p["id"] == project)
+    summary = next(p for p in list_projects(client) if p["id"] == project)
     assert (summary["node_count"], summary["image_count"], summary["cover"]) == (0, 0, None)
 
 

@@ -1,12 +1,12 @@
-// The landing page's Global assets page: named images and videos that every
-// new project starts with, as nodes down the left side of its canvas.
+// A collection's Assets page: named images and videos that every new project
+// in the collection starts with, as nodes down the left side of its canvas.
 import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
 import { api, API_BASE, authedFetch, unwrap } from "../api/client";
-import type { components } from "../api/schema";
-import { isValidId, nameKey, normalizeName, toValidId } from "../api/types";
+import { isValidId, nameKey, normalizeName, toValidId, type CollectionAsset } from "../api/types";
 import { errorText, t as tr, useT } from "../i18n";
+import type { CollectionView } from "./HomePage";
 
-type GlobalAsset = components["schemas"]["GlobalAsset"];
+type GlobalAsset = CollectionAsset;
 
 const ACCEPT = "image/png,image/jpeg,image/webp,video/mp4,video/quicktime";
 
@@ -27,8 +27,9 @@ function uniqueName(wanted: string, taken: Set<string>): string {
   return candidate;
 }
 
-export function GlobalAssets() {
+export function CollectionAssets({ view }: { view: CollectionView }) {
   const t = useT();
+  const collectionId = view.collection.id;
   const [assets, setAssets] = useState<GlobalAsset[] | null>(null);
   const [uploading, setUploading] = useState<Uploading[]>([]);
   const [error, setError] = useState("");
@@ -37,12 +38,18 @@ export function GlobalAssets() {
 
   const load = useCallback(async () => {
     try {
-      setAssets(unwrap(await api.GET("/api/global-assets")));
+      setAssets(
+        unwrap(
+          await api.GET("/api/collections/{collection_id}/assets", {
+            params: { path: { collection_id: collectionId } },
+          }),
+        ),
+      );
     } catch (e) {
       setAssets((current) => current ?? []);
       setError(tr("ga_load_error", { error: errorText(e) }));
     }
-  }, []);
+  }, [collectionId]);
 
   useEffect(() => {
     void load();
@@ -70,7 +77,8 @@ export function GlobalAssets() {
         const form = new FormData();
         form.append("file", item.file, item.file.name);
         form.append("name", name);
-        const response = await authedFetch(`${API_BASE}/api/global-assets`, {
+        const url = `${API_BASE}/api/collections/${encodeURIComponent(collectionId)}/assets`;
+        const response = await authedFetch(url, {
           method: "POST",
           body: form,
         });
@@ -94,7 +102,7 @@ export function GlobalAssets() {
     if (!ok) return;
     try {
       unwrap(
-        await api.DELETE("/api/global-assets/{asset_id}", {
+        await api.DELETE("/api/collection-assets/{asset_id}", {
           params: { path: { asset_id: asset.id } },
         }),
       );
@@ -223,7 +231,7 @@ function GlobalCard({
     }
     try {
       const renamed = unwrap(
-        await api.PATCH("/api/global-assets/{asset_id}", {
+        await api.PATCH("/api/collection-assets/{asset_id}", {
           params: { path: { asset_id: asset.id } },
           body: { name: cleaned! },
         }),

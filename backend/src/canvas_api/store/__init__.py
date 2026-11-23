@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from .base import PURGE_AFTER, WORKFLOW_HANDLE, StoreBase, now
 from .chat import ChatMixin
+from .collections import CollectionsMixin
 from .graph import GraphMixin
 from .jobs import JobsMixin
 from .media import MediaMixin
@@ -23,6 +24,7 @@ from .workflow import WorkflowMixin
 class Store(
     MigrationsMixin,
     UsersMixin,
+    CollectionsMixin,
     ProjectsMixin,
     GraphMixin,
     MediaMixin,

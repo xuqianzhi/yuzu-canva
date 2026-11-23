@@ -18,16 +18,17 @@ if TYPE_CHECKING:
 
 
 def queue_generation(
-    store: Store, worker: Worker, node: Node, spending: Spending | None = None
+    store: Store, worker: Worker, node: Node, actor: str, spending: Spending | None = None
 ) -> Job:
-    """With `spending`, the generation is counted against the owner's limits
-    once it is known to be valid (callers that already counted pass None)."""
-    owner = store.owner_of("project", node.project_id)
+    """Generate `node` for `actor` (prompts are written in their language).
+    With `spending`, the generation is counted against the limits once it is
+    known to be valid (callers that already counted pass None)."""
     refs = [Reference(node=n, output=o) for n, o in store.node_inputs(node)]
-    planned = plan(node, refs, store.get_language(owner).value)
+    planned = plan(node, refs, store.get_language(actor).value)
     if spending is not None:
-        spending.check_jobs(owner, 1)
-        spending.charge(owner, node.kind.value)
+        collection_id = store.collection_of(node.project_id)
+        spending.check_jobs(collection_id, 1)
+        spending.charge(actor, collection_id, node.kind.value)
     job = store.create_job(node, planned.provider, planned.operation, planned.job_input)
     worker.enqueue(job.id)
     return job

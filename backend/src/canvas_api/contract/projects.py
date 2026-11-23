@@ -11,12 +11,13 @@ from .workflow import WorkflowDefinition
 
 class Project(CompleteModel):
     id: ProjectId
+    collection_id: str = Field(pattern=r"^col_[A-Za-z0-9]+$")
     name: str
     viewport: Viewport
     # The project's own instruction (see contract/instructions.py); starts as
-    # a copy of the global instruction.
+    # a copy of its collection's.
     instruction: str
-    # The project's own copy of its workflow (see contract/workflow.py).
+    # Its collection's active workflow (see contract/collections.py).
     workflow: WorkflowDefinition
     created_at: Timestamp
     updated_at: Timestamp
@@ -24,10 +25,8 @@ class Project(CompleteModel):
 
 class ProjectCreate(ContractModel):
     name: str = Field(default="Untitled", min_length=1, max_length=200)
-    # Omitted (or null): copy the global instruction.
+    # Omitted (or null): copy the collection's instruction.
     instruction: str | None = Field(default=None, max_length=MAX_INSTRUCTION_CHARS)
-    # The workflow template to copy; omitted (or null): the default one.
-    workflow_template_id: str | None = None
 
 
 class ProjectUpdate(ContractModel):

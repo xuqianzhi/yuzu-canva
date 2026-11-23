@@ -1,13 +1,12 @@
-// The landing page's Settings page: the language of the UI and of every
-// prompt the backend writes for the models; your account and today's usage.
+// The Settings page: the language of the UI and of every prompt the backend
+// writes for the models; your account, and what you pay for today (all that
+// was generated in your collections, by you or your editors).
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
-import type { components } from "../api/schema";
+import type { Me } from "../api/types";
 import { useAuth } from "../auth";
 import { LANGUAGES, useLanguage, useT } from "../i18n";
 import { homeHref } from "../router";
-
-type Me = components["schemas"]["Me"];
 
 export function Settings() {
   const t = useT();
@@ -82,6 +81,33 @@ function Account() {
           <dd>{count("video")}</dd>
         </dl>
       </section>
+      {me && me.breakdown.length > 0 && (
+        <section className="settings__row settings__row--stack">
+          <h2 className="settings__label">{t("usage_breakdown")}</h2>
+          <table className="usage-table">
+            <thead>
+              <tr>
+                <th>{t("usage_collection")}</th>
+                <th>{t("usage_who")}</th>
+                <th>{t("usage_image")}</th>
+                <th>{t("usage_video")}</th>
+                <th>{t("usage_text")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {me.breakdown.map((line, i) => (
+                <tr key={i}>
+                  <td>{line.collection_name ?? t("usage_deleted_collection")}</td>
+                  <td>{line.email === me.email ? t("share_you") : (line.email ?? "—")}</td>
+                  <td>{line.used.image}</td>
+                  <td>{line.used.video}</td>
+                  <td>{line.used.text}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
     </>
   );
 }

@@ -1,5 +1,6 @@
-"""Workflows: templates, running a step, hand-written takes, and each text
-node's chat. Plus the app's settings."""
+"""Running a project's workflow steps, hand-written takes, and each text
+node's chat. Plus the app's settings. (Workflows themselves belong to
+collections: routes/collections.py.)"""
 
 from __future__ import annotations
 
@@ -8,7 +9,7 @@ import json
 import logging
 from dataclasses import dataclass
 
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Request
 from fastapi.concurrency import run_in_threadpool
 
 from ..contract import (
@@ -28,8 +29,6 @@ from ..contract import (
     StepRunRequest,
     TakeCreate,
     WorkflowStep,
-    WorkflowTemplate,
-    WorkflowTemplateSave,
 )
 from ..deps import SpendingDep, StoreDep, TextModelDep, UserDep, WorkerDep
 from ..domain.workflow import (
@@ -61,63 +60,6 @@ def _provider_error(exc: ProviderError) -> ApiError:
     return ApiError(502, ErrorCode.provider_error, str(exc))
 
 
-# --- templates -------------------------------------------------------------------------
-
-
-@router.get("/workflow-templates", operation_id="listWorkflowTemplates", responses=responses())
-def list_workflow_templates(store: StoreDep, user: UserDep) -> list[WorkflowTemplate]:
-    """Your workflow templates, oldest first; one is your default."""
-    return store.list_templates(user.id)
-
-
-@router.post(
-    "/workflow-templates",
-    status_code=201,
-    operation_id="createWorkflowTemplate",
-    responses=responses(),
-)
-def create_workflow_template(
-    body: WorkflowTemplateSave, store: StoreDep, user: UserDep
-) -> WorkflowTemplate:
-    """A new template (422 if two steps share a key)."""
-    return store.save_template(user.id, None, body.definition)
-
-
-@router.put(
-    "/workflow-templates/{template_id}",
-    operation_id="updateWorkflowTemplate",
-    responses=responses(404),
-)
-def update_workflow_template(
-    template_id: str, body: WorkflowTemplateSave, store: StoreDep, user: UserDep
-) -> WorkflowTemplate:
-    """Replace a template (its version goes up). Projects already made keep
-    their own copy."""
-    return store.save_template(user.id, template_id, body.definition)
-
-
-@router.delete(
-    "/workflow-templates/{template_id}",
-    status_code=204,
-    response_class=Response,
-    operation_id="deleteWorkflowTemplate",
-    responses=responses(404, 409),
-)
-def delete_workflow_template(template_id: str, store: StoreDep) -> None:
-    """Not the default one (409)."""
-    store.delete_template(template_id)
-
-
-@router.post(
-    "/workflow-templates/{template_id}/default",
-    operation_id="setDefaultWorkflowTemplate",
-    responses=responses(404),
-)
-def set_default_workflow_template(template_id: str, store: StoreDep) -> WorkflowTemplate:
-    """Your new projects copy this template."""
-    return store.set_default_template(template_id)
-
-
 # --- running a step --------------------------------------------------------------------
 
 
@@ -126,6 +68,8 @@ class _Run:
     """A step run, worked out before it starts."""
 
     project_id: str
+    # Who runs it (pays nothing: the collection's owner does).
+    actor: str
     step: WorkflowStep
     prompt: str
     count: int
@@ -168,12 +112,13 @@ async def run_step(
     (``count`` is ignored), each made from its own input; an image or video
     step fed by text uses each text as its prompt directly.
     """
-    run = await run_in_threadpool(_plan_run, store, project_id, step_key, body)
+    run = await run_in_threadpool(_plan_run, store, project_id, step_key, body, user.id)
+    collection_id = store.collection_of(project_id)
     if run.writes:
-        spending.charge(user.id, "text")
+        spending.charge(user.id, collection_id, "text")
     if run.media:
-        spending.check_jobs(user.id, run.count)
-        spending.charge(user.id, run.step.kind.value, run.count)
+        spending.check_jobs(collection_id, run.count)
+        spending.charge(user.id, collection_id, run.step.kind.value, run.count)
     await run_in_threadpool(store.start_run, project_id, step_key, run.prompt, run.count)
     task = asyncio.create_task(_finish_run(run, store, worker, text_model))
     tasks: set[asyncio.Task] = request.app.state.tasks
@@ -182,7 +127,7 @@ async def run_step(
     return await run_in_threadpool(store.get_graph, project_id)
 
 
-def _plan_run(store, project_id: str, step_key: str, body: StepRunRequest) -> _Run:
+def _plan_run(store, project_id: str, step_key: str, body: StepRunRequest, actor: str) -> _Run:
     project = store.get_project(project_id)
     step = step_by_key(project.workflow, step_key)
     if step is None:
@@ -197,7 +142,7 @@ def _plan_run(store, project_id: str, step_key: str, body: StepRunRequest) -> _R
     if not prompt and not direct:
         raise ApiError(422, ErrorCode.validation_error, "write a prompt first")
     writes = not direct and not (media and sources)
-    return _Run(project_id, step, prompt, count, sources, media, direct, writes)
+    return _Run(project_id, actor, step, prompt, count, sources, media, direct, writes)
 
 
 async def _finish_run(run: _Run, store, worker, text_model) -> None:
@@ -216,6 +161,7 @@ async def _finish_run(run: _Run, store, worker, text_model) -> None:
             items = await _write_items(
                 store,
                 text_model,
+                run.actor,
                 project,
                 run.step,
                 run.prompt,
@@ -239,7 +185,7 @@ async def _finish_run(run: _Run, store, worker, text_model) -> None:
             worker.abort(job_id)
         if run.media:
             for node in nodes:
-                queue_generation(store, worker, node)
+                queue_generation(store, worker, node, run.actor)
     except ApiError as exc:
         store.fail_run(run.project_id, run.step.key, exc.detail.message)
     except Exception as exc:  # noqa: BLE001 - shown on the run
@@ -269,6 +215,7 @@ def _one_to_one_sources(
 async def _write_items(
     store,
     text_model,
+    actor: str,
     project,
     step,
     prompt: str,
@@ -279,7 +226,7 @@ async def _write_items(
     """Ask the text model for `count` results (or prompts). Mentioned nodes
     and one-to-one inputs go along: text quoted, images sent so the model
     can see them (labelled in that order)."""
-    language = store.get_language(store.owner_of("project", project.id)).value
+    language = store.get_language(actor).value
     files: list[RefFile] = []
 
     def piece(node: Node, output: Output, name: str | None = None) -> Piece:
@@ -354,7 +301,7 @@ async def send_chat(
     node = store.get_node(node_id)
     if node.kind != MediaKind.text:
         raise ApiError(409, ErrorCode.not_generatable, "chat works on text nodes")
-    spending.charge(user.id, "text")
+    spending.charge(user.id, store.collection_of(node.project_id), "text")
     language = store.get_language(user.id).value
     w = words(language)
     step_name, instruction = None, ""

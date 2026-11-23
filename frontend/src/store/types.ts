@@ -48,6 +48,13 @@ export interface Made {
 /** The node "shapes" the kind tabs switch between. */
 export type NodeShape = MediaKind;
 
+/** This tab and the project's lock: "editing" holds it; "viewing" means
+    someone else (or your other tab) does, or it just came free. */
+export type LockState =
+  | { status: "checking" }
+  | { status: "editing" }
+  | { status: "viewing"; holderEmail: string | null; holderIsYou: boolean };
+
 export interface CanvasState {
   load: LoadState;
   project: Project | null;
@@ -74,8 +81,14 @@ export interface CanvasState {
   /** Last error per node id, from generate or a failed save. */
   nodeErrors: Record<string, string>;
   pendingSaves: number;
+  /** Whether this tab may change the project (see store/lock.ts). */
+  lock: LockState;
 
   openProject(projectId: string): Promise<void>;
+  /** Reload the project from the server, keeping what's open (view-only). */
+  refreshProject(): Promise<void>;
+  /** Take the lock (from your own other tab, with `takeOver`) and reload. */
+  startEditing(takeOver?: boolean): Promise<void>;
   /** Save anything still pending, then forget the project. */
   closeProject(): Promise<void>;
   renameProject(name: string): void;

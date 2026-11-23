@@ -1,13 +1,13 @@
-"""Projects, and each user's global instruction and language."""
+"""Projects, and each user's language."""
 
 from __future__ import annotations
 
 from pathlib import PurePath
 
 from ..contract import (
-    GLOBAL_NODE_STEP,
-    GLOBAL_NODE_X,
-    GLOBAL_NODE_Y,
+    ASSET_NODE_STEP,
+    ASSET_NODE_X,
+    ASSET_NODE_Y,
     Language,
     MediaKind,
     Position,
@@ -24,26 +24,22 @@ from .base import (
     ACTIVE,
     LIVE_ASSETS,
     LIVE_N,
+    PROJECT_SQL,
     _not_found,
     _ts,
     now,
 )
-from .media import asset_key, global_key
+from .media import asset_key, collection_key
 
 
 class ProjectsMixin:
-    """Projects, and each user's global instruction and language."""
+    """Projects, and each user's language."""
 
-    def list_projects(self, owner: str) -> list[Project]:
-        rows = self._all(
-            "SELECT * FROM projects WHERE owner_id = ? ORDER BY updated_at DESC, id", owner
-        )
-        return [self._project(r) for r in rows]
-
-    def list_project_summaries(self, owner: str) -> list[ProjectSummary]:
+    def list_project_summaries(self, collection_id: str, user_id: str) -> list[ProjectSummary]:
+        """The collection's projects, most recently updated first."""
         rows = self._all(
             f"""
-            SELECT p.*,
+            SELECT p.*, w.definition AS workflow,
               (SELECT COUNT(*) FROM nodes n WHERE n.project_id = p.id AND {LIVE_N})
                 AS node_count,
               (SELECT COUNT(*) FROM {LIVE_ASSETS} AND a.kind = 'image') AS image_count,
@@ -52,13 +48,17 @@ class ProjectsMixin:
                 AS running_count,
               (SELECT a.id FROM {LIVE_ASSETS} AND a.kind IN ('image', 'video')
                  ORDER BY a.created_at DESC, a.id DESC LIMIT 1) AS cover_id
-            FROM projects p WHERE p.owner_id = ? ORDER BY p.updated_at DESC, p.id
+            FROM projects p JOIN collections c ON c.id = p.collection_id
+            JOIN collection_workflows w ON w.id = c.active_workflow_id
+            WHERE p.collection_id = ? ORDER BY p.updated_at DESC, p.id
             """,
-            owner,
+            collection_id,
         )
+        editing = self.editing_now(collection_id)
         summaries = []
         for r in rows:
             cover = self._one("SELECT * FROM assets WHERE id = ?", r["cover_id"])
+            holder = editing.get(r["id"])
             summaries.append(
                 ProjectSummary(
                     **self._project(r).model_dump(),
@@ -67,18 +67,20 @@ class ProjectsMixin:
                     video_count=r["video_count"],
                     running_count=r["running_count"],
                     cover=self._asset(cover) if cover else None,
+                    editing_by=holder[1] if holder and holder[0] != user_id else None,
                 )
             )
         return summaries
 
     def get_project(self, project_id: str) -> Project:
-        row = self._one("SELECT * FROM projects WHERE id = ?", project_id)
+        row = self._one(PROJECT_SQL + "WHERE p.id = ?", project_id)
         if not row:
             raise _not_found("project", project_id)
         return self._project(row)
 
-    def create_project(self, owner: str, body: ProjectCreate) -> Project:
-        """Create a project; every global asset becomes an uploaded node in it.
+    def create_project(self, collection_id: str, body: ProjectCreate) -> Project:
+        """Create a project in a collection; every collection asset becomes an
+        uploaded node in it.
 
         The nodes go down the left side of the canvas, oldest asset first,
         each named after its asset and holding its own copy of the file.
@@ -87,26 +89,31 @@ class ProjectsMixin:
         written: list[str] = []
         try:
             with self._tx() as db:
+                collection = db.execute(
+                    "SELECT instruction FROM collections WHERE id = ?", (collection_id,)
+                ).fetchone()
+                if collection is None:
+                    raise _not_found("collection", collection_id)
                 instruction = body.instruction
                 if instruction is None:
-                    instruction = self._setting(db, owner, "instruction") or ""
+                    instruction = collection["instruction"]
                 db.execute(
-                    "INSERT INTO projects (id, owner_id, name, viewport, created_at,"
-                    " updated_at, instruction, workflow) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO projects (id, collection_id, name, viewport, created_at,"
+                    " updated_at, instruction) VALUES (?, ?, ?, ?, ?, ?, ?)",
                     (
                         project_id,
-                        owner,
+                        collection_id,
                         body.name,
                         Viewport().model_dump_json(),
                         ts,
                         ts,
                         instruction,
-                        self._template_for_project(db, owner, body.workflow_template_id),
                     ),
                 )
                 rows = db.execute(
-                    "SELECT * FROM global_assets WHERE owner_id = ? ORDER BY created_at, id",
-                    (owner,),
+                    "SELECT * FROM collection_assets WHERE collection_id = ? "
+                    "ORDER BY created_at, id",
+                    (collection_id,),
                 ).fetchall()
                 for i, row in enumerate(rows):
                     _, key = self._insert_upload_node(
@@ -120,10 +127,8 @@ class ProjectsMixin:
                         row["height"],
                         row["duration_s"],
                         name=row["name"],
-                        position=Position(
-                            x=GLOBAL_NODE_X, y=GLOBAL_NODE_Y + i * GLOBAL_NODE_STEP
-                        ),
-                        copy_from=global_key(row["filename"]),
+                        position=Position(x=ASSET_NODE_X, y=ASSET_NODE_Y + i * ASSET_NODE_STEP),
+                        copy_from=collection_key(row["filename"]),
                     )
                     written.append(key)
         except BaseException:
@@ -144,27 +149,18 @@ class ProjectsMixin:
             )
         return self.get_project(project_id)
 
-    def get_global_instruction(self, owner: str) -> str:
+    def get_language(self, user_id: str) -> Language:
         with self._conn() as db:
-            return self._setting(db, owner, "instruction") or ""
-
-    def get_language(self, owner: str) -> Language:
-        with self._conn() as db:
-            value = self._setting(db, owner, "language")
+            value = self._setting(db, user_id, "language")
         try:
             return Language(value) if value else Language.en
         except ValueError:
             return Language.en
 
-    def set_language(self, owner: str, language: Language) -> Language:
+    def set_language(self, user_id: str, language: Language) -> Language:
         with self._tx() as db:
-            self._put_setting(db, owner, "language", language.value)
+            self._put_setting(db, user_id, "language", language.value)
         return language
-
-    def set_global_instruction(self, owner: str, text: str) -> str:
-        with self._tx() as db:
-            self._put_setting(db, owner, "instruction", text)
-        return text
 
     def delete_project(self, project_id: str) -> tuple[list[str], list[str]]:
         """Delete everything in the project.
@@ -211,11 +207,21 @@ class ProjectsMixin:
             "ORDER BY created_at",
             project_id,
         )
+        # Nodes of steps the active workflow doesn't have are hidden (not
+        # deleted): switching back to a workflow with them shows them again.
+        steps = {step.key for step in project.workflow.steps}
+        shown = {
+            r["id"] for r in nodes if r["workflow_step"] is None or r["workflow_step"] in steps
+        }
         return ProjectGraph(
             project=project,
-            nodes=[self._node(r) for r in nodes],
-            edges=[self._edge(r) for r in edges],
-            outputs=[self._output(r) for r in outputs],
-            active_jobs=[self._job(r) for r in jobs],
-            runs=self.list_runs(project_id),
+            nodes=[self._node(r) for r in nodes if r["id"] in shown],
+            edges=[
+                self._edge(r)
+                for r in edges
+                if r["source_node_id"] in shown and r["target_node_id"] in shown
+            ],
+            outputs=[self._output(r) for r in outputs if r["node_id"] in shown],
+            active_jobs=[self._job(r) for r in jobs if r["node_id"] in shown],
+            runs=[run for run in self.list_runs(project_id) if run.step in steps],
         )

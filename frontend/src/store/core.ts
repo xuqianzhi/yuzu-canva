@@ -17,6 +17,7 @@ import {
   type Viewport,
 } from "../api/types";
 import type { GenFlowNode, GetState, HistoryEntry, Made, RefFlowEdge, SetState } from "./types";
+import { createLock } from "./lock";
 
 export const toFlowEdge = (edge: Edge): RefFlowEdge => ({
   id: edge.id,
@@ -652,6 +653,7 @@ export function createCore(set: SetState, get: GetState) {
     replaceGraph,
     watchRuns,
     applyNode,
+    lock: createLock(set, get),
   };
 }
 
