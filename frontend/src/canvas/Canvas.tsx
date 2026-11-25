@@ -6,6 +6,8 @@ import {
   ReactFlow,
   SelectionMode,
   useReactFlow,
+  useStore,
+  type EdgeTypes,
   type FinalConnectionState,
   type NodeTypes,
 } from "@xyflow/react";
@@ -19,16 +21,33 @@ import {
   type RefFlowEdge,
 } from "../store/canvas";
 import { useShallow } from "zustand/react/shallow";
+import { useView } from "../store/view";
 import { GenNode } from "./GenNode";
+import { RefEdge } from "./RefEdge";
 import { MATERIAL_MIME, Sidebar } from "./Sidebar";
 import { useT, type Key, type T } from "../i18n";
 
 const nodeTypes: NodeTypes = { gen: GenNode };
+const edgeTypes: EdgeTypes = { ref: RefEdge };
 
-// Matches .gen-node (width) and .gen-node__handle (top) in styles.css, so a
-// node created at a drop point lines its handle up with the cursor.
-const NODE_WIDTH = 320;
-const HANDLE_TOP = 120;
+// Node geometry, matching styles.css ("nodes: an output square over a prompt
+// card"): 480 wide, a 30 header, the 320 output square centred under it, then
+// the card. Links come into the card's left edge and go out of its right
+// edge, LINK_TOP down: a node created at a drop point lines its link up with
+// the cursor.
+const NODE_WIDTH = 480;
+const HEADER = 30;
+const LINK_TOP = 402;
+// Where the output square's centre is, down from the node's top.
+const SQUARE_CENTRE = HEADER + 6 + 160;
+
+// Below this zoom a node's small print (its prompt, input thumbnails,
+// settings and buttons) is too small to read: it isn't drawn (it keeps its
+// space, so nodes and links don't move).
+const FAR_ZOOM = 0.5;
+
+// How long the view must be still before it's drawn sharp again.
+const MOVE_SETTLE_MS = 200;
 
 interface Choice {
   shape: NodeShape;
@@ -41,6 +60,28 @@ const MENU: Choice[] = [
   { shape: "video", label: "shape_video", hint: "Seedance" },
   { shape: "text", label: "shape_text", hint: "OpenAI" },
 ];
+
+// The menu's size, roughly (see .create-menu), to keep it on screen.
+const MENU_WIDTH = 240;
+const MENU_HEIGHT = 150;
+
+// One small line icon per kind, for the menu.
+const MENU_ICONS: Record<NodeShape, React.ReactNode> = {
+  text: <path d="M3.5 4h9M8 4v8.5M6 12.5h4" />,
+  image: (
+    <>
+      <rect x="2.5" y="3" width="11" height="10" rx="1.8" />
+      <circle cx="6" cy="6.5" r="1.1" />
+      <path d="m3 11.5 3.2-3 2.3 2.1 1.6-1.4 2.9 2.6" />
+    </>
+  ),
+  video: (
+    <>
+      <rect x="2" y="4" width="8.5" height="8" rx="1.8" />
+      <path d="m10.5 7 3.5-2v6l-3.5-2" />
+    </>
+  ),
+};
 
 /** Open after a connection is dropped on empty canvas. */
 interface CreateMenu {
@@ -102,8 +143,8 @@ export function Canvas() {
     if (!materialId && !files.length) return;
     event.preventDefault();
     const at = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY });
-    // Centre the node's card on the drop point.
-    const origin = { x: at.x - NODE_WIDTH / 2, y: at.y - 100 };
+    // Centre the node's output square on the drop point.
+    const origin = { x: at.x - NODE_WIDTH / 2, y: at.y - SQUARE_CENTRE };
     if (materialId) {
       await placeMaterial(materialId, origin);
       return;
@@ -115,6 +156,23 @@ export function Canvas() {
   };
   const flow = useReactFlow();
   const wrapper = useRef<HTMLDivElement>(null);
+  // Re-renders only when the zoom crosses FAR_ZOOM.
+  const far = useStore((s) => s.transform[2] < FAR_ZOOM);
+  // While the view moves, the browser scales what it has already drawn
+  // instead of redrawing every node, link and picture each frame (a class
+  // set directly: no re-render). It's drawn sharp again once the view has
+  // been still for MOVE_SETTLE_MS (React Flow's own end comes mid-pinch).
+  const settle = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const moved = () => {
+    const box = wrapper.current;
+    if (box && !box.classList.contains("canvas--moving")) box.classList.add("canvas--moving");
+    clearTimeout(settle.current);
+    settle.current = setTimeout(
+      () => wrapper.current?.classList.remove("canvas--moving"),
+      MOVE_SETTLE_MS,
+    );
+  };
+  useEffect(() => () => clearTimeout(settle.current), []);
   const [menu, setMenu] = useState<CreateMenu | null>(null);
 
   // Drop a connection on empty canvas: ask what to create there.
@@ -131,8 +189,9 @@ export function Canvas() {
       if (!box) return;
       const at = flow.screenToFlowPosition({ x: point.clientX, y: point.clientY });
       setMenu({
-        left: point.clientX - box.left,
-        top: point.clientY - box.top,
+        // Kept inside the canvas (not under the step panel or off the bottom).
+        left: Math.min(point.clientX - box.left, box.width - MENU_WIDTH - 16),
+        top: Math.min(point.clientY - box.top, box.height - MENU_HEIGHT - 16),
         flowX: at.x,
         flowY: at.y,
         from: {
@@ -149,8 +208,11 @@ export function Canvas() {
     const { flowX, flowY, from } = menu;
     setMenu(null);
     // Put the new node's matching handle under the drop point.
-    const x = from.handle === "source" ? flowX : flowX - NODE_WIDTH;
-    void addConnectedNode(shape, { x, y: flowY - HANDLE_TOP }, from);
+    const at =
+      from.handle === "source"
+        ? { x: flowX, y: flowY - LINK_TOP }
+        : { x: flowX - NODE_WIDTH, y: flowY - LINK_TOP };
+    void addConnectedNode(shape, at, from);
   };
 
   // ⌘Z / Ctrl+Z undo; ⌘⇧Z / Ctrl+Shift+Z / Ctrl+Y redo. Inside a text box
@@ -187,25 +249,46 @@ export function Canvas() {
       const target = event.target as HTMLElement;
       if (readOnly || !target.classList.contains("react-flow__pane")) return;
       const position = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY });
-      void addNode("image", { x: position.x - 160, y: position.y - 24 });
+      void addNode("image", { x: position.x - NODE_WIDTH / 2, y: position.y - HEADER / 2 });
     },
     [flow, addNode, readOnly],
   );
 
-  // Animate the references feeding a node while it generates.
+  // The node under the pointer, else the selected nodes: their links are
+  // highlighted and the rest fade, so which link goes where is plain.
+  const [hovered, setHovered] = useState<string | null>(null);
+  const selectedIds = useCanvas(
+    useShallow((s) => s.flowNodes.filter((n) => n.selected).map((n) => n.id)),
+  );
+  const focus = useMemo(
+    () => new Set(hovered ? [hovered] : selectedIds),
+    [hovered, selectedIds],
+  );
+
+  // Animate the references feeding a node while it generates. Hidden
+  // links (the Canvas panel's switch) aren't drawn at all.
+  const showLinks = useView((s) => s.showLinks);
   const edges = useMemo(
     () =>
       flowEdges.map((edge) => {
         const job = jobs[edge.target];
         const busy = job !== undefined && !TERMINAL_JOB_STATUSES.includes(job.status);
-        return busy === Boolean(edge.animated) ? edge : { ...edge, animated: busy };
+        const hidden = !showLinks;
+        const base = (edge.className ?? "").replace(/\s*edge--active/g, "");
+        const active = focus.has(edge.source) || focus.has(edge.target);
+        const className = active ? `${base} edge--active`.trim() : base;
+        return busy === Boolean(edge.animated) &&
+          hidden === Boolean(edge.hidden) &&
+          className === (edge.className ?? "")
+          ? edge
+          : { ...edge, animated: busy, hidden, className };
       }),
-    [flowEdges, jobs],
+    [flowEdges, jobs, showLinks, focus],
   );
 
   return (
     <div
-      className={`canvas${dropTarget ? " canvas--drop" : ""}`}
+      className={`canvas${dropTarget ? " canvas--drop" : ""}${far ? " canvas--far" : ""}${focus.size ? " canvas--focus" : ""}`}
       ref={wrapper}
       onDragOver={onDragOver}
       onDragLeave={(e) => {
@@ -220,6 +303,9 @@ export function Canvas() {
         nodes={flowNodes}
         edges={edges}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        onNodeMouseEnter={(_, node) => setHovered(node.id)}
+        onNodeMouseLeave={() => setHovered(null)}
         onNodesChange={onNodesChange}
         onNodeDragStop={(_, __, nodes) => commitPositions(nodes.map((n) => n.id))}
         onEdgesChange={onEdgesChange}
@@ -227,10 +313,11 @@ export function Canvas() {
         onConnectEnd={onConnectEnd}
         onPaneClick={() => setMenu(null)}
         onMoveStart={() => setMenu(null)}
+        onMove={moved}
         isValidConnection={canConnect}
-        // Every delete (Backspace, a node's button, the selection bar) comes
-        // through here: remove the nodes, every connection touching them, and
-        // the selected connections, as one undo step.
+        // Every delete (Backspace, a node's button) comes through here: remove
+        // the nodes, every connection touching them, and the selected
+        // connections, as one undo step.
         onDelete={({ nodes, edges: removed }) =>
           void deleteElements(
             nodes.map((n) => n.id),
@@ -260,7 +347,7 @@ export function Canvas() {
         maxZoom={2.5}
         proOptions={{ hideAttribution: true }}
       >
-        <Background variant={BackgroundVariant.Dots} gap={24} size={1.2} />
+        <Background variant={BackgroundVariant.Dots} gap={20} size={1.4} />
         <Controls showInteractive={false} />
         <MiniMap
           pannable
@@ -274,19 +361,8 @@ export function Canvas() {
           </div>
         )}
         {!readOnly && (selectedNodeIds.length > 0 || selectedEdgeIds.length > 0) && (
-          <div className="selection-bar" role="toolbar" aria-label={t("selection_aria")}>
+          <div className="selection-bar" role="status" aria-label={t("selection_aria")}>
             <span>{selectionLabel(selectedNodeIds.length, selectedEdgeIds.length, t)}</span>
-            <button
-              className="button button--danger button--small"
-              onClick={() =>
-                void flow.deleteElements({
-                  nodes: selectedNodeIds.map((id) => ({ id })),
-                  edges: selectedEdgeIds.map((id) => ({ id })),
-                })
-              }
-            >
-              {t("delete")}
-            </button>
           </div>
         )}
         {!readOnly && flowNodes.length > 0 && selectedNodeIds.length === 0 && selectedEdgeIds.length === 0 && (
@@ -313,7 +389,10 @@ export function Canvas() {
           {MENU.map((choice, i) => (
             <div key={choice.shape} className="create-menu__row">
               <button role="menuitem" autoFocus={i === 0} onClick={() => createFromMenu(choice.shape)}>
-                <span>{t(choice.label)}</span>
+                <span className="create-menu__icon" aria-hidden="true">
+                  <svg viewBox="0 0 16 16">{MENU_ICONS[choice.shape]}</svg>
+                </span>
+                <span className="create-menu__label">{t(choice.label)}</span>
                 <small>{choice.hint}</small>
               </button>
             </div>

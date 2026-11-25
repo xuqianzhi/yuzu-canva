@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError, unwrap } from "../api/client";
 import {
   MAX_RUN_ITEMS,
+  parseCount,
   type CollectionWorkflow,
   type MediaKind,
   type WorkflowDefinition,
@@ -78,12 +79,7 @@ export function WorkflowDesigner({ view }: { view: CollectionView }) {
     setError("");
   };
   const change = (next: WorkflowDefinition) => {
-    // The last step has no next step to feed: its results are independent.
-    const last = next.steps.length - 1;
-    const steps = next.steps.map((s, i) =>
-      i === last && s.output === "one_to_one" ? { ...s, output: "independent" as const } : s,
-    );
-    setDraft({ ...next, steps });
+    setDraft(next);
     setDirty(true);
   };
   // Reordering: the step being dragged (`from`), the gap it would land in
@@ -116,11 +112,7 @@ export function WorkflowDesigner({ view }: { view: CollectionView }) {
     try {
       await load(await work());
     } catch (e) {
-      setError(
-        e instanceof ApiError && e.code === "edit_conflict"
-          ? tr("conflict", { email: e.body.error.context.by ?? "?" })
-          : errorText(e),
-      );
+      setError(saveError(e, errorText(e)));
     } finally {
       setBusy(false);
     }
@@ -141,6 +133,7 @@ export function WorkflowDesigner({ view }: { view: CollectionView }) {
       <div className="home__inner">
         <h1 className="home__title">{t("wf_title")}</h1>
         <p className="home__help">{t("wf_help")}</p>
+        <CollectionSwitches view={view} />
         {error && (
           <p className="home__error" role="alert">
             {error}
@@ -171,7 +164,7 @@ export function WorkflowDesigner({ view }: { view: CollectionView }) {
                       key: "step_1",
                       name: t("wf_new_step"),
                       kind: "text",
-                      output: "independent",
+                      carry: "all",
                       count: null,
                       description: "",
                     },
@@ -344,30 +337,28 @@ export function WorkflowDesigner({ view }: { view: CollectionView }) {
                         ))}
                       </select>
                     </label>
-                    <label className="designer__field">
-                      <span>{t("wf_output")}</span>
+                    <label
+                      className="designer__field designer__field--wide"
+                      title={t("wf_carry_help")}
+                    >
+                      <span>{t("wf_carry")}</span>
                       <select
-                        value={step.output}
+                        value={step.carry}
                         disabled={index === draft.steps.length - 1}
-                        title={index === draft.steps.length - 1 ? t("wf_output_last") : undefined}
                         onChange={(e) =>
                           setStep(index, {
                             ...step,
-                            output: e.target.value as WorkflowStep["output"],
+                            carry: e.target.value as WorkflowStep["carry"],
                           })
                         }
                       >
-                        <option value="independent">
-                          {index === draft.steps.length - 1
-                            ? t("wf_output_independent_last")
-                            : t("wf_output_independent")}
-                        </option>
-                        <option value="one_to_one">{t("wf_output_one_to_one")}</option>
+                        <option value="all">{t("wf_carry_all")}</option>
+                        <option value="used">{t("wf_carry_used")}</option>
+                        <option value="none">{t("wf_carry_none")}</option>
                       </select>
                     </label>
                     <CountField
                       step={step}
-                      fed={index > 0 && draft.steps[index - 1]!.output === "one_to_one"}
                       onChange={(count) => setStep(index, { ...step, count })}
                     />
                     <div className="designer__step-tools">
@@ -409,7 +400,7 @@ export function WorkflowDesigner({ view }: { view: CollectionView }) {
                         key: freeKey(draft.steps),
                         name: t("wf_new_step"),
                         kind: "text",
-                        output: "independent",
+                        carry: "all",
                         count: null,
                         description: "",
                       },
@@ -429,16 +420,109 @@ export function WorkflowDesigner({ view }: { view: CollectionView }) {
   );
 }
 
+/** A save's error as text: who changed it first, for an edit conflict (409);
+    otherwise `fallback`. */
+function saveError(e: unknown, fallback: string): string {
+  return e instanceof ApiError && e.code === "edit_conflict"
+    ? tr("conflict", { email: e.body.error.context.by ?? "?" })
+    : fallback;
+}
+
+/** The collection's switches: running image / video steps straight through
+    (fill in the prompts and generate them, without stopping to let them be
+    checked first), and, for admins only, lifting its owner's daily limits.
+    Saved at once (with the collection's version). */
+function CollectionSwitches({ view }: { view: CollectionView }) {
+  const t = useT();
+  const { collection } = view;
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  // Admins (the allowlist, or anyone in local work) see the daily-limit switch.
+  const [admin, setAdmin] = useState(false);
+  useEffect(() => {
+    api
+      .GET("/api/me")
+      .then((result) => setAdmin(result.data?.admin ?? false))
+      .catch(() => setAdmin(false));
+  }, []);
+
+  const save = async (change: {
+    direct_image?: boolean;
+    direct_video?: boolean;
+    no_daily_limit?: boolean;
+  }) => {
+    setBusy(true);
+    setError("");
+    try {
+      unwrap(
+        await api.PATCH("/api/collections/{collection_id}", {
+          params: { path: { collection_id: collection.id } },
+          body: { version: collection.version, ...change },
+        }),
+      );
+    } catch (e) {
+      setError(saveError(e, tr("save_error", { error: errorText(e) })));
+    }
+    await view.reload();
+    setBusy(false);
+  };
+
+  return (
+    <section className="direct" aria-label={t("direct_title")}>
+      <h2 className="direct__title">{t("direct_title")}</h2>
+      <label className="panel__switch">
+        <input
+          type="checkbox"
+          role="switch"
+          checked={collection.direct_image}
+          disabled={busy}
+          onChange={(e) => void save({ direct_image: e.target.checked })}
+        />
+        <span>{t("direct_image")}</span>
+      </label>
+      <label className="panel__switch">
+        <input
+          type="checkbox"
+          role="switch"
+          checked={collection.direct_video}
+          disabled={busy}
+          onChange={(e) => void save({ direct_video: e.target.checked })}
+        />
+        <span>{t("direct_video")}</span>
+      </label>
+      <p className="direct__help">{t("direct_help")}</p>
+      {admin && (
+        <>
+          <h2 className="direct__title direct__title--sub">{t("limit_title")}</h2>
+          <label className="panel__switch">
+            <input
+              type="checkbox"
+              role="switch"
+              checked={collection.no_daily_limit}
+              disabled={busy}
+              onChange={(e) => void save({ no_daily_limit: e.target.checked })}
+            />
+            <span>{t("no_daily_limit")}</span>
+          </label>
+          <p className="direct__help">{t("no_daily_limit_help")}</p>
+        </>
+      )}
+      {error && (
+        <p className="home__error" role="alert">
+          {error}
+        </p>
+      )}
+    </section>
+  );
+}
+
 /** A step's default count: how many a run makes unless the project says
-    otherwise. Blank: no default. After a one-to-one step it doesn't apply
-    (the step before decides how many). */
+    otherwise. Blank: no default. */
 function CountField({
   step,
-  fed,
   onChange,
 }: {
   step: WorkflowStep;
-  fed: boolean;
   onChange: (count: number | null) => void;
 }) {
   const t = useT();
@@ -451,15 +535,10 @@ function CountField({
         max={MAX_RUN_ITEMS}
         step={1}
         inputMode="numeric"
-        disabled={fed}
-        placeholder={fed ? "—" : t("wf_count_none")}
-        title={fed ? t("wf_count_fed") : t("wf_count_help")}
-        value={fed ? "" : (step.count ?? "")}
-        onChange={(e) => {
-          const raw = e.target.value.trim();
-          const n = Math.floor(Number(raw));
-          onChange(raw === "" || !Number.isFinite(n) ? null : Math.max(1, Math.min(MAX_RUN_ITEMS, n)));
-        }}
+        placeholder={t("wf_count_none")}
+        title={t("wf_count_help")}
+        value={step.count ?? ""}
+        onChange={(e) => onChange(parseCount(e.target.value))}
       />
     </label>
   );

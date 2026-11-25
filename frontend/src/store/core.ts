@@ -8,6 +8,7 @@ import {
   TERMINAL_JOB_STATUSES,
   type Edge,
   type ProjectGraph,
+  type StepRun,
   type Job,
   idMap,
   nameKey,
@@ -21,6 +22,7 @@ import { createLock } from "./lock";
 
 export const toFlowEdge = (edge: Edge): RefFlowEdge => ({
   id: edge.id,
+  type: "ref",
   source: edge.source_node_id,
   target: edge.target_node_id,
   markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18 },
@@ -50,7 +52,7 @@ export const toFlowNode = (node: Node): GenFlowNode => ({
   type: "gen",
   position: node.position,
   data: { nodeId: node.id },
-  dragHandle: ".gen-node__header",
+  // (Dragged by any part but the controls marked "nodrag"; see styles.css.)
   ...(node.workflow_step ? { deletable: false } : {}),
 });
 
@@ -561,9 +563,17 @@ export function createCore(set: SetState, get: GetState) {
         edges: graph.edges,
         flowEdges: graph.edges.map((e) => ({ ...toFlowEdge(e), selected: selected.has(e.id) })),
         outputs: { ...s.outputs, ...Object.fromEntries(graph.outputs.map((o) => [o.id, o])) },
-        runs: Object.fromEntries((graph.runs ?? []).map((r) => [r.step, r])),
+        runs: runsOf(graph),
       };
     });
+  }
+
+  /** Show a graph, and follow the jobs it has running. */
+  function takeGraph(graph: ProjectGraph) {
+    replaceGraph(graph);
+    const jobs = Object.fromEntries(graph.active_jobs.map((j) => [j.node_id, j]));
+    set((s) => ({ jobs: { ...s.jobs, ...jobs } }));
+    for (const job of graph.active_jobs) poll(job.node_id, job.id);
   }
 
   /** Follow a project's step runs until none is running: they finish in
@@ -585,7 +595,7 @@ export function createCore(set: SetState, get: GetState) {
           }),
         );
         if (get().project?.id !== projectId) break;
-        const runs = Object.fromEntries((graph.runs ?? []).map((r) => [r.step, r]));
+        const runs = runsOf(graph);
         const ended = Object.values(get().runs).some(
           (run) => run.status === "running" && runs[run.step]?.status !== "running",
         );
@@ -593,10 +603,7 @@ export function createCore(set: SetState, get: GetState) {
           set({ runs });
           continue;
         }
-        replaceGraph(graph);
-        const jobs = Object.fromEntries(graph.active_jobs.map((j) => [j.node_id, j]));
-        set((s) => ({ jobs: { ...s.jobs, ...jobs } }));
-        for (const job of Object.values(jobs)) poll(job.node_id, job.id);
+        takeGraph(graph);
       }
     } catch {
       // Lost the connection: opening the project again picks the runs up.
@@ -651,10 +658,16 @@ export function createCore(set: SetState, get: GetState) {
     apiRestore,
     deleteNow,
     replaceGraph,
+    takeGraph,
     watchRuns,
     applyNode,
     lock: createLock(set, get),
   };
+}
+
+/** A graph's step runs, by step key. */
+export function runsOf(graph: ProjectGraph): Record<string, StepRun> {
+  return Object.fromEntries((graph.runs ?? []).map((r) => [r.step, r]));
 }
 
 export type Core = ReturnType<typeof createCore>;

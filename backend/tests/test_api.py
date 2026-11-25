@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+import asyncio
 import itertools
 import json
+import threading
+import time
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from canvas_api.app import create_app
-from canvas_api.contract import ErrorResponse, Operation
+from canvas_api.contract import ErrorResponse, MediaKind, Operation
+from canvas_api.providers.base import GenerationRequest, GenerationResult
 
 from .conftest import PNG, open_store, signed_in, wait_for_job, wait_for_status
 
@@ -25,6 +29,12 @@ def new_collection(client: TestClient, name: str = "Tests", **body) -> str:
     response = client.post("/api/collections", json={"name": name, **body})
     assert response.status_code == 201, response.text
     return response.json()["id"]
+
+
+def patch_collection(client: TestClient, collection: str, **fields):
+    """Change a collection's settings, with the version it has now."""
+    version = client.get(f"/api/collections/{collection}").json()["version"]
+    return client.patch(f"/api/collections/{collection}", json={"version": version, **fields})
 
 
 def default_collection(client: TestClient) -> str:
@@ -554,6 +564,51 @@ def test_restart_resumes_a_submitted_video_job(settings, fake_image, fake_video)
         assert finished["status"] == "succeeded"
         assert fake_video.requests[-1].resume_task_id == "cgt-1"
         assert finished["started_at"] is not None
+
+
+class SendingVideo:
+    """A video provider stopped mid-send: it saves its seed, then hangs
+    before Ark answers (no task id yet)."""
+
+    resumable = True
+
+    def __init__(self) -> None:
+        self.requests: list[GenerationRequest] = []
+        self.gate = threading.Event()
+
+    async def run(self, request: GenerationRequest) -> GenerationResult:
+        self.requests.append(request)
+        if request.resume_seed is None and request.on_sending:
+            request.on_sending(1234, 1_700_000_000.0)
+            while not self.gate.is_set():
+                await asyncio.sleep(0.01)
+        return GenerationResult(
+            kind=MediaKind.video, data=b"MP4", mime="video/mp4", ext="mp4", duration_s=4
+        )
+
+
+def test_restart_mid_send_looks_the_task_up_by_seed(settings, fake_image):
+    """A video job stopped while its create request was going out is resumed
+    with the seed saved before sending, not failed (and not resent)."""
+    video = SendingVideo()
+    generators = {Operation.image_generate: fake_image, Operation.video_generate: video}
+    with signed_in(create_app(settings, generators)) as client:
+        project = new_project(client)
+        node = new_node(client, project, kind="video")["id"]
+        job = generate(client, node).json()["id"]
+        wait_for_status(client, job, "running")
+        deadline = time.monotonic() + 5
+        while client.get(f"/api/jobs/{job}").json()["provider_seed"] != 1234:
+            assert time.monotonic() < deadline
+            time.sleep(0.02)
+        assert client.get(f"/api/jobs/{job}").json()["provider_task_id"] is None
+
+    video.gate.set()
+    with signed_in(create_app(settings, generators)) as client:
+        assert wait_for_job(client, job)["status"] == "succeeded"
+        resumed = video.requests[-1]
+        assert (resumed.resume_seed, resumed.resume_since) == (1234, 1_700_000_000.0)
+        assert resumed.resume_task_id is None
 
 
 # --- soft delete and restore (undo) ------------------------------------------------

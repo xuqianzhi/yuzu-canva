@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter
 
+from ..auth import is_admin
 from ..contract import Me, UsageCounts
 from ..deps import SettingsDep, StoreDep, UserDep
 from ..errors import responses
@@ -21,6 +22,7 @@ def get_me(store: StoreDep, user: UserDep, settings: SettingsDep) -> Me:
     limits = settings.limits
     return Me(
         email=user.email,
+        admin=is_admin(settings, user.email),
         used_today=UsageCounts(
             text=used.get("text", 0), image=used.get("image", 0), video=used.get("video", 0)
         ),

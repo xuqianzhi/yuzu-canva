@@ -7,8 +7,8 @@ from fastapi.testclient import TestClient
 from canvas_api.contract import ASSET_NODE_STEP, ASSET_NODE_X, ASSET_NODE_Y
 
 from .conftest import PNG
+from .helpers import VIDEO
 from .test_api import default_collection, error_code, new_collection, new_project
-from .test_materials import VIDEO
 
 
 def add_asset(

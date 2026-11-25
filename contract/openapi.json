@@ -1,6 +1,54 @@
 {
   "components": {
     "schemas": {
+      "AiEdit": {
+        "additionalProperties": false,
+        "description": "A suggested edit, not saved: ``text`` is the whole new prompt (or text\nresult, see ``target``), changed only as asked. Apply it by saving the\nprompt (``updateNode``) or adding the text as a take (``addTake``).",
+        "properties": {
+          "seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seconds"
+          },
+          "target": {
+            "$ref": "#/components/schemas/EditTarget"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target",
+          "text",
+          "seconds"
+        ],
+        "title": "AiEdit",
+        "type": "object"
+      },
+      "AiEditRequest": {
+        "additionalProperties": false,
+        "description": "What to change, in the user's words (\"a dog, not a cat\").",
+        "properties": {
+          "instruction": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Instruction",
+            "type": "string"
+          }
+        },
+        "required": [
+          "instruction"
+        ],
+        "title": "AiEditRequest",
+        "type": "object"
+      },
       "AppSettings": {
         "additionalProperties": false,
         "description": "App-wide settings, chosen on the landing page.",
@@ -144,6 +192,16 @@
         "title": "Body_uploadMaterial",
         "type": "object"
       },
+      "Carry": {
+        "description": "Which of a step's results go to later steps by themselves, as context\n(the decisions made so far); anything can still be used by mentioning\nit.",
+        "enum": [
+          "all",
+          "used",
+          "none"
+        ],
+        "title": "Carry",
+        "type": "string"
+      },
       "ChatMessage": {
         "additionalProperties": false,
         "description": "One message of a node's chat. An assistant message may carry a\n``proposal``: a complete new version of the node's text, which\n``applyProposal`` turns into a take.",
@@ -252,6 +310,16 @@
             "title": "Created At",
             "type": "string"
           },
+          "direct_image": {
+            "default": false,
+            "title": "Direct Image",
+            "type": "boolean"
+          },
+          "direct_video": {
+            "default": false,
+            "title": "Direct Video",
+            "type": "boolean"
+          },
           "id": {
             "examples": [
               "col_k2m9"
@@ -267,6 +335,11 @@
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "no_daily_limit": {
+            "default": false,
+            "title": "No Daily Limit",
+            "type": "boolean"
           },
           "owner_email": {
             "title": "Owner Email",
@@ -305,6 +378,9 @@
           "your_role",
           "owner_email",
           "updated_by_email",
+          "direct_image",
+          "direct_video",
+          "no_daily_limit",
           "created_at",
           "updated_at"
         ],
@@ -470,6 +546,16 @@
             "title": "Created At",
             "type": "string"
           },
+          "direct_image": {
+            "default": false,
+            "title": "Direct Image",
+            "type": "boolean"
+          },
+          "direct_video": {
+            "default": false,
+            "title": "Direct Video",
+            "type": "boolean"
+          },
           "id": {
             "examples": [
               "col_k2m9"
@@ -490,6 +576,11 @@
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "no_daily_limit": {
+            "default": false,
+            "title": "No Daily Limit",
+            "type": "boolean"
           },
           "owner_email": {
             "title": "Owner Email",
@@ -533,6 +624,9 @@
           "your_role",
           "owner_email",
           "updated_by_email",
+          "direct_image",
+          "direct_video",
+          "no_daily_limit",
           "created_at",
           "updated_at",
           "project_count",
@@ -545,6 +639,28 @@
         "additionalProperties": false,
         "description": "Partial update; ``version`` is the one you last read.",
         "properties": {
+          "direct_image": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direct Image"
+          },
+          "direct_video": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direct Video"
+          },
           "instruction": {
             "anyOf": [
               {
@@ -569,6 +685,17 @@
               }
             ],
             "title": "Name"
+          },
+          "no_daily_limit": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "No Daily Limit"
           },
           "version": {
             "title": "Version",
@@ -726,6 +853,14 @@
         ],
         "title": "EdgeCreate",
         "type": "object"
+      },
+      "EditTarget": {
+        "enum": [
+          "prompt",
+          "text"
+        ],
+        "title": "EditTarget",
+        "type": "string"
       },
       "EditorLimits": {
         "additionalProperties": false,
@@ -1128,6 +1263,17 @@
           "provider": {
             "$ref": "#/components/schemas/Provider"
           },
+          "provider_seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Seed"
+          },
           "provider_task_id": {
             "anyOf": [
               {
@@ -1167,6 +1313,7 @@
           "error",
           "output_id",
           "provider_task_id",
+          "provider_seed",
           "created_at",
           "started_at",
           "finished_at"
@@ -1243,7 +1390,7 @@
         "type": "string"
       },
       "Language": {
-        "description": "The app's language: the UI's, and that of every prompt the backend\nwrites for the models (the user's own text is sent as written).",
+        "description": "The app's language: the UI's only. What the models are told doesn't\nfollow it: they write in the language of the user's own words.",
         "enum": [
           "en",
           "zh"
@@ -1323,6 +1470,11 @@
         "additionalProperties": false,
         "description": "Who you're signed in as, and what you pay for today (UTC): everything\ngenerated in your collections, by you or your editors, against your\ndaily limits (0 means no limit).",
         "properties": {
+          "admin": {
+            "default": false,
+            "title": "Admin",
+            "type": "boolean"
+          },
           "breakdown": {
             "default": [],
             "items": {
@@ -1344,6 +1496,7 @@
         },
         "required": [
           "email",
+          "admin",
           "used_today",
           "daily_limits",
           "breakdown"
@@ -1418,6 +1571,11 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "edited": {
+            "default": false,
+            "title": "Edited",
+            "type": "boolean"
           },
           "id": {
             "examples": [
@@ -1549,6 +1707,7 @@
           "selected_output_id",
           "workflow_step",
           "workflow_item",
+          "edited",
           "created_at",
           "updated_at"
         ],
@@ -1627,6 +1786,48 @@
           "position"
         ],
         "title": "NodeCreate",
+        "type": "object"
+      },
+      "NodeMove": {
+        "additionalProperties": false,
+        "properties": {
+          "node_id": {
+            "examples": [
+              "nod_a91x"
+            ],
+            "pattern": "^nod_[A-Za-z0-9]+$",
+            "title": "Node Id",
+            "type": "string"
+          },
+          "position": {
+            "$ref": "#/components/schemas/Position"
+          }
+        },
+        "required": [
+          "node_id",
+          "position"
+        ],
+        "title": "NodeMove",
+        "type": "object"
+      },
+      "NodeMoves": {
+        "additionalProperties": false,
+        "description": "Several nodes moved at once (say, tidied onto a grid): saved together,\nor not at all.",
+        "properties": {
+          "moves": {
+            "items": {
+              "$ref": "#/components/schemas/NodeMove"
+            },
+            "maxItems": 2000,
+            "minItems": 1,
+            "title": "Moves",
+            "type": "array"
+          }
+        },
+        "required": [
+          "moves"
+        ],
+        "title": "NodeMoves",
         "type": "object"
       },
       "NodeSource": {
@@ -1832,14 +2033,6 @@
         "title": "Output",
         "type": "object"
       },
-      "OutputUse": {
-        "enum": [
-          "independent",
-          "one_to_one"
-        ],
-        "title": "OutputUse",
-        "type": "string"
-      },
       "Position": {
         "additionalProperties": false,
         "description": "Top-left corner of a node, in canvas (world) coordinates.",
@@ -1868,10 +2061,25 @@
             "title": "Collection Id",
             "type": "string"
           },
+          "collection_instruction": {
+            "default": "",
+            "title": "Collection Instruction",
+            "type": "string"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "direct_image": {
+            "default": false,
+            "title": "Direct Image",
+            "type": "boolean"
+          },
+          "direct_video": {
+            "default": false,
+            "title": "Direct Video",
+            "type": "boolean"
           },
           "id": {
             "examples": [
@@ -1907,7 +2115,10 @@
           "name",
           "viewport",
           "instruction",
+          "collection_instruction",
           "workflow",
+          "direct_image",
+          "direct_video",
           "created_at",
           "updated_at"
         ],
@@ -2058,6 +2269,11 @@
             "title": "Collection Id",
             "type": "string"
           },
+          "collection_instruction": {
+            "default": "",
+            "title": "Collection Instruction",
+            "type": "string"
+          },
           "cover": {
             "anyOf": [
               {
@@ -2072,6 +2288,16 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "direct_image": {
+            "default": false,
+            "title": "Direct Image",
+            "type": "boolean"
+          },
+          "direct_video": {
+            "default": false,
+            "title": "Direct Video",
+            "type": "boolean"
           },
           "editing_by": {
             "anyOf": [
@@ -2138,7 +2364,10 @@
           "name",
           "viewport",
           "instruction",
+          "collection_instruction",
           "workflow",
+          "direct_image",
+          "direct_video",
           "created_at",
           "updated_at",
           "node_count",
@@ -2337,6 +2566,73 @@
         "title": "Size",
         "type": "object"
       },
+      "StepCompleteRequest": {
+        "additionalProperties": false,
+        "description": "A step's results, in order.",
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/StepEntry"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Entries",
+            "type": "array"
+          }
+        },
+        "required": [
+          "entries"
+        ],
+        "title": "StepCompleteRequest",
+        "type": "object"
+      },
+      "StepEntry": {
+        "additionalProperties": false,
+        "description": "One result given by hand: ``text`` for a text step, or an uploaded\nfile (``material_id``, from ``uploadMaterial``) for an image or video\nstep. ``id`` names its node (cleaned and made unique, like a run's);\nblank: ``<step>_<n>``.",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "material_id": {
+            "anyOf": [
+              {
+                "examples": [
+                  "mat_q2w8"
+                ],
+                "pattern": "^mat_[A-Za-z0-9]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Material Id"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "maxLength": 100000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          }
+        },
+        "title": "StepEntry",
+        "type": "object"
+      },
       "StepRun": {
         "additionalProperties": false,
         "description": "The last run of a step in a project: what it was asked for, and how\nit went. A run happens in the background: ``runStep`` answers with the\nrun ``running``; poll the graph until it is ``done`` or ``failed``.",
@@ -2355,6 +2651,11 @@
               }
             ],
             "title": "Error"
+          },
+          "manual": {
+            "default": false,
+            "title": "Manual",
+            "type": "boolean"
           },
           "prompt": {
             "title": "Prompt",
@@ -2379,27 +2680,21 @@
           "count",
           "status",
           "error",
-          "updated_at"
+          "updated_at",
+          "manual"
         ],
         "title": "StepRun",
         "type": "object"
       },
       "StepRunRequest": {
         "additionalProperties": false,
-        "description": "``prompt`` may be empty only for an image or video step fed one-to-one\nby text (each text is the prompt). ``count`` is ignored after a\none-to-one step, and required otherwise.",
+        "description": "``prompt`` is optional (the instructions, the step's description and\nearlier steps may be enough). ``count`` is required.",
         "properties": {
           "count": {
-            "anyOf": [
-              {
-                "maximum": 20.0,
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Count"
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Count",
+            "type": "integer"
           },
           "prompt": {
             "default": "",
@@ -2408,6 +2703,9 @@
             "type": "string"
           }
         },
+        "required": [
+          "count"
+        ],
         "title": "StepRunRequest",
         "type": "object"
       },
@@ -2681,6 +2979,10 @@
       "WorkflowStep": {
         "additionalProperties": false,
         "properties": {
+          "carry": {
+            "$ref": "#/components/schemas/Carry",
+            "default": "all"
+          },
           "count": {
             "anyOf": [
               {
@@ -2713,10 +3015,6 @@
             "minLength": 1,
             "title": "Name",
             "type": "string"
-          },
-          "output": {
-            "$ref": "#/components/schemas/OutputUse",
-            "default": "independent"
           }
         },
         "required": [
@@ -2724,8 +3022,8 @@
           "name",
           "description",
           "kind",
-          "output",
-          "count"
+          "count",
+          "carry"
         ],
         "title": "WorkflowStep",
         "type": "object"
@@ -3267,7 +3565,7 @@
         ]
       },
       "patch": {
-        "description": "Rename it or change its instruction (new projects start with a copy).\n409 ``edit_conflict`` if someone saved since ``version``.",
+        "description": "Rename it, change its instruction, or turn generating directly\n(``direct_image`` / ``direct_video``) on or off. 409 ``edit_conflict``\nif someone saved since ``version``. Only admins may change\n``no_daily_limit`` (403 ``forbidden``).",
         "operationId": "updateCollection",
         "parameters": [
           {
@@ -4822,6 +5120,113 @@
         ]
       }
     },
+    "/api/nodes/{node_id}/ai-edit": {
+      "post": {
+        "description": "Suggest an edit of one node's prompt, changed only as ``instruction``\nasks (\"a dog, not a cat\": \"a cat surfing\" becomes \"a dog surfing\").\nNothing is saved or generated: the answer is applied by the client.\n\nFor a workflow text node (no prompt; its result is its text) it's the\nresult that is edited, applied as a new take. A video's length comes\nback too (kept unless asked to change). The model sees what a step run\nwould: the instructions, the step, what earlier steps settled on and\nthe nodes the text mentions. 409 ``not_generatable`` for an uploaded\nnode; 502 if the model fails.",
+        "operationId": "editWithAi",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "nod_a91x"
+              ],
+              "pattern": "^nod_[A-Za-z0-9]+$",
+              "title": "Node Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiEditRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiEdit"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Edit With Ai",
+        "tags": [
+          "workflow"
+        ]
+      }
+    },
     "/api/nodes/{node_id}/chat": {
       "get": {
         "description": "The node's chat, oldest first.",
@@ -5926,6 +6331,87 @@
         ]
       }
     },
+    "/api/projects/{project_id}/positions": {
+      "patch": {
+        "description": "Move several nodes at once, in one transaction (all of them, or 404\nif any isn't in this project): for tidying the canvas onto a grid\nwithout a request per node. Returns the moved nodes.",
+        "operationId": "moveNodes",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "prj_8f2k1"
+              ],
+              "pattern": "^prj_[A-Za-z0-9]+$",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NodeMoves"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Node"
+                  },
+                  "title": "Response Movenodes",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Move Nodes",
+        "tags": [
+          "nodes"
+        ]
+      }
+    },
     "/api/projects/{project_id}/restore": {
       "post": {
         "description": "Undo deletes: bring back soft-deleted nodes (with their takes) and edges.\n\nDeleted items are kept for a day, then purged when the API starts.",
@@ -5993,9 +6479,253 @@
         ]
       }
     },
+    "/api/projects/{project_id}/workflow/steps/{step_key}/complete": {
+      "post": {
+        "description": "Complete a step by hand: its nodes are replaced by the given results,\nin order -- texts for a text step, uploaded files (``uploadMaterial``)\nfor an image or video step, each copied in as its node's take. Nothing\nis generated or charged. 409 while the step is running.",
+        "operationId": "completeStep",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "prj_8f2k1"
+              ],
+              "pattern": "^prj_[A-Za-z0-9]+$",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "step_key",
+            "required": true,
+            "schema": {
+              "title": "Step Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StepCompleteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectGraph"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Complete Step",
+        "tags": [
+          "workflow"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/workflow/steps/{step_key}/download": {
+      "get": {
+        "description": "A zip of every result of a step: each node's chosen take, named by\nthe node's number (``<step>_01.png``, ``<step>_02.png``, ...; text as\n``.txt``). Nodes with no take yet are left out; 404 if none has one.\nThe zip is streamed as it's made (a step of videos can be large).",
+        "operationId": "downloadStep",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "prj_8f2k1"
+              ],
+              "pattern": "^prj_[A-Za-z0-9]+$",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "step_key",
+            "required": true,
+            "schema": {
+              "title": "Step Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/zip": {}
+            },
+            "description": "A zip of the step's results"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Download Step",
+        "tags": [
+          "workflow"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/workflow/steps/{step_key}/generate": {
+      "post": {
+        "description": "Generate an image or video step's nodes from their filled-in prompts\nand settings (``runStep`` fills them in), skipping any already\ngenerating. 409 while the step is running, before it has nodes, or\nwhile a node's prompt is empty.",
+        "operationId": "generateStep",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "examples": [
+                "prj_8f2k1"
+              ],
+              "pattern": "^prj_[A-Za-z0-9]+$",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "step_key",
+            "required": true,
+            "schema": {
+              "title": "Step Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectGraph"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Generate Step",
+        "tags": [
+          "workflow"
+        ]
+      }
+    },
     "/api/projects/{project_id}/workflow/steps/{step_key}/run": {
       "post": {
-        "description": "Start running a step; returns the graph with the run ``running``.\n\nIt finishes in the background: poll ``getProjectGraph`` until the step's\nrun is ``done`` (its nodes replaced, image and video nodes generating)\nor ``failed`` (``error`` says why; the old nodes are untouched). 409 if\nthe step is already running.\n\nThe prompt, the project instruction and the nodes the prompt mentions\n(by ID) go to a text model, which writes ``count`` results (a text\nstep: its nodes' text) or prompts (an image or video step: one node\neach, generated right away, with the mentioned nodes as references).\nAfter a one-to-one step, there is one result per node of that step\n(``count`` is ignored), each made from its own input; an image or video\nstep fed by text uses each text as its prompt directly.",
+        "description": "Start running a step; returns the graph with the run ``running``.\n\nIt finishes in the background: poll ``getProjectGraph`` until the step's\nrun is ``done`` (its nodes replaced) or ``failed`` (``error`` says why;\nthe old nodes are untouched). 409 if the step is already running.\n\nThe prompt, the instructions, what earlier steps settled on and the\nnodes the prompt mentions (by ID) go to a text model, which writes\n``count`` results (a text step: its nodes' text) or prompts (an image or\nvideo step: one node each, with the mentioned nodes as references, and\nfor a video its length in seconds). Image and video nodes are only\nfilled in: ``generateStep`` then generates them -- unless the\ncollection generates that kind directly (``Collection.direct_image`` /\n``direct_video``): then the run generates them itself once they're\nfilled in (and fails, with the nodes in place, if that's refused).",
         "operationId": "runStep",
         "parameters": [
           {
@@ -6101,7 +6831,7 @@
     },
     "/api/settings": {
       "get": {
-        "description": "Your settings: the language of the UI and of every prompt the\nbackend writes for the models.",
+        "description": "Your settings: the language of the UI.",
         "operationId": "getSettings",
         "responses": {
           "200": {

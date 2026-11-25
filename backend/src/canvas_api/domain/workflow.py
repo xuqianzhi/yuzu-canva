@@ -2,17 +2,32 @@
 is told when a step runs (and in a node's chat), and layout.
 
 Steps are data (contract/workflow.py): a name and a node kind. Their names
-are the user's text and are never translated; only the backend's own
-wording around them (``WORDS``) follows the app's language.
+are the user's text and are never translated.
+
+What the model is told is one set of English wording (``W``), whatever the
+app's language: the user's own words (project instruction, step
+description, mentioned nodes, request) go inside tags, and the model
+is told to write in the language of those words. So a Chinese request gets
+Chinese results and IDs even with the app in English, and any language
+works, not just the app's two.
 """
 
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from typing import Any
 
-from ..contract import Language, MediaKind, OutputUse, WorkflowDefinition, WorkflowStep
+from ..contract import (
+    Carry,
+    MediaKind,
+    Node,
+    Output,
+    Project,
+    WorkflowDefinition,
+    WorkflowStep,
+)
 
 # --- the built-in template --------------------------------------------------------
 
@@ -46,6 +61,8 @@ def builtin_workflow() -> WorkflowDefinition:
                     "sentence on what it is, and what makes it look good on camera. Keep "
                     "them varied in cuisine, colour and difficulty."
                 ),
+                # A brainstorm: later steps get only the dishes picked (used).
+                carry=Carry.used,
             ),
             WorkflowStep(
                 key="dish_images",
@@ -65,29 +82,18 @@ def builtin_workflow() -> WorkflowDefinition:
                 description=(
                     "Write the video's script: a title, then numbered scenes. For each "
                     "scene: where it happens, which characters and dishes are in it (by "
-                    "ID), what happens, and any spoken line. Keep it to about 1-2 "
-                    "minutes, with a clear beginning, middle and end."
-                ),
-            ),
-            WorkflowStep(
-                key="scene_prompts",
-                name="Prompt per scene",
-                kind=MediaKind.text,
-                output=OutputUse.one_to_one,
-                description=(
-                    "Turn each scene of the script into the prompt for its video clip, "
-                    "in order, one scene per result. Each result is sent to the video "
-                    "model exactly as written, so it is the prompt itself and nothing "
-                    "else: no title, scene number, notes or explanation."
+                    "ID), what happens, any spoken line, and how many seconds it lasts "
+                    "(4 to 15). Keep it to about 1-2 minutes, with a clear beginning, "
+                    "middle and end."
                 ),
             ),
             WorkflowStep(
                 key="videos",
-                name="Video per prompt",
+                name="Video per scene",
                 kind=MediaKind.video,
                 description=(
-                    "One short clip per scene prompt from the step before. Keep the "
-                    "characters, style and light consistent from clip to clip."
+                    "One short clip per scene of the script, in order, one scene per result. "
+                    "Keep the characters, style and light consistent from clip to clip."
                 ),
             ),
         ],
@@ -104,116 +110,133 @@ def step_index(workflow: WorkflowDefinition, key: str) -> int:
 
 # --- wording ------------------------------------------------------------------------
 
-WORDS: dict[str, dict[str, str]] = {
-    "en": {
-        "base": (
-            "You are a creative partner inside a tool that turns ideas into images and "
-            "videos, step by step. Answer in the language the user writes in. Be "
-            "concrete and visual."
-        ),
-        "plain": (
-            "You write the text the user asks for. Answer with that text only: no "
-            "preamble, no commentary."
-        ),
-        "instruction": "## Project instruction",
-        "step": "## This step: {name}",
-        "task_text": (
-            "Write exactly {count} separate results for the request, each complete on its "
-            "own, and different from each other. Put them in `items`, in order."
-        ),
-        "task_image": (
-            "Write exactly {count} prompts for an image model, one per image, for the "
-            "request. Each must stand alone: the subject and its look, the setting, the "
-            "composition, the style and the light. Make them different from each other. "
-            "Put them in `items`, in order."
-        ),
-        "task_video": (
-            "Write exactly {count} prompts for a video model, one per video, for the "
-            "request. Each must stand alone: the subject and its look, the action, the "
-            "setting, the camera and the light. Make them different from each other. "
-            "Put them in `items`, in order."
-        ),
-        "task_each": (
-            "Write one result for each of the {count} inputs, in the same order (result 1 "
-            "for input 1, and so on), following the request. Put them in `items`."
-        ),
-        "keep_ids": (
-            "Where the request names node IDs (like characters_2), write those IDs exactly "
-            "as they are into the prompts they belong in."
-        ),
-        "referenced": "## {name}",
-        "inputs": "## Inputs, one per result",
-        "input": "Input {n}",
-        "an_image": "(an image, sent as {label})",
-        "a_video": "(a video)",
-        "request": "## Request",
-        "how": (
-            "## How to answer\nYou are helping the user improve this text. Put a short "
-            "answer in `reply`. When the user asks for changes, or you suggest an improved "
-            "version, put the complete new version in `proposal` (never a diff); otherwise "
-            "set `proposal` to null."
-        ),
-        "current": "## Current version",
-        "none_yet": "(none yet)",
-        "context_note": "(This is the context of our conversation.)",
-        "understood": "Understood.",
-        "image": "image {n}",
-    },
-    "zh": {
-        "base": (
-            "你是一个创作搭档，所在的工具会把想法一步步变成图片和视频。请用中文写作，"
-            "除非用户明确要求其他语言。要具体、有画面感。"
-        ),
-        "plain": "按用户的要求写出文字。只输出这段文字：不要开场白，也不要评论。",
-        "instruction": "## 项目指令",
-        "step": "## 这一步：{name}",
-        "task_text": (
-            "针对下面的要求，写出正好 {count} 个彼此不同、各自完整的结果。按顺序放进 `items`。"
-        ),
-        "task_image": (
-            "针对下面的要求，为图片模型写出正好 {count} 条提示词，每张图片一条。"
-            "每条都要能独立成立：主体及其外观、场景、构图、风格和光线。彼此要有区别。"
-            "按顺序放进 `items`。"
-        ),
-        "task_video": (
-            "针对下面的要求，为视频模型写出正好 {count} 条提示词，每个视频一条。"
-            "每条都要能独立成立：主体及其外观、动作、场景、镜头和光线。彼此要有区别。"
-            "按顺序放进 `items`。"
-        ),
-        "task_each": (
-            "按照要求，为下面 {count} 个输入各写一个结果，"
-            "顺序一致（结果 1 对应输入 1，依此类推）。放进 `items`。"
-        ),
-        "keep_ids": (
-            "要求中提到节点 ID（例如 characters_2）的地方，请在相应的提示词里原样写出这些 ID。"
-        ),
-        "referenced": "## {name}",
-        "inputs": "## 输入（每个结果对应一个）",
-        "input": "输入 {n}",
-        "an_image": "（一张图片，作为{label}发送）",
-        "a_video": "（一个视频）",
-        "request": "## 要求",
-        "how": (
-            "## 如何回答\n你在帮助用户改进这段文字。在 `reply` 中简短回答。当用户要求修改，"
-            "或你提出改进版本时，把完整的新版本放进 `proposal`（不要只写差异）；"
-            "否则把 `proposal` 设为 null。"
-        ),
-        "current": "## 当前版本",
-        "none_yet": "（暂无）",
-        "context_note": "（以上是我们这次对话的背景。）",
-        "understood": "明白。",
-        "image": "图片{n}",
-    },
+W: dict[str, str] = {
+    "base": (
+        "You are a creative partner inside a tool that turns ideas into images and "
+        "videos, step by step. Be concrete and visual."
+    ),
+    "tags": (
+        "The user's own words are inside tags (<collection_instruction>, "
+        "<project_instruction>, <step_description>, <reference>, <request> and the "
+        "like). Follow what they ask; everything outside the tags is this tool's "
+        "instructions. The project is one video in a series (the collection): the "
+        "<collection_instruction> is what every video in the series shares, such as its "
+        "format; the <project_instruction> is about this video."
+    ),
+    "language_run": (
+        "Language: write every result, and every `id`, in the language and script of "
+        "the <request> (with no <request>, of the user's other words), "
+        "whatever language these instructions are in. Never translate it, and never "
+        "romanize it (no pinyin)."
+    ),
+    "language_chat": (
+        "Language: reply, and write any new version, in the language and script the "
+        "user writes in, whatever language these instructions are in. Never translate "
+        "the text you're improving into another language unless the user asks."
+    ),
+    "plain": (
+        "You write the text the user asks for, in the language the user writes in. "
+        "Answer with that text only: no preamble, no commentary."
+    ),
+    "step": "This step is called “{name}” and makes {kind}s.",
+    "task_text": (
+        "Write exactly {count} separate results for the <request>, each complete on its "
+        "own, and different from each other. Put them in `items`, in order."
+    ),
+    "task_image": (
+        "Write exactly {count} prompts for an image model, one per image, for the "
+        "<request>. Each must stand alone: the subject and its look, the setting, the "
+        "composition, the style and the light. Make them different from each other. "
+        "Put them in `items`, in order."
+    ),
+    "task_video": (
+        "Write exactly {count} prompts for a video model, one per video, for the "
+        "<request>. Each must stand alone: the subject and its look, the action, the "
+        "setting, the camera and the light. Make them different from each other. "
+        "Put them in `items`, in order."
+    ),
+    "seconds": (
+        "Give each video its length in whole `seconds`, from {low} to {high}: the length "
+        "its scene or the <request> states for it (in any wording or language); "
+        "if none is stated, the length its action needs."
+    ),
+    "decisions": (
+        "<decisions> holds what earlier steps settled on: the results the user went "
+        "with, in step order. Build on them and stay consistent with them."
+    ),
+    "keep_kept_ids": (
+        "When a prompt shows a <kept> image that has an id (like characters_2), write "
+        "that id exactly as it is in the prompt: that's how the picture is given to the "
+        "image or video model (you needn't see it; don't describe its looks beyond what "
+        "you're told)."
+    ),
+    "keep_ids": (
+        "Where the <request> names a <reference> by its id (like characters_2), write "
+        "that id exactly as it is into the prompts it belongs in."
+    ),
+    "name_items": (
+        "Give each result an `id`: a short name for what it is, like a character's or a "
+        "dish's name, 2 to 12 characters, in the language and script of the <request>. "
+        "Letters of any script are fine (Chinese characters too, e.g. 怪人), as are "
+        "digits, _ and -; no spaces. Each `id` must differ from the others and from the "
+        "IDs already in the project ({taken}). Don't write one result's `id` in another "
+        "result's `content`."
+    ),
+    "no_request": (
+        "There's no <request> this time: work from the instructions, this step's "
+        "description and the <decisions>."
+    ),
+    "none": "none",
+    "an_image": "(an image, attached as {label})",
+    "named_image": (
+        "(an image, attached as {label}. In what you write, call it {name}, never {label}.)"
+    ),
+    "a_video": "(a video)",
+    "made_from": "(a generated {kind}, not attached; made from this prompt:)\n{prompt}",
+    "provided": "({kind} the user provided, not attached)",
+    "how": (
+        "How to answer: you are helping the user improve this text. Put a short answer "
+        "in `reply`. When the user asks for changes, or you suggest an improved version, "
+        "put the complete new version in `proposal` (never a diff); otherwise set "
+        "`proposal` to null."
+    ),
+    "none_yet": "(none yet)",
+    "context_note": "(This is the context of our conversation.)",
+    "edit_task": (
+        "Edit the <current> {what} as the <change> asks, and only that: make the smallest "
+        "edit that does it and keep everything else exactly as it is, word for word -- "
+        "the wording, the style and the details. Keep every id (like characters_2) "
+        "exactly as written: that's how the user's references reach the model. Don't "
+        "add, drop or improve anything the <change> doesn't ask for. Put the whole new "
+        "{what} in `content`."
+    ),
+    "edit_seconds": (
+        "Give the video's length in whole `seconds`, from {low} to {high}: {current}, "
+        "unless the <change> asks for another length."
+    ),
+    "language_edit": (
+        "Language: write in the language and script of the <current> {what}, unless the "
+        "<change> asks for another. Never translate or romanize it otherwise."
+    ),
+    "what_prompt": "prompt for a {kind} model",
+    "what_text": "text",
+    "understood": "Understood.",
 }
 
+# Chinese characters (and the kana used with them).
+_CJK = re.compile(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
 
-def words(language: str) -> dict[str, str]:
-    return WORDS.get(language, WORDS[Language.en.value])
+
+def image_label(n: int, text: str = "") -> str:
+    """How a prompt names its n-th attached image: in the script of the
+    prompt it goes into ("图片1" in Chinese text, else "image 1")."""
+    return f"图片{n}" if _CJK.search(text) else f"image {n}"
 
 
-def image_label(language: str, n: int) -> str:
-    """How an OpenAI prompt names its n-th reference image."""
-    return words(language)["image"].format(n=n)
+def _tag(name: str, text: str, **attrs: str) -> str:
+    """The user's words in a tag (<name attr="...">text</name>)."""
+    head = "".join(f' {k}="{v}"' for k, v in attrs.items())
+    return f"<{name}{head}>\n{text.strip()}\n</{name}>"
 
 
 # --- answer shapes ---------------------------------------------------------------------
@@ -234,51 +257,95 @@ def chat_spec() -> OutputSpec:
     """A chat answer: a reply, and optionally a complete new version."""
     return OutputSpec(
         name="chat",
-        schema={
-            "type": "object",
-            "additionalProperties": False,
-            "required": ["reply", "proposal"],
-            "properties": {
-                "reply": _STRING,
-                "proposal": {"anyOf": [_STRING, {"type": "null"}]},
-            },
-        },
+        schema=_object({"reply": _STRING, "proposal": {"anyOf": [_STRING, {"type": "null"}]}}),
     )
 
 
-def run_spec(count: int) -> OutputSpec:
-    """A run's answer: exactly `count` results (or prompts)."""
-    return OutputSpec(
-        name="run",
-        schema={
-            "type": "object",
-            "additionalProperties": False,
-            "required": ["items"],
-            "properties": {
-                "items": {
-                    "type": "array",
-                    "minItems": count,
-                    "maxItems": count,
-                    "items": _STRING,
-                }
-            },
-        },
-    )
+# A video's length, as Seedance takes it (whole seconds).
+MIN_SECONDS = 4
+MAX_SECONDS = 15
+
+
+def _object(properties: dict[str, Any]) -> dict[str, Any]:
+    """A JSON schema for an object with exactly these (all required) fields."""
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": list(properties),
+        "properties": properties,
+    }
+
+
+def _item(named: bool, seconds: bool) -> dict[str, Any]:
+    if not named and not seconds:
+        return _STRING
+    properties: dict[str, Any] = {"id": _STRING} if named else {}
+    properties["content"] = _STRING
+    if seconds:
+        properties["seconds"] = {"type": "integer"}
+    return _object(properties)
+
+
+def run_spec(count: int, named: bool = False, seconds: bool = False) -> OutputSpec:
+    """A run's answer: exactly `count` results (or prompts); `named`, each
+    with an `id` to name its node; `seconds`, each (a video) with its
+    length."""
+    items = {
+        "type": "array",
+        "minItems": count,
+        "maxItems": count,
+        "items": _item(named, seconds),
+    }
+    return OutputSpec(name="run", schema=_object({"items": items}))
+
+
+@dataclass(frozen=True)
+class RunItem:
+    """One result of a run: its text (a text node's take, or an image or
+    video node's prompt) and the ID the model gave it, if any."""
+
+    text: str
+    name: str | None = None
+    # A video's length (whole seconds, MIN_SECONDS to MAX_SECONDS).
+    seconds: int | None = None
+
+
+def clamp_seconds(value: object) -> int | None:
+    """A length the model gave, as whole seconds Seedance takes; None if it
+    isn't a number."""
+    if isinstance(value, bool):
+        return None
+    try:
+        seconds = round(float(value))  # type: ignore[arg-type]
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return max(MIN_SECONDS, min(MAX_SECONDS, seconds))
 
 
 class RunFormatError(ValueError):
     """A run answer that isn't a list of results."""
 
 
-def parse_run(answer: str, count: int) -> list[str]:
-    """The results of a run answer: blanks dropped, at most `count`."""
+def parse_run(answer: str, count: int) -> list[RunItem]:
+    """The results of a run answer, plain or named: blanks dropped, at most
+    `count`."""
     try:
         raw = json.loads(answer)["items"]
         if not isinstance(raw, list):
             raise TypeError
     except (ValueError, KeyError, TypeError) as exc:
         raise RunFormatError("the answer is not a list of results") from exc
-    items = [str(item).strip() for item in raw if str(item).strip()]
+    items = []
+    for entry in raw:
+        seconds = None
+        if isinstance(entry, dict):
+            text, name = str(entry.get("content") or "").strip(), entry.get("id")
+            name = str(name).strip() if name is not None else None
+            seconds = clamp_seconds(entry.get("seconds"))
+        else:
+            text, name = str(entry).strip(), None
+        if text:
+            items.append(RunItem(text, name or None, seconds))
     return items[:count]
 
 
@@ -286,10 +353,10 @@ def parse_run(answer: str, count: int) -> list[str]:
 
 # Steps run left to right, right of the global assets column; a step's nodes
 # are a column, one per row.
-LAYOUT_X = 560.0
+LAYOUT_X = 680.0
 LAYOUT_Y = 60.0
-LAYOUT_DX = 400.0
-LAYOUT_DY = 500.0
+LAYOUT_DX = 560.0
+LAYOUT_DY = 600.0
 
 
 def position_for(workflow: WorkflowDefinition, key: str, index: int) -> tuple[float, float]:
@@ -307,75 +374,213 @@ class Piece:
     kind: str
     text: str | None = None
     label: str | None = None
-    # The node's ID, for a mentioned node.
+    # The node's ID, for a mentioned (or carried-forward) node.
     name: str | None = None
+    # The step that made it, for a carried-forward node.
+    step: str | None = None
 
 
-def _body(piece: Piece, w: dict[str, str]) -> str:
+@dataclass(frozen=True)
+class Instructions:
+    """The standing guidance for a project's runs and chats: its collection's
+    (shared by the series) and its own (this video)."""
+
+    collection: str = ""
+    project: str = ""
+
+    @classmethod
+    def of(cls, project: Project) -> Instructions:
+        return cls(project.collection_instruction, project.instruction)
+
+    def tagged(self) -> list[str]:
+        parts = []
+        if self.collection.strip():
+            parts.append(_tag("collection_instruction", self.collection))
+        if self.project.strip():
+            parts.append(_tag("project_instruction", self.project))
+        return parts
+
+
+def _body(piece: Piece) -> str:
     if piece.text is not None:
         return piece.text
     if piece.kind == "image":
-        return w["an_image"].format(label=piece.label or "")
-    return w["a_video"]
+        if piece.name:
+            return W["named_image"].format(label=piece.label or "", name=piece.name)
+        return W["an_image"].format(label=piece.label or "")
+    return W["a_video"]
 
 
 def run_messages(
     step: WorkflowStep,
     prompt: str,
     count: int,
-    instruction: str,
+    instructions: Instructions,
     references: list[Piece],
-    inputs: list[Piece] | None,
-    language: str,
+    naming: Naming | None = None,
+    decisions: list[Piece] | None = None,
 ) -> tuple[str, str]:
     """(system, user) for running a step. `references` are the nodes the
-    prompt mentions; `inputs` the one-to-one inputs (one per result)."""
-    w = words(language)
-    parts = [w["base"]]
-    if instruction.strip():
-        parts.append(f"{w['instruction']}\n{instruction.strip()}")
-    if inputs is not None:
-        task = w["task_each"].format(count=count)
-    else:
-        task = w[f"task_{step.kind.value}"].format(count=count)
-        if step.kind != MediaKind.text and references:
-            task += " " + w["keep_ids"]
-    parts.append(_step_block(step, w, task))
+    prompt mentions; `naming`, when results are to be named (see run_spec); `decisions`, what
+    earlier steps settled on (Store.carried_forward). The user's words are
+    tagged; the rest is W's English."""
+    parts = [W["base"], W["tags"], W["language_run"], *instructions.tagged()]
+    if decisions:
+        parts.append(W["decisions"])
+    task = W[f"task_{step.kind.value}"].format(count=count)
+    if step.kind != MediaKind.text:
+        if references:
+            task += " " + W["keep_ids"]
+        if any(d.kind == "image" and d.name for d in decisions or []):
+            task += " " + W["keep_kept_ids"]
+    if step.kind == MediaKind.video:
+        task += " " + W["seconds"].format(low=MIN_SECONDS, high=MAX_SECONDS)
+    if naming is not None:
+        task += " " + W["name_items"].format(taken=_id_list(naming.taken))
+    if not prompt.strip():
+        task += " " + W["no_request"]
+    parts.append(_step_block(step, task))
     system = "\n\n".join(parts)
 
-    user = [f"{w['referenced'].format(name=r.name)}\n{_body(r, w)}" for r in references]
-    if inputs is not None:
-        lines = [w["inputs"]]
-        for n, piece in enumerate(inputs, start=1):
-            lines.append(f"{w['input'].format(n=n)}: {_body(piece, w)}")
-        user.append("\n".join(lines))
+    user = [decisions_block(decisions)] if decisions else []
+    user += [_tag("reference", _body(r), id=r.name or "") for r in references]
     if prompt.strip():
-        user.append(f"{w['request']}\n{prompt.strip()}")
+        user.append(_tag("request", prompt))
     return system, "\n\n".join(user)
 
 
-def _step_block(step: WorkflowStep, w: dict[str, str], task: str | None = None) -> str:
-    """ "## This step: <name>", its description (the user's own words), and
+def carried_piece(step: str, node: Node, output: Output) -> Piece:
+    """A result an earlier step settled on, as text: a text result whole; an
+    image or video (never attached: costly) as the prompt that made it, or
+    as provided by the user (uploaded, or a step completed by hand)."""
+    kind = output.kind.value
+    if output.kind == MediaKind.text:
+        text = output.text or ""
+    elif node.prompt.strip():
+        text = W["made_from"].format(kind=kind, prompt=node.prompt.strip())
+    else:
+        text = W["provided"].format(kind="an image" if kind == "image" else f"a {kind}")
+    return Piece(kind=kind, text=text, name=node.name, step=step)
+
+
+def decisions_block(decisions: list[Piece]) -> str:
+    """What earlier steps settled on, tagged: <kept step=... id=... kind=...>."""
+    kept = []
+    for piece in decisions:
+        attrs = {"step": piece.step or ""}
+        if piece.name:
+            attrs["id"] = piece.name
+        if piece.kind != "text":
+            attrs["kind"] = piece.kind
+        kept.append(_tag("kept", _body(piece), **attrs))
+    return "<decisions>\n" + "\n".join(kept) + "\n</decisions>"
+
+
+@dataclass(frozen=True)
+class Naming:
+    """What the model needs to name a run's results: the project's other
+    IDs (not the step's own: a run names its results afresh)."""
+
+    taken: list[str]
+
+
+# At most this many existing IDs are listed for the model.
+_MAX_LISTED_IDS = 80
+
+
+def _id_list(ids: list[str]) -> str:
+    return ", ".join(ids[:_MAX_LISTED_IDS]) if ids else W["none"]
+
+
+def name_images(items: list[str], references: list[Piece]) -> list[str]:
+    """Put back each mentioned image's ID where the model wrote the label it
+    was sent as ("image 1", "图片1") instead. The numbers only hold for the
+    call that wrote them: each generation numbers its own references, from
+    the IDs."""
+    names: dict[int, str] = {}
+    for piece in references:
+        number = re.search(r"\d+", piece.label or "")
+        if piece.name and number:
+            names[int(number.group())] = piece.name
+    if not names:
+        return items
+    label = re.compile(r"(?<![A-Za-z0-9_])(?:[Ii]mage|图片)\s*(\d+)(?!\d)")
+
+    def replace(match: re.Match[str]) -> str:
+        return names.get(int(match.group(1)), match.group(0))
+
+    return [label.sub(replace, item) for item in items]
+
+
+def _step_block(step: WorkflowStep, task: str | None = None) -> str:
+    """The step's name and kind, its description (the user's words), and
     what to do now, if given."""
-    lines = [w["step"].format(name=step.name)]
+    lines = [W["step"].format(name=step.name, kind=step.kind.value)]
     if step.description.strip():
-        lines.append(step.description.strip())
+        lines.append(_tag("step_description", step.description))
     if task:
         lines.append(task)
     return "\n".join(lines)
 
 
-def chat_system(instruction: str, step: WorkflowStep | None, language: str) -> str:
-    w = words(language)
-    parts = [w["base"]]
-    if instruction.strip():
-        parts.append(f"{w['instruction']}\n{instruction.strip()}")
+def chat_system(instructions: Instructions, step: WorkflowStep | None) -> str:
+    parts = [W["base"], W["tags"], W["language_chat"], *instructions.tagged(), W["decisions"]]
     if step is not None:
-        parts.append(_step_block(step, w))
-    parts.append(w["how"])
+        parts.append(_step_block(step))
+    parts.append(W["how"])
     return "\n\n".join(parts)
 
 
-def current_version_block(current: str | None, language: str) -> str:
-    w = words(language)
-    return f"{w['current']}\n{current if current is not None else w['none_yet']}"
+def edit_spec(seconds: bool) -> OutputSpec:
+    """An edit's answer: the whole new text, and for a video its length."""
+    properties: dict[str, Any] = {"content": _STRING}
+    if seconds:
+        properties["seconds"] = {"type": "integer"}
+    return OutputSpec(name="edit", schema=_object(properties))
+
+
+def edit_messages(
+    instructions: Instructions,
+    step: WorkflowStep | None,
+    what: str,
+    current: str,
+    change: str,
+    references: list[Piece],
+    decisions: list[Piece],
+    seconds: int | None = None,
+) -> tuple[str, str]:
+    """(system, user) for editing one node's prompt (or text result) as the
+    user asks. `what` names it ("prompt for a video model", "text");
+    `references`, the nodes it mentions; `decisions`, what earlier steps
+    settled on; `seconds`, a video's current length."""
+    task = W["edit_task"].format(what=what)
+    if seconds is not None:
+        task += " " + W["edit_seconds"].format(
+            low=MIN_SECONDS, high=MAX_SECONDS, current=seconds
+        )
+    parts = [W["base"], W["tags"], W["language_edit"].format(what=what)]
+    parts += instructions.tagged()
+    if decisions:
+        parts.append(W["decisions"])
+    parts.append(_step_block(step, task) if step is not None else task)
+    user = [decisions_block(decisions)] if decisions else []
+    user += [_tag("reference", _body(r), id=r.name or "") for r in references]
+    user += [_tag("current", current), _tag("change", change)]
+    return "\n\n".join(parts), "\n\n".join(user)
+
+
+def parse_edit(answer: str) -> tuple[str, int | None]:
+    """The new text and (a video's) length from an edit's answer. Raises
+    RunFormatError if there's no text."""
+    try:
+        data = json.loads(answer)
+    except json.JSONDecodeError:
+        data = {"content": answer}
+    text = str(data.get("content") or "").strip() if isinstance(data, dict) else ""
+    if not text:
+        raise RunFormatError("the model returned no text")
+    return text, clamp_seconds(data.get("seconds"))
+
+
+def current_version_block(current: str | None) -> str:
+    return _tag("current_version", current if current is not None else W["none_yet"])

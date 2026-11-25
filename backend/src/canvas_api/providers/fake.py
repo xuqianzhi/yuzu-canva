@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import re
 import struct
 import zlib
 from pathlib import Path
@@ -148,10 +149,20 @@ class FakeTextModel:
         last = messages[-1]["content"]
         name = spec.name if spec is not None else "text"
         if name == "run":
-            count = spec.schema["properties"]["items"]["maxItems"]
-            return json.dumps(
-                {"items": [f"Result {n}: {last[-80:]}" for n in range(1, count + 1)]}
-            )
+            shape = spec.schema["properties"]["items"]
+            texts = [f"Result {n}: {last[-80:]}" for n in range(1, shape["maxItems"] + 1)]
+            if "seconds" in shape["items"].get("properties", {}):
+                # Videos: a length each (5 s, 6 s, ...).
+                items = [{"content": t, "seconds": 4 + n} for n, t in enumerate(texts, 1)]
+                return json.dumps({"items": items})
+            return json.dumps({"items": texts})
+        if name == "edit":
+            # The current text, marked as edited (a video keeps a length of 8 s).
+            found = re.search(r"<current>\n?(.*?)\n?</current>", last, re.S)
+            answer: dict = {"content": f"{found.group(1) if found else ''} (edited)".strip()}
+            if "seconds" in spec.schema["properties"]:
+                answer["seconds"] = 8
+            return json.dumps(answer)
         if name == "chat":
             reply = {
                 "reply": "Here is a revised version.",

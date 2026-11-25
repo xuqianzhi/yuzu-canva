@@ -393,6 +393,14 @@ class MediaMixin:
             raise _not_found("output", output_id)
         return self._output(row)
 
+    def outputs_by_id(self, output_ids: list[str]) -> dict[str, Output]:
+        """The outputs with these ids, in one query."""
+        if not output_ids:
+            return {}
+        marks = ", ".join("?" * len(output_ids))
+        rows = self._all(f"SELECT * FROM outputs WHERE id IN ({marks})", *output_ids)
+        return {r["id"]: self._output(r) for r in rows}
+
     def asset_file(self, asset_id: str) -> tuple[Asset, str]:
         """An asset and its file's key."""
         row = self._one("SELECT * FROM assets WHERE id = ?", asset_id)

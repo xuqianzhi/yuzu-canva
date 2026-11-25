@@ -3,30 +3,12 @@
 from __future__ import annotations
 
 import io
-from pathlib import Path
 
-from fastapi.testclient import TestClient
 from PIL import Image
 
 from .conftest import PNG, wait_for_job
+from .helpers import VIDEO, jpeg, upload
 from .test_api import connect, error_code, generate, new_node, new_project, restore
-
-VIDEO = (
-    Path(__file__).resolve().parents[1] / "src/canvas_api/providers/fake_assets/landscape.mp4"
-).read_bytes()
-
-
-def upload(
-    client: TestClient, project: str, name: str, data: bytes, mime="application/octet-stream"
-):
-    return client.post(f"/api/projects/{project}/materials", files={"file": (name, data, mime)})
-
-
-def jpeg(size=(40, 30)) -> bytes:
-    out = io.BytesIO()
-    Image.new("RGB", size, (200, 30, 30)).save(out, "JPEG")
-    return out.getvalue()
-
 
 # --- names ---------------------------------------------------------------------
 

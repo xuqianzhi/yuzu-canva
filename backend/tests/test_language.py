@@ -1,11 +1,13 @@
-"""The language setting: it picks the wording of every prompt the backend
-writes (the user's own text is sent as written)."""
+"""The language setting is the UI's only: what the model is told is the
+same English wording whatever it is, with the user's own words tagged, and
+the model writes in the language of those words."""
 
 from __future__ import annotations
 
-from .conftest import wait_for_job
-from .test_api import generate, new_node, new_project
-from .test_workflow import run_step
+from canvas_api.domain.workflow import image_label
+
+from .helpers import run_step
+from .test_api import new_project
 
 
 def set_language(client, language: str):
@@ -21,27 +23,25 @@ def test_language_defaults_to_english_and_is_remembered(client):
     assert client.put("/api/settings", json={"language": "fr"}).status_code == 422
 
 
-def test_run_wording_follows_the_language_but_names_do_not(client, fake_text):
-    set_language(client, "zh")
+def test_the_setting_does_not_change_what_the_model_is_told(client, fake_text):
     project = new_project(client)
     run_step(client, project, "dishes", "冬天的汤", 2)
-    call = fake_text.calls[-1]
-    assert "请用中文写作" in call["system"]
-    # The step's name is the user's text: never translated.
-    assert "## 这一步：Dish brainstorming" in call["system"]
-    assert call["messages"][0]["content"] == "## 要求\n冬天的汤"
-    set_language(client, "en")
-    run_step(client, project, "dishes", "soups", 1)
-    assert fake_text.calls[-1]["messages"][0]["content"] == "## Request\nsoups"
-
-
-def test_image_labels_follow_the_language(client, fake_image):
+    english = fake_text.calls[-1]
     set_language(client, "zh")
-    project = new_project(client)
-    source = new_node(client, project, prompt="雪地")
-    wait_for_job(client, generate(client, source["id"]).json()["id"])
-    edit = new_node(client, project, prompt=f"把 {source['name']} 变成夜晚")
-    job = wait_for_job(client, generate(client, edit["id"]).json()["id"])
-    assert job["operation"] == "image_edit"
-    assert job["input"]["language"] == "zh"
-    assert fake_image.requests[-1].language == "zh"
+    run_step(client, project, "dishes", "冬天的汤", 2)
+    chinese = fake_text.calls[-1]
+    assert english["system"] == chinese["system"]
+    assert english["messages"] == chinese["messages"]
+
+    system = chinese["system"]
+    # The user's words are tagged, and the model writes in their language.
+    assert "write every result, and every `id`, in the language and script" in system
+    # The step's name is the user's text: never translated.
+    assert "This step is called “Dish brainstorming” and makes texts." in system
+    assert chinese["messages"][0]["content"] == "<request>\n冬天的汤\n</request>"
+
+
+def test_image_labels_follow_the_prompts_script():
+    assert image_label(1, "把 雪地 变成夜晚") == "图片1"
+    assert image_label(2, "turn the snow to night") == "image 2"
+    assert image_label(3) == "image 3"

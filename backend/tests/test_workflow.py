@@ -3,68 +3,24 @@ kind), and running a step with a prompt and a count."""
 
 from __future__ import annotations
 
-import time
+import io
+import json
+import zipfile
+from urllib.parse import unquote
 
 from fastapi.testclient import TestClient
 
-from canvas_api.domain.workflow import builtin_workflow, parse_run
+from canvas_api.domain.workflow import (
+    Piece,
+    RunItem,
+    builtin_workflow,
+    name_images,
+    parse_run,
+)
 
-from .conftest import wait_for_job
-from .test_api import default_collection, error_code, new_collection, new_node, new_project
-
-
-class Finished:
-    """A finished run, shaped like a response: 200 with the graph, or 502
-    with the run's error."""
-
-    def __init__(self, status_code: int, body: dict) -> None:
-        self.status_code, self._body = status_code, body
-        self.text = str(body)
-
-    def json(self) -> dict:
-        return self._body
-
-
-def run_step(client: TestClient, project: str, step: str, prompt: str, count: int | None):
-    """Start a run and wait for it (it finishes in the background)."""
-    response = client.post(
-        f"/api/projects/{project}/workflow/steps/{step}/run",
-        json={"prompt": prompt, "count": count},
-    )
-    if response.status_code != 202:
-        return response
-    started = next(r for r in response.json()["runs"] if r["step"] == step)
-    assert started["status"] in ("running", "done", "failed")  # may already be over
-    deadline = time.monotonic() + 5
-    while time.monotonic() < deadline:
-        graph = graph_of(client, project)
-        run = next(r for r in graph["runs"] if r["step"] == step)
-        if run["status"] == "done":
-            return Finished(200, graph)
-        if run["status"] == "failed":
-            return Finished(502, {"error": {"code": "provider_error", "message": run["error"]}})
-        time.sleep(0.02)
-    raise AssertionError(f"step {step} still running")
-
-
-def step_nodes(graph: dict, step: str) -> list[dict]:
-    nodes = [n for n in graph["nodes"] if n["workflow_step"] == step]
-    return sorted(nodes, key=lambda n: n["workflow_item"])
-
-
-def graph_of(client: TestClient, project: str) -> dict:
-    return client.get(f"/api/projects/{project}").json()
-
-
-def wait_for_outputs(client: TestClient, project: str, step: str) -> None:
-    """Until every node of the step has an output."""
-    deadline = time.monotonic() + 5
-    while time.monotonic() < deadline:
-        nodes = step_nodes(graph_of(client, project), step)
-        if nodes and all(n["selected_output_id"] for n in nodes):
-            return
-        time.sleep(0.02)
-    raise AssertionError(f"{step} nodes still have no output")
+from .conftest import signed_in, wait_for_job
+from .helpers import graph_of, pipeline_template, run_step, step_nodes, wait_for_outputs
+from .test_api import error_code, new_collection, new_node, new_project, patch_collection
 
 
 def mini() -> dict:
@@ -97,14 +53,14 @@ def test_a_collection_starts_with_the_builtin_workflow_active(client):
         == (builtin["id"])
     )
     steps = builtin["definition"]["steps"]
-    assert [(s["name"], s["kind"], s["output"]) for s in steps] == [
-        ("Character", "image", "independent"),
-        ("Dish brainstorming", "text", "independent"),
-        ("Dish image", "image", "independent"),
-        ("Script overview", "text", "independent"),
-        ("Prompt per scene", "text", "one_to_one"),
-        ("Video per prompt", "video", "independent"),
+    assert [(s["name"], s["kind"]) for s in steps] == [
+        ("Character", "image"),
+        ("Dish brainstorming", "text"),
+        ("Dish image", "image"),
+        ("Script overview", "text"),
+        ("Video per scene", "video"),
     ]
+    assert all("output" not in s for s in steps)
     assert all(s["description"] for s in steps)
     project = graph_of(client, new_project(client, collection=collection))["project"]
     expected = builtin_workflow().model_copy(update={"id": builtin["id"]})
@@ -162,14 +118,7 @@ def test_a_step_can_have_a_default_count(client):
         wrong = [{**steps[0], "count": bad}, steps[1]]
         assert add_workflow(client, collection, {**mini(), "steps": wrong}).status_code == 422
     [builtin] = [w for w in workflows(client, collection) if w["active"]]
-    assert [s["count"] for s in builtin["definition"]["steps"]] == [
-        None,
-        None,
-        None,
-        1,
-        None,
-        None,
-    ]
+    assert [s["count"] for s in builtin["definition"]["steps"]] == [None, None, None, 1, None]
 
 
 def test_a_steps_description_goes_to_the_ai(client, fake_text):
@@ -188,11 +137,12 @@ def test_a_steps_description_goes_to_the_ai(client, fake_text):
 
     graph = run_step(client, project, "dishes", "soups", 1).json()
     system = fake_text.calls[-1]["system"]
-    assert f"## This step: Dishes\n{described}\n" in system
+    step = "This step is called “Dishes” and makes texts."
+    assert f"{step}\n<step_description>\n{described}\n</step_description>\n" in system
     assert system.index("Cozy.") < system.index(described)
     node = step_nodes(graph, "dishes")[0]["id"]
     client.post(f"/api/nodes/{node}/chat", json={"text": "shorter please"})
-    assert f"## This step: Dishes\n{described}" in fake_text.calls[-1]["system"]
+    assert f"{step}\n<step_description>\n{described}" in fake_text.calls[-1]["system"]
 
     too_long = [{**steps[0], "description": "x" * 4001}, steps[1]]
     assert add_workflow(client, collection, {**mini(), "steps": too_long}).status_code == 422
@@ -269,14 +219,17 @@ def test_a_text_step_makes_one_node_per_result(client, fake_text):
         "status": "done",
         "error": None,
         "updated_at": None,
+        "manual": False,
     }
     call = fake_text.calls[-1]
     assert (
         "Cozy, for kids." in call["system"]
-        and "## This step: Dish brainstorming" in call["system"]
+        and "<collection_instruction>\nCozy, for kids.\n</collection_instruction>"
+        in call["system"]
+        and "This step is called “Dish brainstorming”" in call["system"]
     )
     assert "exactly 3" in call["system"]
-    assert call["messages"][0]["content"] == "## Request\nwinter soups"
+    assert call["messages"][0]["content"] == "<request>\nwinter soups\n</request>"
     schema = call["spec"].schema["properties"]["items"]
     assert (schema["minItems"], schema["maxItems"]) == (3, 3)
 
@@ -291,15 +244,15 @@ def test_independent_results_are_used_by_mentioning_their_ids(client, fake_text,
     run_step(client, project, "dishes", "winter soups", 2)
     # Nothing flows to the next step by itself.
     run_step(client, project, "characters", "a mascot", 1)
-    assert fake_text.calls[-1]["messages"][0]["content"] == "## Request\na mascot"
+    assert fake_text.calls[-1]["messages"][0]["content"] == "<request>\na mascot\n</request>"
 
     fake_image.gate.clear()  # keep the new image jobs running while we look
     graph = run_step(client, project, "characters", "a mascot for dishes_2", 2).json()
     call = fake_text.calls[-1]
     sent = call["messages"][0]["content"]
-    assert sent.startswith("## dishes_2\nResult 2:")
-    assert sent.endswith("## Request\na mascot for dishes_2")
-    assert "write those IDs exactly" in call["system"]
+    assert sent.startswith('<reference id="dishes_2">\nResult 2:')
+    assert sent.endswith("<request>\na mascot for dishes_2\n</request>")
+    assert "write that id exactly as it is" in call["system"]
     nodes = step_nodes(graph, "characters")
     assert [n["name"] for n in nodes] == ["characters_1", "characters_2"]
     # Each prompt keeps the mention, so the dish is linked as an input.
@@ -321,103 +274,242 @@ def test_mentioned_images_are_shown_to_the_model(client, fake_text, fake_image):
     run_step(client, project, "dishes", "a soup for characters_1", 2)
     call = fake_text.calls[-1]
     assert call["messages"][0]["content"].startswith(
-        "## characters_1\n(an image, sent as image 1)"
+        '<reference id="characters_1">\n(an image, attached as image 1. In what you '
+        "write, call it characters_1, never image 1.)\n</reference>"
     )
     assert len(call["images"]) == 1
 
 
-def one_to_one_template(client, first: str = "text", second: str = "image") -> str:
+def test_image_labels_in_written_prompts_become_ids(client, fake_text, fake_image):
+    project = new_project(client)
+    run_step(client, project, "characters", "a fox", 1)
+    wait_for_outputs(client, project, "characters")
+    # The fake model echoes the request: as if it wrote "image 1" itself.
+    graph = run_step(
+        client, project, "dishes", "a soup for characters_1, in the style of image 1", 1
+    ).json()
+    text = next(
+        o for o in graph["outputs"] if o["node_id"] == step_nodes(graph, "dishes")[0]["id"]
+    )
+    assert "for characters_1, in the style of characters_1" in text["text"]
+    assert "image 1" not in text["text"]
+
+
+def test_name_images_replaces_only_mentioned_labels():
+    refs = [
+        Piece(kind="image", label="image 1", name="小獭女仆"),
+        Piece(kind="text", text="a story", name="script"),
+        Piece(kind="image", label="image 2", name="fox"),
+    ]
+    items = [
+        "参照图片 image 1 画风，和图片2一起",
+        "Image 2 and image 3 and image 12; myimage 1 stays",
+        "参照图片1的配色",
+    ]
+    assert name_images(items, refs) == [
+        "参照图片 小獭女仆 画风，和fox一起",
+        "fox and image 3 and image 12; myimage 1 stays",
+        "参照小獭女仆的配色",
+    ]
+    assert name_images(["image 1"], []) == ["image 1"]
+
+
+def download(client: TestClient, project: str, step: str):
+    return client.get(f"/api/projects/{project}/workflow/steps/{step}/download")
+
+
+def test_download_a_step_as_a_zip_in_order(client, fake_text, fake_image):
+    project = new_project(client, "Winter / menu")
+    # Nothing yet.
+    assert download(client, project, "dishes").status_code == 404
+    assert download(client, project, "nope").status_code == 404
+
+    run_step(client, project, "dishes", "winter soups", 3)
+    response = download(client, project, "dishes")
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/zip"
+    disposition = unquote(response.headers["content-disposition"])
+    assert disposition.endswith("Winter-menu_step2_Dish-brainstorming.zip")
+    archive = zipfile.ZipFile(io.BytesIO(response.content))
+    assert archive.namelist() == ["dishes_01.txt", "dishes_02.txt", "dishes_03.txt"]
+    graph = graph_of(client, project)
+    outputs = {o["id"]: o for o in graph["outputs"]}
+    for node in step_nodes(graph, "dishes"):
+        text = outputs[node["selected_output_id"]]["text"]
+        assert archive.read(f"dishes_0{node['workflow_item']}.txt").decode() == text
+
+    run_step(client, project, "characters", "a fox", 2)
+    wait_for_outputs(client, project, "characters")
+    archive = zipfile.ZipFile(io.BytesIO(download(client, project, "characters").content))
+    names = archive.namelist()
+    assert [n.rsplit(".", 1)[0] for n in names] == ["characters_01", "characters_02"]
+    assert all(archive.read(n) for n in names)
+
+
+def test_editors_can_download_but_outsiders_cannot(client, fake_text, fake_image):
+    project = new_project(client)
+    run_step(client, project, "dishes", "soups", 1)
+    stranger = signed_in(client.app, "stranger@example.com")
+    assert download(stranger, project, "dishes").status_code == 404
+
+
+def test_old_one_to_one_steps_read_as_plain_steps(client):
+    # Definitions saved with the removed `output` setting still load.
     definition = {
         "id": "x",
-        "name": "Pipeline",
+        "name": "Old",
         "steps": [
-            {"key": "prompts", "name": "Prompts", "kind": first, "output": "one_to_one"},
-            {"key": "scenes", "name": "Scenes", "kind": second},
+            {"key": "a", "name": "A", "kind": "text", "output": "one_to_one", "carry": "none"},
+            {"key": "b", "name": "B", "kind": "text", "output": "independent", "carry": "used"},
+            {"key": "c", "name": "C", "kind": "text", "output": "one_to_one"},
         ],
     }
-    collection = new_collection(client, "Pipeline", workflow=definition)
-    return new_project(client, "P", collection)
-
-
-def test_one_to_one_feeds_each_result_to_its_own_node(client, fake_text, fake_image):
-    project = one_to_one_template(client)
-    blocked = run_step(client, project, "scenes", "", 2)
-    assert (blocked.status_code, error_code(blocked)) == (409, "workflow_blocked")
-    graph = run_step(client, project, "prompts", "three scenes", 3).json()
-    prompts = step_nodes(graph, "prompts")
-    assert [n["name"] for n in prompts] == [None, None, None]  # nothing may refer to them
-    renamed = client.patch(f"/api/nodes/{prompts[0]['id']}", json={"name": "p1"})
-    assert (renamed.status_code, error_code(renamed)) == (409, "workflow_locked")
-
-    calls = len(fake_text.calls)
-    graph = run_step(client, project, "scenes", "", 5).json()  # the count follows the inputs
-    scenes = step_nodes(graph, "scenes")
-    outputs = {o["id"]: o for o in graph["outputs"]}
-    assert [n["prompt"] for n in scenes] == [
-        outputs[p["selected_output_id"]]["text"] for p in prompts
-    ]
-    assert len(fake_text.calls) == calls  # the texts are the prompts: no model call
-    pairs = {
-        (e["source_node_id"], e["target_node_id"]) for e in graph["edges"] if e["workflow"]
-    }
-    assert pairs == {(p["id"], s["id"]) for p, s in zip(prompts, scenes, strict=True)}
-    assert [n["name"] for n in scenes] == ["scenes_1", "scenes_2", "scenes_3"]
-    for job in graph["active_jobs"]:
-        assert wait_for_job(client, job["id"])["status"] == "succeeded"
-
-    # A shared direction is added to each.
-    graph = run_step(client, project, "scenes", "in watercolour", None).json()
-    assert all(n["prompt"].endswith("\nin watercolour") for n in step_nodes(graph, "scenes"))
-
-
-def test_one_to_one_into_text_writes_one_result_per_input(client, fake_text):
-    project = one_to_one_template(client, "text", "text")
-    run_step(client, project, "prompts", "ideas", 2)
-    graph = run_step(client, project, "scenes", "expand each", None).json()
-    assert len(step_nodes(graph, "scenes")) == 2
-    call = fake_text.calls[-1]
-    assert "one result for each of the 2 inputs" in call["system"]
-    assert "## Inputs, one per result\nInput 1: Result 1:" in call["messages"][0]["content"]
-
-
-def test_one_to_one_images_are_references(client, fake_image, fake_video):
-    project = one_to_one_template(client, "image", "video")
-    run_step(client, project, "prompts", "two stills", 2)
-    wait_for_outputs(client, project, "prompts")
-    assert run_step(client, project, "scenes", "", None).status_code == 422  # needs a prompt
-    fake_video.gate.clear()  # keep the video jobs running while we look
-    graph = run_step(client, project, "scenes", "slow zoom in", None).json()
-    scenes = step_nodes(graph, "scenes")
-    assert [n["prompt"] for n in scenes] == ["slow zoom in", "slow zoom in"]
-    job = graph["active_jobs"][0]
-    assert [r["kind"] for r in job["input"]["refs"]] == ["image"]
-    fake_video.gate.set()
-
-
-def test_the_last_step_cant_feed_one_to_one(client):
-    definition = {
-        "id": "x",
-        "name": "Bad",
-        "steps": [{"key": "a", "name": "A", "kind": "text", "output": "one_to_one"}],
-    }
-    collection = default_collection(client)
-    assert add_workflow(client, collection, definition).status_code == 422
-    assert (
-        client.post(
-            "/api/collections", json={"name": "Bad", "workflow": definition}
-        ).status_code
-        == 422
-    )
+    collection = new_collection(client, "Old", workflow=definition)
+    saved = client.get(f"/api/collections/{collection}/workflows").json()[0]["definition"]
+    assert [s["carry"] for s in saved["steps"]] == ["none", "used", "all"]
+    assert all("output" not in s for s in saved["steps"])
 
 
 def test_runs_are_checked(client):
     project = new_project(client)
-    assert run_step(client, project, "dishes", "", 2).status_code == 422
     assert run_step(client, project, "dishes", "x", None).status_code == 422  # how many?
     assert run_step(client, project, "dishes", "x", 0).status_code == 422
     assert run_step(client, project, "dishes", "x", 21).status_code == 422
     assert run_step(client, project, "nope", "x", 1).status_code == 404
-    assert parse_run('{"items": [" a ", "", "b", "c"]}', 2) == ["a", "b"]
+    assert parse_run('{"items": [" a ", "", "b", "c"]}', 2) == [RunItem("a"), RunItem("b")]
+    named = '{"items": [{"id": " 怪人 ", "content": " x "}, {"id": "", "content": "y"}, "z"]}'
+    assert parse_run(named, 3) == [RunItem("x", "怪人"), RunItem("y"), RunItem("z")]
+
+
+# --- node IDs given by the model -----------------------------------------------------
+
+
+def answer_with(fake_text, *named: tuple[str | None, str]) -> None:
+    """Make the fake model answer the next runs with these (id, content) items."""
+    complete = fake_text.complete
+
+    async def scripted(system, messages, spec=None, images=None):
+        if spec is None or spec.name != "run":
+            return await complete(system, messages, spec, images)
+        await complete(system, messages, spec, images)  # recorded
+        items = [{"id": i, "content": c} if i is not None else c for i, c in named]
+        return json.dumps({"items": items})
+
+    fake_text.complete = scripted
+
+
+def test_the_model_names_a_steps_nodes(client, fake_text, fake_image):
+    project = new_project(client)
+    new_node(client, project, name="小獭女仆")
+    answer_with(fake_text, ("怪人", "角色名：怪人，狂野"), ("帅气科学家", "角色名：帅气科学家"))
+    graph = run_step(client, project, "characters", "怪人和帅气科学家", 2).json()
+    assert [n["name"] for n in step_nodes(graph, "characters")] == ["怪人", "帅气科学家"]
+    call = fake_text.calls[-1]
+    assert call["spec"].schema["properties"]["items"]["items"]["required"] == ["id", "content"]
+    assert "IDs already in the project (小獭女仆)" in call["system"]
+
+    wait_for_outputs(client, project, "characters")
+
+    # A node generated on its own keeps its ID.
+    first = step_nodes(graph_of(client, project), "characters")[0]
+    job = client.post(f"/api/nodes/{first['id']}/generate").json()
+    assert wait_for_job(client, job["id"])["status"] == "succeeded"
+    assert step_nodes(graph_of(client, project), "characters")[0]["name"] == "怪人"
+
+    # Run again: named afresh. The step's own IDs aren't "taken" (they're
+    # being replaced), and the model isn't asked to keep them.
+    answer_with(fake_text, ("狂野怪人", "a"), ("老科学家", "b"))
+    graph = run_step(client, project, "characters", "怪人和帅气科学家", 2).json()
+    assert [n["name"] for n in step_nodes(graph, "characters")] == ["狂野怪人", "老科学家"]
+    call = fake_text.calls[-1]
+    assert "IDs already in the project (小獭女仆)" in call["system"]
+    assert "帅气科学家" not in call["system"]
+    wait_for_outputs(client, project, "characters")
+
+
+def test_given_names_are_cleaned_and_made_unique(client, fake_text):
+    project = new_project(client)
+    new_node(client, project, kind="text", name="怪人")
+    answer_with(
+        fake_text,
+        ("怪人", "a"),  # taken by another node
+        ("狂野 怪人!", "b"),  # not a valid ID
+        (None, "c"),  # none given
+        ("!!!", "d"),  # nothing usable
+        ("A-very-long-name-that-goes-on-and-on", "e"),
+        ("dish", "f"),
+        ("DISH", "g"),  # the same ignoring case
+    )
+    graph = run_step(client, project, "dishes", "soups", 7).json()
+    assert [n["name"] for n in step_nodes(graph, "dishes")] == [
+        "怪人_2",
+        "狂野_怪人",
+        "dishes_3",
+        "dishes_4",
+        "A-very-long-name-that-go",
+        "dish",
+        "DISH_2",
+    ]
+
+
+def test_a_name_in_a_siblings_prompt_gets_its_number(client, fake_text, fake_image):
+    # 怪人 is in the scientist's prompt: as is, it would be the scientist's
+    # input before it has an image, and that generation would fail.
+    project = new_project(client)
+    answer_with(fake_text, ("怪人", "a wild man"), ("科学家", "怪人 turned scientist"))
+    graph = run_step(client, project, "characters", "two looks", 2).json()
+    nodes = step_nodes(graph, "characters")
+    assert [n["name"] for n in nodes] == ["怪人_1", "科学家"]
+    assert not [e for e in graph["edges"] if e["target_node_id"] == nodes[1]["id"]]
+    wait_for_outputs(client, project, "characters")
+    assert all(
+        n["selected_output_id"] for n in step_nodes(graph_of(client, project), "characters")
+    )
+
+
+def test_the_prompt_is_optional_when_the_model_writes(client, fake_text):
+    project = new_project(client)
+    graph = run_step(client, project, "dishes", "  ", 2).json()
+    assert len(step_nodes(graph, "dishes")) == 2
+    call = fake_text.calls[-1]
+    assert "There's no <request> this time" in call["system"]
+    assert "<request>" not in call["messages"][0]["content"]
+
+
+def test_media_steps_are_filled_in_then_generated(client, fake_text, fake_image):
+    project = new_project(client)
+    url = f"/api/projects/{project}/workflow/steps/characters"
+    early = client.post(f"{url}/generate")
+    assert (early.status_code, error_code(early)) == (409, "workflow_blocked")
+    graph = run_step(client, project, "characters", "a fox", 2, generate=False).json()
+    nodes = step_nodes(graph, "characters")
+    assert [bool(n["prompt"]) for n in nodes] == [True, True]
+    assert graph["active_jobs"] == [] and not any(n["selected_output_id"] for n in nodes)
+    # A blank prompt holds the step back.
+    client.patch(f"/api/nodes/{nodes[1]['id']}", json={"prompt": " "})
+    blank = client.post(f"{url}/generate")
+    assert (blank.status_code, error_code(blank)) == (409, "workflow_blocked")
+    client.patch(f"/api/nodes/{nodes[1]['id']}", json={"prompt": "a grey fox"})
+    graph = client.post(f"{url}/generate").json()
+    assert len(graph["active_jobs"]) == 2
+    text = client.post(f"/api/projects/{project}/workflow/steps/dishes/generate")
+    assert (text.status_code, error_code(text)) == (409, "not_generatable")
+    wait_for_outputs(client, project, "characters")
+
+
+def test_video_lengths_come_from_the_model(client, fake_text, fake_video):
+    project = pipeline_template(client, "text", "video")
+    run_step(client, project, "prompts", "two scenes, 8 s and 12 s", 2)
+    graph = run_step(client, project, "scenes", "", 2, generate=False).json()
+    call = fake_text.calls[-1]
+    assert "length in whole `seconds`, from 4 to 15" in call["system"]
+    item = call["spec"].schema["properties"]["items"]["items"]
+    assert item["required"] == ["id", "content", "seconds"]
+    assert [n["params"]["duration_s"] for n in step_nodes(graph, "scenes")] == [5, 6]
+    # Out of range or not a number: kept to what Seedance takes, or left out.
+    raw = '{"items": [{"content": "a", "seconds": 40}, {"content": "b", "seconds": 2.6},'
+    raw += ' {"content": "c", "seconds": "x"}]}'
+    assert [i.seconds for i in parse_run(raw, 3)] == [15, 4, None]
 
 
 def test_workflow_nodes_are_locked_but_editable(client):
@@ -441,10 +533,49 @@ def test_chat_and_takes_on_text_nodes(client, fake_text):
     sent = client.post(f"/api/nodes/{node['id']}/chat", json={"text": "make it spicier"})
     assert sent.status_code == 200, sent.text
     _, answer = sent.json()
-    assert "## This step: Dish brainstorming" in fake_text.calls[-1]["system"]
+    chat = fake_text.calls[-1]
+    assert "This step is called “Dish brainstorming”" in chat["system"]
+    assert "reply, and write any new version, in the language and script" in chat["system"]
+    assert chat["messages"][0]["content"].startswith("<current_version>\nResult 1:")
     applied = client.post(f"/api/chat/{answer['id']}/apply").json()
     take = client.post(f"/api/nodes/{node['id']}/takes", json={"text": "my own"}).json()
     outputs = client.get(f"/api/nodes/{node['id']}/outputs").json()
     assert [o["id"] for o in outputs][:2] == [take["id"], applied["id"]]
     image = new_node(client, project)["id"]
     assert client.post(f"/api/nodes/{image}/chat", json={"text": "hi"}).status_code == 409
+
+
+def test_a_collection_can_generate_images_or_videos_directly(client, fake_text, fake_image):
+    collection = new_collection(client, "Direct")
+    saved = client.get(f"/api/collections/{collection}").json()
+    assert (saved["direct_image"], saved["direct_video"]) == (False, False)  # off by default
+    project = new_project(client, "P", collection)
+    graph = run_step(client, project, "characters", "a fox", 2, generate=False).json()
+    assert graph["active_jobs"] == []  # only filled in
+
+    changed = patch_collection(client, collection, direct_image=True).json()
+    assert (changed["direct_image"], changed["direct_video"]) == (True, False)
+    assert graph_of(client, project)["project"]["direct_image"] is True  # read live
+    fake_image.gate.clear()  # keep the jobs running while we look
+    graph = run_step(client, project, "characters", "a fox", 2, generate=False).json()
+    nodes = step_nodes(graph, "characters")
+    assert {j["node_id"] for j in graph["active_jobs"]} == {n["id"] for n in nodes}
+    assert next(r for r in graph["runs"] if r["step"] == "characters")["status"] == "done"
+    fake_image.gate.set()
+    wait_for_outputs(client, project, "characters")
+
+
+def test_direct_video_is_its_own_setting(client, fake_text, fake_video):
+    project = pipeline_template(client, "text", "video")
+    collection = graph_of(client, project)["project"]["collection_id"]
+    patch_collection(client, collection, direct_image=True)
+    run_step(client, project, "prompts", "two scenes", 2)
+    graph = run_step(client, project, "scenes", "", 2, generate=False).json()
+    assert graph["active_jobs"] == []  # images go directly, videos don't
+    patch_collection(client, collection, direct_video=True)
+    fake_video.gate.clear()
+    graph = run_step(client, project, "scenes", "", 2, generate=False).json()
+    assert len(graph["active_jobs"]) == 2
+    fake_video.gate.set()
+    for job in graph["active_jobs"]:
+        assert wait_for_job(client, job["id"])["status"] == "succeeded"

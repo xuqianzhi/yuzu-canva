@@ -68,7 +68,15 @@ export function generationActions(
         return {
           outputs: { ...s.outputs, [output.id]: output },
           nodes: node
-            ? { ...s.nodes, [nodeId]: { ...node, selected_output_id: output.id } }
+            ? {
+                ...s.nodes,
+                [nodeId]: {
+                  ...node,
+                  selected_output_id: output.id,
+                  // The server marks a workflow node's hand-made take as an edit.
+                  edited: node.edited || node.workflow_step !== null,
+                },
+              }
             : s.nodes,
         };
       });

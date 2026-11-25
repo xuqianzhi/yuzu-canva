@@ -7,11 +7,21 @@ from dataclasses import replace
 import pytest
 
 from canvas_api.app import create_app
+from canvas_api.auth import is_admin
 from canvas_api.config import Limits
 from canvas_api.contract import Operation
+from canvas_api.routes import collections, me
 
 from .conftest import ALICE, BOB, PNG, auth, open_store, signed_in, wait_for_job
-from .test_api import default_collection, error_code, generate, new_node, new_project
+from .helpers import graph_of, run_step, step_nodes
+from .test_api import (
+    default_collection,
+    error_code,
+    generate,
+    new_node,
+    new_project,
+    patch_collection,
+)
 
 
 def test_every_route_but_health_needs_a_sign_in(client):
@@ -110,12 +120,12 @@ def test_daily_limits(limited):
     assert (over.status_code, error_code(over)) == (429, "quota_exceeded")
     assert "2 of 2 images" in over.json()["error"]["message"]
     assert limited.get("/api/me").json()["used_today"]["image"] == 2
-    # A run that would make more images than are left is refused whole.
-    run = limited.post(
-        f"/api/projects/{project}/workflow/steps/characters/run",
-        json={"prompt": "a fox", "count": 1},
-    )
-    assert (run.status_code, error_code(run)) == (429, "quota_exceeded")
+    # Filling in a step's prompts is a text call; generating them, past the
+    # images left, is refused whole.
+    filled = run_step(limited, project, "characters", "a fox", 1, generate=False)
+    assert filled.status_code == 200, filled.text
+    over = limited.post(f"/api/projects/{project}/workflow/steps/characters/generate")
+    assert (over.status_code, error_code(over)) == (429, "quota_exceeded")
 
 
 def test_text_calls_are_rate_limited(settings, fake_image, fake_text):
@@ -147,3 +157,55 @@ def test_a_run_cut_off_by_a_restart_is_failed(settings, fake_image):
     with signed_in(create_app(settings, {Operation.image_generate: fake_image})) as client:
         [run] = client.get(f"/api/projects/{project}").json()["runs"]
         assert run["status"] == "failed" and "restart" in run["error"]
+
+
+def test_generating_directly_over_the_limit_keeps_the_prompts(limited):
+    collection = default_collection(limited)
+    patch_collection(limited, collection, direct_image=True)
+    project = new_project(limited, "P", collection)
+    # 3 images would pass the limit of 2: nothing is generated, but the
+    # filled-in prompts stay, and the run says why.
+    failed = run_step(limited, project, "characters", "three foxes", 3, generate=False)
+    assert failed.status_code == 502
+    assert failed.json()["error"]["message"].startswith(
+        "the prompts are filled in, but generating didn't start"
+    )
+    graph = graph_of(limited, project)
+    assert len(step_nodes(graph, "characters")) == 3
+    assert graph["active_jobs"] == []
+
+
+def test_an_admin_can_lift_a_collections_daily_limits(limited):
+    assert limited.get("/api/me").json()["admin"] is True
+    collection = default_collection(limited)
+    assert limited.get(f"/api/collections/{collection}").json()["no_daily_limit"] is False
+    project = new_project(limited, "P", collection)
+    nodes = [new_node(limited, project)["id"] for _ in range(3)]
+    assert generate(limited, nodes[0]).status_code == 202
+    assert generate(limited, nodes[1]).status_code == 202
+    assert generate(limited, nodes[2]).status_code == 429  # 2 a day
+
+    patch_collection(limited, collection, no_daily_limit=True)
+    assert generate(limited, nodes[2]).status_code == 202
+    assert limited.get("/api/me").json()["used_today"]["image"] == 3  # still counted
+    patch_collection(limited, collection, no_daily_limit=False)
+    again = new_node(limited, project)["id"]
+    assert generate(limited, again).status_code == 429  # limited again
+
+
+def test_only_admins_change_the_daily_limit(client, monkeypatch):
+    monkeypatch.setattr(collections, "is_admin", lambda settings, email: False)
+    monkeypatch.setattr(me, "is_admin", lambda settings, email: False)
+    assert client.get("/api/me").json()["admin"] is False
+    collection = default_collection(client)
+    refused = patch_collection(client, collection, no_daily_limit=True)
+    assert (refused.status_code, error_code(refused)) == (403, "forbidden")
+    # Their other settings are theirs to change.
+    assert patch_collection(client, collection, direct_image=True).status_code == 200
+
+
+def test_who_is_an_admin(settings):
+    listed = replace(settings, dev_auth=False, allowed_emails=frozenset({"a@example.com"}))
+    assert is_admin(listed, "A@example.com")
+    assert not is_admin(listed, "b@example.com")
+    assert is_admin(replace(listed, dev_auth=True), "b@example.com")  # local work

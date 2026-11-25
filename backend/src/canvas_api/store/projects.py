@@ -39,7 +39,8 @@ class ProjectsMixin:
         """The collection's projects, most recently updated first."""
         rows = self._all(
             f"""
-            SELECT p.*, w.definition AS workflow,
+            SELECT p.*, w.definition AS workflow, c.instruction AS collection_instruction,
+              c.direct_image, c.direct_video,
               (SELECT COUNT(*) FROM nodes n WHERE n.project_id = p.id AND {LIVE_N})
                 AS node_count,
               (SELECT COUNT(*) FROM {LIVE_ASSETS} AND a.kind = 'image') AS image_count,
@@ -90,13 +91,11 @@ class ProjectsMixin:
         try:
             with self._tx() as db:
                 collection = db.execute(
-                    "SELECT instruction FROM collections WHERE id = ?", (collection_id,)
+                    "SELECT 1 FROM collections WHERE id = ?", (collection_id,)
                 ).fetchone()
                 if collection is None:
                     raise _not_found("collection", collection_id)
-                instruction = body.instruction
-                if instruction is None:
-                    instruction = collection["instruction"]
+                instruction = body.instruction or ""
                 db.execute(
                     "INSERT INTO projects (id, collection_id, name, viewport, created_at,"
                     " updated_at, instruction) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -186,42 +185,46 @@ class ProjectsMixin:
         return files, active
 
     def get_graph(self, project_id: str) -> ProjectGraph:
-        project = self.get_project(project_id)
-        nodes = self._all(
-            "SELECT * FROM nodes WHERE project_id = ? AND deleted_at IS NULL "
-            "ORDER BY created_at, id",
-            project_id,
-        )
-        edges = self._all(
-            "SELECT * FROM edges WHERE project_id = ? AND deleted_at IS NULL "
-            "ORDER BY created_at, id",
-            project_id,
-        )
-        outputs = self._all(
-            "SELECT o.* FROM outputs o JOIN nodes n ON n.id = o.node_id "
-            "WHERE n.project_id = ? AND n.deleted_at IS NULL ORDER BY o.node_id, o.seq DESC",
-            project_id,
-        )
-        jobs = self._all(
-            f"SELECT * FROM jobs WHERE project_id = ? AND status IN {ACTIVE} "
-            "ORDER BY created_at",
-            project_id,
-        )
-        # Nodes of steps the active workflow doesn't have are hidden (not
-        # deleted): switching back to a workflow with them shows them again.
-        steps = {step.key for step in project.workflow.steps}
-        shown = {
-            r["id"] for r in nodes if r["workflow_step"] is None or r["workflow_step"] in steps
-        }
-        return ProjectGraph(
-            project=project,
-            nodes=[self._node(r) for r in nodes if r["id"] in shown],
-            edges=[
-                self._edge(r)
-                for r in edges
-                if r["source_node_id"] in shown and r["target_node_id"] in shown
-            ],
-            outputs=[self._output(r) for r in outputs if r["node_id"] in shown],
-            active_jobs=[self._job(r) for r in jobs if r["node_id"] in shown],
-            runs=[run for run in self.list_runs(project_id) if run.step in steps],
-        )
+        with self._snapshot():
+            project = self.get_project(project_id)
+            nodes = self._all(
+                "SELECT * FROM nodes WHERE project_id = ? AND deleted_at IS NULL "
+                "ORDER BY created_at, id",
+                project_id,
+            )
+            edges = self._all(
+                "SELECT * FROM edges WHERE project_id = ? AND deleted_at IS NULL "
+                "ORDER BY created_at, id",
+                project_id,
+            )
+            outputs = self._all(
+                "SELECT o.* FROM outputs o JOIN nodes n ON n.id = o.node_id "
+                "WHERE n.project_id = ? AND n.deleted_at IS NULL "
+                "ORDER BY o.node_id, o.seq DESC",
+                project_id,
+            )
+            jobs = self._all(
+                f"SELECT * FROM jobs WHERE project_id = ? AND status IN {ACTIVE} "
+                "ORDER BY created_at",
+                project_id,
+            )
+            # Nodes of steps the active workflow doesn't have are hidden (not
+            # deleted): switching back to a workflow with them shows them again.
+            steps = {step.key for step in project.workflow.steps}
+            shown = {
+                r["id"]
+                for r in nodes
+                if r["workflow_step"] is None or r["workflow_step"] in steps
+            }
+            return ProjectGraph(
+                project=project,
+                nodes=[self._node(r) for r in nodes if r["id"] in shown],
+                edges=[
+                    self._edge(r)
+                    for r in edges
+                    if r["source_node_id"] in shown and r["target_node_id"] in shown
+                ],
+                outputs=[self._output(r) for r in outputs if r["node_id"] in shown],
+                active_jobs=[self._job(r) for r in jobs if r["node_id"] in shown],
+                runs=[run for run in self.list_runs(project_id) if run.step in steps],
+            )

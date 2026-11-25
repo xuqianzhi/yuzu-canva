@@ -80,10 +80,17 @@ class UsersMixin:
         return self.locate("project", project_id)[0]
 
     def owner_of_collection(self, collection_id: str) -> str:
-        row = self._one("SELECT owner_id FROM collections WHERE id = ?", collection_id)
+        return self.payer_of_collection(collection_id)[0]
+
+    def payer_of_collection(self, collection_id: str) -> tuple[str, bool]:
+        """(the owner, who pays, and whether the collection skips the owner's
+        daily limits), in one query."""
+        row = self._one(
+            "SELECT owner_id, no_daily_limit FROM collections WHERE id = ?", collection_id
+        )
         if row is None:
             raise _not_found("collection", collection_id)
-        return row["owner_id"]
+        return row["owner_id"], bool(row["no_daily_limit"])
 
     @staticmethod
     def _setting(db: Db, owner: str, key: str) -> str | None:

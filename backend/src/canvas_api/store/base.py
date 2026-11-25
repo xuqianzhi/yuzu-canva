@@ -59,7 +59,9 @@ PURGE_AFTER = timedelta(days=1)
 # A project row as `_project` reads it: with its collection's active
 # workflow as `workflow`. Add "WHERE ..." (projects are `p`).
 PROJECT_SQL = (
-    "SELECT p.*, w.definition AS workflow FROM projects p "
+    "SELECT p.*, w.definition AS workflow, c.instruction AS collection_instruction, "
+    "c.direct_image, c.direct_video "
+    "FROM projects p "
     "JOIN collections c ON c.id = p.collection_id "
     "JOIN collection_workflows w ON w.id = c.active_workflow_id "
 )
@@ -188,6 +190,25 @@ class StoreBase:
                 finally:
                     self._local.db = None
 
+    @contextmanager
+    def _snapshot(self) -> Iterator[Db]:
+        """Reads that all see one moment of the database: nothing written
+        between them shows in only some (a finished run with its nodes
+        missing). Needs no lock and blocks no writer. Inside _tx() or
+        another snapshot, it is that one."""
+        current = getattr(self._local, "db", None)
+        if current is not None:
+            yield current
+            return
+        with self._pool.connection() as conn, conn.transaction():
+            conn.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+            db = Db(conn)
+            self._local.db = db
+            try:
+                yield db
+            finally:
+                self._local.db = None
+
     def _one(self, sql: str, *args: Any) -> Row | None:
         with self._conn() as db:
             return db.execute(sql, args).fetchone()
@@ -204,7 +225,10 @@ class StoreBase:
             name=r["name"],
             viewport=Viewport.model_validate_json(r["viewport"]),
             instruction=r["instruction"],
+            collection_instruction=r.get("collection_instruction") or "",
             workflow=_workflow_of(r["workflow"]),
+            direct_image=bool(r["direct_image"]),
+            direct_video=bool(r["direct_video"]),
             created_at=_dt(r["created_at"]),
             updated_at=_dt(r["updated_at"]),
         )
@@ -224,6 +248,7 @@ class StoreBase:
             selected_output_id=r["selected_output_id"],
             workflow_step=r["workflow_step"],
             workflow_item=_int_or_none(r["workflow_item"]),
+            edited=bool(r.get("edited")),
             created_at=_dt(r["created_at"]),
             updated_at=_dt(r["updated_at"]),
         )
@@ -282,6 +307,7 @@ class StoreBase:
             error=r["error"],
             output_id=r["output_id"],
             provider_task_id=r["provider_task_id"],
+            provider_seed=r.get("provider_seed"),
             created_at=_dt(r["created_at"]),
             started_at=_dt(r["started_at"]),
             finished_at=_dt(r["finished_at"]),

@@ -1,9 +1,12 @@
-"""Instructions: standing guidance for a whole canvas, like a project's
-custom instructions in a chat app.
+"""Instructions: standing guidance, like custom instructions in a chat app.
 
-Every collection has one, and every project has its own, copied from its
-collection's when the project is created and edited separately after that.
-For now they are only stored and shown; nothing reads them when generating.
+Two kinds, both sent to the text model with every step run and chat:
+
+- A **collection instruction**: what every project (video) in the series
+  shares, such as its format. Edited in the collection; each project reads
+  it live (``Project.collection_instruction``) and can't change it.
+- A **project instruction**: what's particular to this one video. Starts
+  empty and belongs to the project.
 """
 
 from __future__ import annotations

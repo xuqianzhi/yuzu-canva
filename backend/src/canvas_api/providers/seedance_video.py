@@ -15,14 +15,9 @@ Submit a task, poll it, download the video. Mirrors seedance-ui's client:
   2.5:1). The node's own file stays full size.
 - One Ark request may take up to SEEDANCE_HTTP_TIMEOUT (900 s by default,
   as in seedance-ui), to allow for that slow upload.
-- Every task gets a seed (random unless the node sets one). When a create
-  request is lost after it was sent (timeout, dropped connection), Ark may
-  have created and will bill the task, so it is never blindly resent: recent
-  tasks are listed and the one with this seed is picked up. Only when none
-  exists does the job fail, and then generating again is safe.
-- Requests that never connected are retried; so are GETs.
-- Ark can only cancel a task while it is queued; DELETE on a finished task
-  deletes its record (and video URL), so status is checked first.
+- Not paying twice (seeds, which requests may be retried, finding a task
+  whose create answer was lost, cancelling) follows billing_safety.py, which
+  also lists the app's other guards.
 """
 
 from __future__ import annotations
@@ -31,34 +26,39 @@ import asyncio
 import base64
 import json
 import logging
-import secrets
 import time
+from functools import partial
 from typing import Any
 
 import httpx
 
 from ..contract import MediaKind, VideoParams
-from .base import GenerationRequest, GenerationResult, ProviderError, RefFile, label_mentions
+from .base import (
+    GenerationRequest,
+    GenerationResult,
+    ProviderError,
+    RefFile,
+    label_mentions,
+    reason,
+)
+from .billing_safety import (
+    TASKS_PATH,
+    MaybeCreated,
+    cancel_if_queued,
+    find_created,
+    identity,
+    pick_seed,
+    retryable,
+)
 from .media import mp4_info
 
 log = logging.getLogger(__name__)
 
-TASKS_PATH = "/contents/generations/tasks"
 MAX_IMAGES = 9
 MAX_VIDEOS = 3
 MAX_INLINE_BYTES = 10 * 1024 * 1024
 MAX_VIDEO_BYTES = 500 * 1024 * 1024
-RETRY_STATUSES = {408, 429, 500, 502, 503, 504}
 MAX_ATTEMPTS = 4
-MAX_SEED = 2**32 - 1
-# How far back (seconds) to look for a task a lost create request may have
-# made, allowing for clock skew between this machine and Ark.
-RECOVERY_SLACK_S = 300
-RECOVERY_PAGES = 3
-
-
-class _MaybeCreated(ProviderError):
-    """A POST was sent but its answer was lost: the task may exist."""
 
 
 class SeedanceVideoGenerator:
@@ -96,18 +96,26 @@ class SeedanceVideoGenerator:
             timeout=self._timeout, transport=self._transport
         ) as client:
             task_id = request.resume_task_id
+            if task_id is None and request.resume_seed is not None:
+                # The backend stopped while sending this request: Ark may have
+                # made the task. Look for it rather than sending it again.
+                task_id = await self._find_after_restart(client, request, params)
             if task_id is None:
+                seed = pick_seed(params)
+                # Saved before sending, so a restart mid-send can find it.
+                if request.on_sending:
+                    request.on_sending(seed, time.time())
                 # Encoding references (JPEG, base64) is CPU work: off the loop.
-                body = await asyncio.to_thread(self._body, request, params)
-                task_id = await self._submit(client, body)
-                if request.on_submitted:
-                    request.on_submitted(task_id)
+                body = await asyncio.to_thread(self._body, request, params, seed)
+                task_id = await self._submit(client, body, params)
+            if task_id != request.resume_task_id and request.on_submitted:
+                request.on_submitted(task_id)
             try:
                 url = await self._wait(client, task_id)
             except asyncio.CancelledError:
                 # Stop paying for it if it has not started; a running task
                 # cannot be stopped on Ark's side.
-                await asyncio.shield(self._cancel_if_queued(client, task_id))
+                await asyncio.shield(cancel_if_queued(partial(self._request, client), task_id))
                 raise
             data = await self._download(client, url)
 
@@ -124,7 +132,9 @@ class SeedanceVideoGenerator:
 
     # --- request body ----------------------------------------------------------
 
-    def _body(self, request: GenerationRequest, params: VideoParams) -> dict[str, Any]:
+    def _body(
+        self, request: GenerationRequest, params: VideoParams, seed: int
+    ) -> dict[str, Any]:
         images = [f for f in request.files if f.kind == MediaKind.image]
         videos = [f for f in request.files if f.kind == MediaKind.video]
         if len(images) > MAX_IMAGES:
@@ -149,20 +159,27 @@ class SeedanceVideoGenerator:
             "watermark": False,
         }
         # Always set, so a task whose create answer was lost can be found.
-        body["seed"] = params.seed if params.seed is not None else secrets.randbelow(MAX_SEED)
+        body["seed"] = seed
         return body
 
     # --- Ark calls -------------------------------------------------------------
 
-    async def _submit(self, client: httpx.AsyncClient, body: dict[str, Any]) -> str:
+    async def _submit(
+        self, client: httpx.AsyncClient, body: dict[str, Any], params: VideoParams
+    ) -> str:
         log.info(
             "creating a Seedance task: %.2f MB request", len(json.dumps(body)) / 1024 / 1024
         )
         started = time.time()
         try:
             task = await self._request(client, "POST", TASKS_PATH, json=body)
-        except _MaybeCreated as exc:
-            found = await self._find_created(client, body, started)
+        except MaybeCreated as exc:
+            found = await find_created(
+                partial(self._request, client),
+                self._model,
+                identity(params, body["seed"]),
+                started,
+            )
             if found:
                 log.info("recovered Seedance task %s after a lost create answer", found)
                 return found
@@ -177,33 +194,24 @@ class SeedanceVideoGenerator:
             raise ProviderError("Seedance did not return a task id")
         return str(task_id)
 
-    async def _find_created(
-        self, client: httpx.AsyncClient, body: dict[str, Any], since: float
-    ) -> str | None:
-        """The task a lost create request made, matched by seed and settings."""
-        want = {k: body[k] for k in ("seed", "duration", "ratio", "resolution")}
-        try:
-            for page in range(1, RECOVERY_PAGES + 1):
-                listing = await self._request(
-                    client,
-                    "GET",
-                    f"{TASKS_PATH}?page_num={page}&page_size=50&filter.model={self._model}",
-                )
-                items = listing.get("items") or []
-                for task in items:  # newest first
-                    if (task.get("created_at") or 0) < since - RECOVERY_SLACK_S:
-                        return None
-                    if all(task.get(k) == v for k, v in want.items()) and task.get("id"):
-                        return str(task["id"])
-                if len(items) < 50:
-                    return None
-        except ProviderError as exc:
+    async def _find_after_restart(
+        self, client: httpx.AsyncClient, request: GenerationRequest, params: VideoParams
+    ) -> str:
+        """The task a request cut off by a restart made; fails (safely) if none."""
+        assert request.resume_seed is not None
+        found = await find_created(
+            partial(self._request, client),
+            self._model,
+            identity(params, request.resume_seed),
+            request.resume_since or 0,
+        )
+        if found is None:
             raise ProviderError(
-                "The request to Seedance was lost and checking whether Ark created the "
-                f"task failed too ({exc}). Check the Ark console before generating again, "
-                "so you don't pay twice."
-            ) from exc
-        return None
+                "The backend restarted while sending this request to Seedance, and Ark "
+                "has no task for it, so nothing was charged: generating again is safe."
+            )
+        log.info("recovered Seedance task %s after a restart mid-send", found)
+        return found
 
     async def _status(self, client: httpx.AsyncClient, task_id: str) -> dict[str, Any]:
         return await self._request(client, "GET", f"{TASKS_PATH}/{task_id}")
@@ -230,15 +238,6 @@ class SeedanceVideoGenerator:
                 )
             await asyncio.sleep(min(self._poll_interval_s, remaining))
 
-    async def _cancel_if_queued(self, client: httpx.AsyncClient, task_id: str) -> None:
-        try:
-            async with asyncio.timeout(15):
-                task = await self._status(client, task_id)
-                if str(task.get("status")).lower() == "queued":
-                    await self._request(client, "DELETE", f"{TASKS_PATH}/{task_id}")
-        except Exception:  # best effort; the job is cancelled either way
-            log.warning("could not cancel Seedance task %s", task_id, exc_info=True)
-
     async def _download(self, client: httpx.AsyncClient, url: str) -> bytes:
         # A pre-signed storage URL: no Ark credentials go with it.
         try:
@@ -253,7 +252,7 @@ class SeedanceVideoGenerator:
                     chunks.append(chunk)
                 return b"".join(chunks)
         except httpx.HTTPError as exc:
-            raise ProviderError(f"downloading the video failed: {exc}") from exc
+            raise ProviderError(f"downloading the video failed: {reason(exc)}") from exc
 
     async def _request(
         self, client: httpx.AsyncClient, method: str, path: str, json: Any = None
@@ -267,26 +266,30 @@ class SeedanceVideoGenerator:
             except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
                 # Never connected, so nothing was sent: safe to retry any method.
                 if last:
-                    raise ProviderError(f"could not connect to Seedance: {exc}") from exc
+                    raise ProviderError(
+                        f"could not connect to Seedance: {reason(exc)}"
+                    ) from exc
             except httpx.TimeoutException as exc:
                 if method == "POST":
-                    raise _MaybeCreated("Seedance did not answer in time") from exc
+                    raise MaybeCreated("Seedance did not answer in time") from exc
                 if last:
                     raise ProviderError("Seedance did not answer in time") from exc
             except httpx.HTTPError as exc:
                 if method == "POST":
-                    raise _MaybeCreated(f"The connection to Seedance dropped ({exc})") from exc
+                    raise MaybeCreated(
+                        f"The connection to Seedance dropped ({reason(exc)})"
+                    ) from exc
                 if last:
-                    raise ProviderError(f"could not reach Seedance: {exc}") from exc
+                    raise ProviderError(f"could not reach Seedance: {reason(exc)}") from exc
             else:
                 if response.status_code < 400:
                     return response.json() if response.content else {}
-                # A POST that failed with a 5xx may still have created the task,
-                # so only a rate limit (definitely not created) is retried.
-                retryable = response.status_code in (
-                    {429} if method == "POST" else RETRY_STATUSES
-                )
-                if not retryable or last:
+                # A create that failed with a 5xx may still have made the task:
+                # look for it rather than calling it failed. Only a rate limit
+                # (definitely not created) is retried.
+                if method == "POST" and response.status_code >= 500:
+                    raise MaybeCreated(_error_message(response))
+                if not retryable(method, response.status_code) or last:
                     raise ProviderError(_error_message(response))
             await asyncio.sleep(self._backoff_s * 2 ** (attempt - 1))
         raise ProviderError("Seedance request failed")  # unreachable

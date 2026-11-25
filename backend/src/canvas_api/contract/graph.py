@@ -112,6 +112,9 @@ class Node(CompleteModel):
     # and their number in its last run (1-based).
     workflow_step: str | None = None
     workflow_item: int | None = None
+    # A workflow node whose prompt (or, for text, result) was changed after
+    # its step's run made it: running the step again would lose that.
+    edited: bool = False
     created_at: Timestamp
     updated_at: Timestamp
 
@@ -135,6 +138,18 @@ class NodeCreate(ContractModel):
     def _params_match_kind(self) -> NodeCreate:
         _check_params_kind(self.kind, self.params)
         return self
+
+
+class NodeMove(ContractModel):
+    node_id: NodeId
+    position: Position
+
+
+class NodeMoves(ContractModel):
+    """Several nodes moved at once (say, tidied onto a grid): saved together,
+    or not at all."""
+
+    moves: list[NodeMove] = Field(min_length=1, max_length=2000)
 
 
 class NodeUpdate(ContractModel):

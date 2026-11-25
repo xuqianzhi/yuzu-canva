@@ -257,6 +257,90 @@ ALTER TABLE usage ADD COLUMN collection_id TEXT REFERENCES collections(id) ON DE
 CREATE INDEX usage_payer_time ON usage(payer_id, created_at);
 CREATE INDEX usage_collection_actor_time ON usage(collection_id, actor_id, created_at);
 """,
+    # 3: steps completed by hand.
+    """
+ALTER TABLE step_runs ADD COLUMN manual BOOLEAN NOT NULL DEFAULT FALSE;
+""",
+    # 4: projects no longer copy their collection's instruction (it applies
+    # to them anyway): a project instruction that is still that copy goes.
+    """
+UPDATE projects SET instruction = ''
+FROM collections c
+WHERE c.id = projects.collection_id AND projects.instruction = c.instruction;
+""",
+    # 5: a node is taller now (an output square over a prompt card), so a
+    # step's rows are 600 apart, not 500. Workflow nodes still exactly where
+    # the old layout put them move to the new rows; moved ones stay put.
+    """
+UPDATE nodes SET position = jsonb_build_object(
+    'x', (position::jsonb->>'x')::float8,
+    'y', (60 + ((position::jsonb->>'y')::numeric - 60) / 500 * 600)::float8
+)::text
+WHERE workflow_step IS NOT NULL
+  AND (position::jsonb->>'x')::numeric >= 560
+  AND mod((position::jsonb->>'x')::numeric - 560, 400) = 0
+  AND (position::jsonb->>'y')::numeric > 60
+  AND mod((position::jsonb->>'y')::numeric - 60, 500) = 0;
+""",
+    # 6: nodes are wider (480: the prompt card is wider than the output), so
+    # steps' columns start at 680 and are 560 apart, not 560 and 400.
+    # Workflow nodes still in an old column move to the new one.
+    """
+UPDATE nodes SET position = jsonb_build_object(
+    'x', (680 + ((position::jsonb->>'x')::numeric - 560) / 400 * 560)::float8,
+    'y', (position::jsonb->>'y')::float8
+)::text
+WHERE workflow_step IS NOT NULL
+  AND (position::jsonb->>'x')::numeric >= 560
+  AND mod((position::jsonb->>'x')::numeric - 560, 400) = 0;
+""",
+    # 7: a video job's seed and send time, saved before its create request
+    # goes out, so a backend restarted mid-send can find the task Ark may
+    # have made (and billed) instead of failing the job.
+    """
+ALTER TABLE jobs ADD COLUMN provider_seed BIGINT;
+ALTER TABLE jobs ADD COLUMN sent_at DOUBLE PRECISION;
+""",
+    # 8: steps no longer feed the next one one-to-one (the prompts a run
+    # writes say which earlier result each node uses). Steps lose their
+    # `output` setting; ones that fed one-to-one carried nothing forward and
+    # now carry everything. Their nodes had no ID: each gets "<step>_<n>"
+    # (unless a node has that ID already). Their workflow links stay.
+    """
+UPDATE collection_workflows SET definition = jsonb_set(
+    definition::jsonb,
+    '{steps}',
+    (SELECT jsonb_agg(
+         CASE WHEN step->>'output' = 'one_to_one'
+              THEN (step - 'output') || '{"carry": "all"}'::jsonb
+              ELSE step - 'output' END
+         ORDER BY n)
+     FROM jsonb_array_elements(definition::jsonb->'steps') WITH ORDINALITY AS t(step, n))
+)::text
+WHERE jsonb_path_exists(definition::jsonb, '$.steps[*].output');
+UPDATE nodes SET title = workflow_step || '_' || workflow_item
+WHERE workflow_step IS NOT NULL AND workflow_item IS NOT NULL
+  AND COALESCE(title, '') = '' AND deleted_at IS NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM nodes other
+      WHERE other.project_id = nodes.project_id AND other.deleted_at IS NULL
+        AND other.title = nodes.workflow_step || '_' || nodes.workflow_item);
+""",
+    # 9: per collection, whether running an image or video step generates
+    # its nodes right away instead of stopping to let the prompts be checked.
+    """
+ALTER TABLE collections ADD COLUMN direct_image BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE collections ADD COLUMN direct_video BOOLEAN NOT NULL DEFAULT FALSE;
+""",
+    # 10: collections an admin exempted from their owner's daily limits.
+    """
+ALTER TABLE collections ADD COLUMN no_daily_limit BOOLEAN NOT NULL DEFAULT FALSE;
+""",
+    # 11: workflow nodes changed by hand (or with AI) after their run, so
+    # running the step again can say what it would lose.
+    """
+ALTER TABLE nodes ADD COLUMN edited BOOLEAN NOT NULL DEFAULT FALSE;
+""",
 ]
 
 # Row-level security with no policies on every table: Supabase's public Data

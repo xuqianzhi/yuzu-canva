@@ -129,8 +129,10 @@ export interface paths {
         head?: never;
         /**
          * Update Collection
-         * @description Rename it or change its instruction (new projects start with a copy).
-         *     409 ``edit_conflict`` if someone saved since ``version``.
+         * @description Rename it, change its instruction, or turn generating directly
+         *     (``direct_image`` / ``direct_video``) on or off. 409 ``edit_conflict``
+         *     if someone saved since ``version``. Only admins may change
+         *     ``no_daily_limit`` (403 ``forbidden``).
          */
         patch: operations["updateCollection"];
         trace?: never;
@@ -535,6 +537,35 @@ export interface paths {
         patch: operations["updateNode"];
         trace?: never;
     };
+    "/api/nodes/{node_id}/ai-edit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Edit With Ai
+         * @description Suggest an edit of one node's prompt, changed only as ``instruction``
+         *     asks ("a dog, not a cat": "a cat surfing" becomes "a dog surfing").
+         *     Nothing is saved or generated: the answer is applied by the client.
+         *
+         *     For a workflow text node (no prompt; its result is its text) it's the
+         *     result that is edited, applied as a new take. A video's length comes
+         *     back too (kept unless asked to change). The model sees what a step run
+         *     would: the instructions, the step, what earlier steps settled on and
+         *     the nodes the text mentions. 409 ``not_generatable`` for an uploaded
+         *     node; 502 if the model fails.
+         */
+        post: operations["editWithAi"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/nodes/{node_id}/chat": {
         parameters: {
             query?: never;
@@ -764,6 +795,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project_id}/positions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Move Nodes
+         * @description Move several nodes at once, in one transaction (all of them, or 404
+         *     if any isn't in this project): for tidying the canvas onto a grid
+         *     without a request per node. Returns the moved nodes.
+         */
+        patch: operations["moveNodes"];
+        trace?: never;
+    };
     "/api/projects/{project_id}/restore": {
         parameters: {
             query?: never;
@@ -786,6 +839,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project_id}/workflow/steps/{step_key}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Complete Step
+         * @description Complete a step by hand: its nodes are replaced by the given results,
+         *     in order -- texts for a text step, uploaded files (``uploadMaterial``)
+         *     for an image or video step, each copied in as its node's take. Nothing
+         *     is generated or charged. 409 while the step is running.
+         */
+        post: operations["completeStep"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/workflow/steps/{step_key}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Step
+         * @description A zip of every result of a step: each node's chosen take, named by
+         *     the node's number (``<step>_01.png``, ``<step>_02.png``, ...; text as
+         *     ``.txt``). Nodes with no take yet are left out; 404 if none has one.
+         *     The zip is streamed as it's made (a step of videos can be large).
+         */
+        get: operations["downloadStep"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/workflow/steps/{step_key}/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Step
+         * @description Generate an image or video step's nodes from their filled-in prompts
+         *     and settings (``runStep`` fills them in), skipping any already
+         *     generating. 409 while the step is running, before it has nodes, or
+         *     while a node's prompt is empty.
+         */
+        post: operations["generateStep"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{project_id}/workflow/steps/{step_key}/run": {
         parameters: {
             query?: never;
@@ -800,17 +922,18 @@ export interface paths {
          * @description Start running a step; returns the graph with the run ``running``.
          *
          *     It finishes in the background: poll ``getProjectGraph`` until the step's
-         *     run is ``done`` (its nodes replaced, image and video nodes generating)
-         *     or ``failed`` (``error`` says why; the old nodes are untouched). 409 if
-         *     the step is already running.
+         *     run is ``done`` (its nodes replaced) or ``failed`` (``error`` says why;
+         *     the old nodes are untouched). 409 if the step is already running.
          *
-         *     The prompt, the project instruction and the nodes the prompt mentions
-         *     (by ID) go to a text model, which writes ``count`` results (a text
-         *     step: its nodes' text) or prompts (an image or video step: one node
-         *     each, generated right away, with the mentioned nodes as references).
-         *     After a one-to-one step, there is one result per node of that step
-         *     (``count`` is ignored), each made from its own input; an image or video
-         *     step fed by text uses each text as its prompt directly.
+         *     The prompt, the instructions, what earlier steps settled on and the
+         *     nodes the prompt mentions (by ID) go to a text model, which writes
+         *     ``count`` results (a text step: its nodes' text) or prompts (an image or
+         *     video step: one node each, with the mentioned nodes as references, and
+         *     for a video its length in seconds). Image and video nodes are only
+         *     filled in: ``generateStep`` then generates them -- unless the
+         *     collection generates that kind directly (``Collection.direct_image`` /
+         *     ``direct_video``): then the run generates them itself once they're
+         *     filled in (and fails, with the nodes in place, if that's refused).
          */
         post: operations["runStep"];
         delete?: never;
@@ -828,8 +951,7 @@ export interface paths {
         };
         /**
          * Get Settings
-         * @description Your settings: the language of the UI and of every prompt the
-         *     backend writes for the models.
+         * @description Your settings: the language of the UI.
          */
         get: operations["getSettings"];
         /** Set Settings */
@@ -896,6 +1018,27 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * AiEdit
+         * @description A suggested edit, not saved: ``text`` is the whole new prompt (or text
+         *     result, see ``target``), changed only as asked. Apply it by saving the
+         *     prompt (``updateNode``) or adding the text as a take (``addTake``).
+         */
+        AiEdit: {
+            /** Seconds */
+            seconds: number | null;
+            target: components["schemas"]["EditTarget"];
+            /** Text */
+            text: string;
+        };
+        /**
+         * AiEditRequest
+         * @description What to change, in the user's words ("a dog, not a cat").
+         */
+        AiEditRequest: {
+            /** Instruction */
+            instruction: string;
+        };
+        /**
          * AppSettings
          * @description App-wide settings, chosen on the landing page.
          */
@@ -949,6 +1092,14 @@ export interface components {
             file: string;
         };
         /**
+         * Carry
+         * @description Which of a step's results go to later steps by themselves, as context
+         *     (the decisions made so far); anything can still be used by mentioning
+         *     it.
+         * @enum {string}
+         */
+        Carry: "all" | "used" | "none";
+        /**
          * ChatMessage
          * @description One message of a node's chat. An assistant message may carry a
          *     ``proposal``: a complete new version of the node's text, which
@@ -998,6 +1149,16 @@ export interface components {
              */
             created_at: string;
             /**
+             * Direct Image
+             * @default false
+             */
+            direct_image: boolean;
+            /**
+             * Direct Video
+             * @default false
+             */
+            direct_video: boolean;
+            /**
              * Id
              * @example col_k2m9
              */
@@ -1006,6 +1167,11 @@ export interface components {
             instruction: string;
             /** Name */
             name: string;
+            /**
+             * No Daily Limit
+             * @default false
+             */
+            no_daily_limit: boolean;
             /** Owner Email */
             owner_email: string;
             /**
@@ -1084,6 +1250,16 @@ export interface components {
              */
             created_at: string;
             /**
+             * Direct Image
+             * @default false
+             */
+            direct_image: boolean;
+            /**
+             * Direct Video
+             * @default false
+             */
+            direct_video: boolean;
+            /**
              * Id
              * @example col_k2m9
              */
@@ -1097,6 +1273,11 @@ export interface components {
             member_count: number;
             /** Name */
             name: string;
+            /**
+             * No Daily Limit
+             * @default false
+             */
+            no_daily_limit: boolean;
             /** Owner Email */
             owner_email: string;
             /**
@@ -1120,10 +1301,16 @@ export interface components {
          * @description Partial update; ``version`` is the one you last read.
          */
         CollectionUpdate: {
+            /** Direct Image */
+            direct_image?: boolean | null;
+            /** Direct Video */
+            direct_video?: boolean | null;
             /** Instruction */
             instruction?: string | null;
             /** Name */
             name?: string | null;
+            /** No Daily Limit */
+            no_daily_limit?: boolean | null;
             /** Version */
             version: number;
         };
@@ -1212,6 +1399,11 @@ export interface components {
              */
             target_node_id: string;
         };
+        /**
+         * EditTarget
+         * @enum {string}
+         */
+        EditTarget: "prompt" | "text";
         /**
          * EditorLimits
          * @description What an editor may generate per day (UTC) in one collection, paid by
@@ -1386,6 +1578,8 @@ export interface components {
              */
             project_id: string;
             provider: components["schemas"]["Provider"];
+            /** Provider Seed */
+            provider_seed: number | null;
             /** Provider Task Id */
             provider_task_id: string | null;
             /** Started At */
@@ -1418,8 +1612,8 @@ export interface components {
         JobStatus: "queued" | "running" | "succeeded" | "failed" | "canceled";
         /**
          * Language
-         * @description The app's language: the UI's, and that of every prompt the backend
-         *     writes for the models (the user's own text is sent as written).
+         * @description The app's language: the UI's only. What the models are told doesn't
+         *     follow it: they write in the language of the user's own words.
          * @enum {string}
          */
         Language: "en" | "zh";
@@ -1467,6 +1661,11 @@ export interface components {
          */
         Me: {
             /**
+             * Admin
+             * @default false
+             */
+            admin: boolean;
+            /**
              * Breakdown
              * @default []
              */
@@ -1508,6 +1707,11 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /**
+             * Edited
+             * @default false
+             */
+            edited: boolean;
             /**
              * Id
              * @example nod_a91x
@@ -1558,6 +1762,24 @@ export interface components {
              */
             prompt?: string;
             size?: components["schemas"]["Size"] | null;
+        };
+        /** NodeMove */
+        NodeMove: {
+            /**
+             * Node Id
+             * @example nod_a91x
+             */
+            node_id: string;
+            position: components["schemas"]["Position"];
+        };
+        /**
+         * NodeMoves
+         * @description Several nodes moved at once (say, tidied onto a grid): saved together,
+         *     or not at all.
+         */
+        NodeMoves: {
+            /** Moves */
+            moves: components["schemas"]["NodeMove"][];
         };
         /**
          * NodeSource
@@ -1623,11 +1845,6 @@ export interface components {
             text: string | null;
         };
         /**
-         * OutputUse
-         * @enum {string}
-         */
-        OutputUse: "independent" | "one_to_one";
-        /**
          * Position
          * @description Top-left corner of a node, in canvas (world) coordinates.
          */
@@ -1642,10 +1859,25 @@ export interface components {
             /** Collection Id */
             collection_id: string;
             /**
+             * Collection Instruction
+             * @default
+             */
+            collection_instruction: string;
+            /**
              * Created At
              * Format: date-time
              */
             created_at: string;
+            /**
+             * Direct Image
+             * @default false
+             */
+            direct_image: boolean;
+            /**
+             * Direct Video
+             * @default false
+             */
+            direct_video: boolean;
             /**
              * Id
              * @example prj_8f2k1
@@ -1719,12 +1951,27 @@ export interface components {
         ProjectSummary: {
             /** Collection Id */
             collection_id: string;
+            /**
+             * Collection Instruction
+             * @default
+             */
+            collection_instruction: string;
             cover: components["schemas"]["Asset"] | null;
             /**
              * Created At
              * Format: date-time
              */
             created_at: string;
+            /**
+             * Direct Image
+             * @default false
+             */
+            direct_image: boolean;
+            /**
+             * Direct Video
+             * @default false
+             */
+            direct_video: boolean;
             /** Editing By */
             editing_by: string | null;
             /**
@@ -1843,6 +2090,29 @@ export interface components {
             width: number;
         };
         /**
+         * StepCompleteRequest
+         * @description A step's results, in order.
+         */
+        StepCompleteRequest: {
+            /** Entries */
+            entries: components["schemas"]["StepEntry"][];
+        };
+        /**
+         * StepEntry
+         * @description One result given by hand: ``text`` for a text step, or an uploaded
+         *     file (``material_id``, from ``uploadMaterial``) for an image or video
+         *     step. ``id`` names its node (cleaned and made unique, like a run's);
+         *     blank: ``<step>_<n>``.
+         */
+        StepEntry: {
+            /** Id */
+            id?: string | null;
+            /** Material Id */
+            material_id?: string | null;
+            /** Text */
+            text?: string | null;
+        };
+        /**
          * StepRun
          * @description The last run of a step in a project: what it was asked for, and how
          *     it went. A run happens in the background: ``runStep`` answers with the
@@ -1853,6 +2123,11 @@ export interface components {
             count: number;
             /** Error */
             error: string | null;
+            /**
+             * Manual
+             * @default false
+             */
+            manual: boolean;
             /** Prompt */
             prompt: string;
             status: components["schemas"]["RunStatus"];
@@ -1866,13 +2141,12 @@ export interface components {
         };
         /**
          * StepRunRequest
-         * @description ``prompt`` may be empty only for an image or video step fed one-to-one
-         *     by text (each text is the prompt). ``count`` is ignored after a
-         *     one-to-one step, and required otherwise.
+         * @description ``prompt`` is optional (the instructions, the step's description and
+         *     earlier steps may be enough). ``count`` is required.
          */
         StepRunRequest: {
             /** Count */
-            count?: number | null;
+            count: number;
             /**
              * Prompt
              * @default
@@ -1996,6 +2270,8 @@ export interface components {
         };
         /** WorkflowStep */
         WorkflowStep: {
+            /** @default all */
+            carry: components["schemas"]["Carry"];
             /** Count */
             count: number | null;
             /**
@@ -2008,8 +2284,6 @@ export interface components {
             kind: components["schemas"]["MediaKind"];
             /** Name */
             name: string;
-            /** @default independent */
-            output: components["schemas"]["OutputUse"];
         };
     };
     responses: never;
@@ -3518,6 +3792,86 @@ export interface operations {
             };
         };
     };
+    editWithAi: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                node_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AiEditRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiEdit"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     listChat: {
         parameters: {
             query?: never;
@@ -4254,6 +4608,59 @@ export interface operations {
             };
         };
     };
+    moveNodes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NodeMoves"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Node"][];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     restoreDeleted: {
         parameters: {
             query?: never;
@@ -4289,6 +4696,169 @@ export interface operations {
             };
             /** @description Unprocessable Entity */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    completeStep: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                step_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StepCompleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectGraph"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    downloadStep: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                step_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A zip of the step's results */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": unknown;
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    generateStep: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                step_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectGraph"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

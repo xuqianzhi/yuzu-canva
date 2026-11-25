@@ -29,7 +29,9 @@ export type Material = S["Material"];
 export type WorkflowDefinition = S["WorkflowDefinition"];
 export type WorkflowStep = S["WorkflowStep"];
 export type ChatMessage = S["ChatMessage"];
+export type AiEdit = S["AiEdit"];
 export type StepRun = S["StepRun"];
+export type StepEntry = S["StepEntry"];
 
 export type Collection = S["Collection"];
 export type CollectionSummary = S["CollectionSummary"];
@@ -45,6 +47,16 @@ export type Me = S["Me"];
 
 /** The most nodes one run of a workflow step may make (contract MAX_ITEMS). */
 export const MAX_RUN_ITEMS = 20;
+
+/** A count typed into a field: whole, 1 to MAX_RUN_ITEMS; null if empty. */
+export function parseCount(raw: string): number | null {
+  const text = raw.trim();
+  const n = Math.floor(Number(text));
+  return text === "" || !Number.isFinite(n) ? null : Math.max(1, Math.min(MAX_RUN_ITEMS, n));
+}
+
+/** The lengths Seedance takes for a video, in whole seconds. */
+export const VIDEO_SECONDS: readonly number[] = Array.from({ length: 12 }, (_, i) => i + 4);
 export type EdgeCreate = S["EdgeCreate"];
 
 export type Asset = S["Asset"];

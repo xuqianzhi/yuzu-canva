@@ -3,8 +3,10 @@
 Jobs live in the database, so the queue survives restarts: queued jobs are
 re-queued on start. A job that was running when the process stopped picks up
 where it left off if its provider can resume it (Seedance: the task keeps
-running at Volcengine and is fetched by its id); otherwise it is marked
-failed, as its provider call is lost.
+running at Volcengine and is fetched by its id, or, if the stop came while
+its create request was being sent, looked up by the seed saved just before;
+see providers/billing_safety.py); otherwise it is marked failed, as its
+provider call is lost.
 """
 
 from __future__ import annotations
@@ -29,16 +31,20 @@ class Worker:
         self._generators = generators
         self._concurrency = max(1, concurrency)
         self._queue: asyncio.Queue[str] | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
         self._consumers: list[asyncio.Task] = []
         self._running: dict[str, asyncio.Task] = {}
 
     async def start(self) -> None:
+        self._loop = asyncio.get_running_loop()
         self._queue = asyncio.Queue()
         for job_id in self._store.job_ids_with_status(JobStatus.running):
             job = self._store.get_job(job_id)
             generator = self._generators.get(job.operation)
-            if job.provider_task_id and getattr(generator, "resumable", False):
-                # The provider still has it: pick up where we left off.
+            sent = job.provider_task_id or job.provider_seed is not None
+            if sent and getattr(generator, "resumable", False):
+                # The provider has it (or may: it was being sent). Pick up
+                # where we left off: poll it, or look it up by its seed.
                 self._store.transition_job(
                     job_id, JobStatus.queued, from_statuses=(JobStatus.running,)
                 )
@@ -63,9 +69,10 @@ class Worker:
         self._consumers = []
 
     def enqueue(self, job_id: str) -> None:
-        """Call from the event loop (async routes)."""
-        assert self._queue is not None, "worker not started"
-        self._queue.put_nowait(job_id)
+        """Queue a job to run. Safe to call from any thread (sync routes and
+        threadpool work call it too)."""
+        assert self._queue is not None and self._loop is not None, "worker not started"
+        self._loop.call_soon_threadsafe(self._queue.put_nowait, job_id)
 
     def cancel(self, job_id: str) -> Job:
         job = self._store.get_job(job_id)
@@ -83,8 +90,8 @@ class Worker:
     def abort(self, job_id: str) -> None:
         """Stop a running provider call without touching the job row."""
         task = self._running.get(job_id)
-        if task is not None:
-            task.cancel()
+        if task is not None and self._loop is not None:
+            self._loop.call_soon_threadsafe(task.cancel)
 
     async def _consume(self) -> None:
         assert self._queue is not None
@@ -157,9 +164,13 @@ class Worker:
             params=job.input.params,
             files=files,
             system=job.input.system,
-            language=job.input.language,
             resume_task_id=job.provider_task_id,
             on_submitted=lambda task_id: self._store.set_provider_task_id(job.id, task_id),
+            resume_seed=None if job.provider_task_id else job.provider_seed,
+            resume_since=self._store.provider_sent_at(job.id)
+            if job.provider_seed is not None
+            else None,
+            on_sending=lambda seed, at: self._store.set_provider_seed(job.id, seed, at),
         )
 
     def _fail(self, job_id: str, message: str) -> None:

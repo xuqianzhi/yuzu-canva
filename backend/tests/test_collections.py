@@ -14,7 +14,15 @@ from canvas_api.config import Limits
 from canvas_api.contract import Operation
 
 from .conftest import ALICE, BOB, PNG, auth, signed_in, wait_for_job
-from .test_api import error_code, generate, list_projects, new_collection, new_node, new_project
+from .test_api import (
+    error_code,
+    generate,
+    list_projects,
+    new_collection,
+    new_node,
+    new_project,
+    patch_collection,
+)
 from .test_collection_assets import add_asset
 
 CAROL = "carol@example.com"
@@ -146,11 +154,7 @@ def test_editors_do_everything_but_delete_and_manage_people(client, bob, carol):
     project = new_project(bob, "Bob's", collection)
     node = new_node(bob, project)["id"]
     assert bob.patch(f"/api/nodes/{node}", json={"prompt": "a cat"}).status_code == 200
-    version = bob.get(f"/api/collections/{collection}").json()["version"]
-    renamed = bob.patch(
-        f"/api/collections/{collection}", json={"version": version, "name": "B"}
-    )
-    assert renamed.status_code == 200
+    assert patch_collection(bob, collection, name="B").status_code == 200
     made = bob.post(
         f"/api/collections/{collection}/workflows",
         json={

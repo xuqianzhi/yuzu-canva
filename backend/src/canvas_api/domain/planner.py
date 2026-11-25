@@ -23,7 +23,7 @@ from ..contract import (
 from ..errors import ApiError
 from .graph import MENTION
 from .mentions import mentioned, replace_mentions
-from .workflow import words
+from .workflow import W
 
 
 @dataclass(frozen=True)
@@ -86,13 +86,12 @@ def _resolve_prompt(prompt: str, refs: list[Reference]) -> str:
 def plan(
     node: Node,
     refs: list[Reference],
-    language: str = "en",
 ) -> Plan:
     """Validate a generate request and decide what to run.
 
     `refs` holds each referenced node with its selected output; callers raise
     `missing_ref_output` for references without one before calling this.
-    `language` is the app's: the wording the backend adds is in it.
+    The wording the backend adds follows the prompt.
     """
     # Inputs go in the order the prompt first mentions their IDs, and each
     # mention becomes an internal token the providers turn into their labels
@@ -124,7 +123,6 @@ def plan(
                 ResolvedRef(node_id=r.node.id, output_id=r.output.id, kind=r.output.kind)
                 for r in refs
             ],
-            system=words(language)["plain"] if node.kind == MediaKind.text else "",
-            language=language,
+            system=W["plain"] if node.kind == MediaKind.text else "",
         ),
     )

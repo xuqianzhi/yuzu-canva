@@ -26,6 +26,9 @@ STATE_DIR="${STATE_DIR%/}"
 PIDFILE="${STATE_DIR}/yuzu-canva-ui.pid"
 LOGFILE="${STATE_DIR}/yuzu-canva-ui.log"
 PROFILE_DIR="${STATE_DIR}/yuzu-canva-profile"
+# Where the window was and how big, last time (written by the UI server).
+WINDOW_FILE="${STATE_DIR}/yuzu-canva-window.json"
+DEFAULT_WINDOW_SIZE="1440,900"
 
 ACTION="start"
 NO_OPEN=0
@@ -37,6 +40,7 @@ usage() {
 Usage: yuzu-canva [options]
 
   (no options)    Start the API and UI if needed, and open the window
+                  (where it was last closed, at the same size)
   --stop          Close the window, stop the UI server and the API container
   --status        Show what is running
   --fake          Use offline placeholder images instead of OpenAI
@@ -157,7 +161,8 @@ start_ui() {
   # backgrounded and $! would be a subshell, not the server.)
   (
     cd "$FRONTEND_DIR"
-    nohup python3 -c 'import os,sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' \
+    YUZU_WINDOW_FILE="$WINDOW_FILE" \
+      nohup python3 -c 'import os,sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' \
       npm run dev >"$LOGFILE" 2>&1 &
     echo $! > "$PIDFILE"
   )
@@ -206,6 +211,22 @@ find_browser() {
 
 window_pids() { pgrep -f -- "--user-data-dir=${PROFILE_DIR}" 2>/dev/null || true; }
 
+# Chrome flags that put the window where it last was (the window reports its
+# place to the UI server while open), else just the default size.
+window_flags() {
+  python3 - "$WINDOW_FILE" "$DEFAULT_WINDOW_SIZE" <<'PY' 2>/dev/null || echo "--window-size=${DEFAULT_WINDOW_SIZE}"
+import json, sys
+try:
+    p = json.load(open(sys.argv[1]))
+    x, y, w, h = (int(p[k]) for k in ("x", "y", "width", "height"))
+    if w < 200 or h < 200:
+        raise ValueError
+    print(f"--window-position={x},{y} --window-size={w},{h}")
+except Exception:
+    print(f"--window-size={sys.argv[2]}")
+PY
+}
+
 open_window() {
   if [ -n "$(window_pids)" ]; then
     echo "  the window is already open"; return 0
@@ -214,8 +235,10 @@ open_window() {
   if browser="$(find_browser)"; then
     # A dedicated profile keeps this window out of your normal browsing
     # session, and lets --stop close exactly this window.
-    nohup "$browser" "--app=${UI_URL}" "--user-data-dir=${PROFILE_DIR}" \
-      --no-first-run --no-default-browser-check --window-size=1440,900 >/dev/null 2>&1 &
+    # "?app=1" marks this as the window whose place is remembered.
+    # shellcheck disable=SC2046
+    nohup "$browser" "--app=${UI_URL}/?app=1" "--user-data-dir=${PROFILE_DIR}" \
+      --no-first-run --no-default-browser-check $(window_flags) >/dev/null 2>&1 &
     disown 2>/dev/null || true
     echo "  opened the window in $(basename "$browser")"
   else

@@ -50,15 +50,17 @@ class Spending:
     def charge(self, actor: str, collection_id: str, kind: str, amount: int = 1) -> None:
         """Count `amount` calls of `kind` ("text", "image", "video") made by
         `actor` in a collection, paid by its owner; or refuse (429) if that
-        would pass the owner's daily limit, or the actor's own limit there."""
+        would pass the owner's daily limit (unless the collection has none),
+        or the actor's own limit there."""
         self.check_on()
         if amount <= 0:
             return
         if kind == "text":
             self._rate(actor, amount)
         start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
-        payer = self._store.owner_of_collection(collection_id)
-        limit = self._daily(kind)
+        payer, exempt = self._store.payer_of_collection(collection_id)
+        # A collection an admin set to no daily limit skips the owner's.
+        limit = 0 if exempt else self._daily(kind)
         if limit:
             used = self._store.usage_since(payer, start).get(kind, 0)
             if used + amount > limit:

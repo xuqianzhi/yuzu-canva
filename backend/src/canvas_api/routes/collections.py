@@ -6,6 +6,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Response
 from fastapi.concurrency import run_in_threadpool
 
+from ..auth import is_admin
 from ..contract import (
     Collection,
     CollectionCreate,
@@ -27,7 +28,15 @@ from ..contract import (
     WorkflowId,
     WorkflowSave,
 )
-from ..deps import AccessDep, FilesDep, StoreDep, UserDep, WorkerDep, require_owner
+from ..deps import (
+    AccessDep,
+    FilesDep,
+    SettingsDep,
+    StoreDep,
+    UserDep,
+    WorkerDep,
+    require_owner,
+)
 from ..errors import ApiError, responses
 from ..files import delete_all
 
@@ -63,10 +72,18 @@ def get_collection(collection_id: CollectionId, store: StoreDep, user: UserDep) 
     responses=responses(404, 409),
 )
 def update_collection(
-    collection_id: CollectionId, body: CollectionUpdate, store: StoreDep, user: UserDep
+    collection_id: CollectionId,
+    body: CollectionUpdate,
+    store: StoreDep,
+    user: UserDep,
+    settings: SettingsDep,
 ) -> Collection:
-    """Rename it or change its instruction (new projects start with a copy).
-    409 ``edit_conflict`` if someone saved since ``version``."""
+    """Rename it, change its instruction, or turn generating directly
+    (``direct_image`` / ``direct_video``) on or off. 409 ``edit_conflict``
+    if someone saved since ``version``. Only admins may change
+    ``no_daily_limit`` (403 ``forbidden``)."""
+    if body.no_daily_limit is not None and not is_admin(settings, user.email):
+        raise ApiError(403, ErrorCode.forbidden, "only an admin can change the daily limit")
     return store.update_collection(collection_id, user.id, body)
 
 

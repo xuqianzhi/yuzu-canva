@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
-from ..contract import Language, MediaKind, NodeParams, Operation
+from ..contract import MediaKind, NodeParams, Operation
 from ..domain.graph import MENTION
 from .media import compact_image
 
@@ -24,6 +24,16 @@ REF_IMAGE_JPEG_QUALITY = 80
 
 class ProviderError(Exception):
     """A provider call failed. The message is shown to the user on the job."""
+
+
+def reason(exc: BaseException) -> str:
+    """Why a call failed, never blank: some network errors have no message of
+    their own (an httpx.ConnectError can be empty), so fall back to what
+    caused it, then to its type."""
+    for candidate in (exc, exc.__cause__, exc.__context__):
+        if candidate is not None and str(candidate).strip():
+            return str(candidate).strip()
+    return type(exc).__name__
 
 
 @dataclass(frozen=True)
@@ -85,13 +95,20 @@ class GenerationRequest:
     files: list[RefFile] = field(default_factory=list)
     # Text jobs: instructions before the prompt, and the answer's structure.
     system: str = ""
-    language: Language = Language.en
     # Long-running providers (Seedance) report their task id through
     # `on_submitted`, so a restarted worker can pass it back as
     # `resume_task_id` and keep polling instead of submitting (and paying)
     # again.
     resume_task_id: str | None = None
     on_submitted: Callable[[str], None] | None = field(default=None, compare=False)
+    # The seed (and Unix time) a create request is about to be sent with,
+    # saved first through `on_sending`: if the backend stops mid-send, the
+    # restarted worker passes them back as `resume_seed` / `resume_since` and
+    # the provider looks the task up instead of sending it again (see
+    # providers/billing_safety.py).
+    resume_seed: int | None = None
+    resume_since: float | None = None
+    on_sending: Callable[[int, float], None] | None = field(default=None, compare=False)
 
 
 @dataclass(frozen=True)

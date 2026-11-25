@@ -17,7 +17,7 @@ import httpx
 
 from ..contract import ImageParams, MediaKind
 from ..domain.workflow import image_label
-from .base import GenerationRequest, GenerationResult, ProviderError, label_mentions
+from .base import GenerationRequest, GenerationResult, ProviderError, label_mentions, reason
 from .media import sniff_image
 
 # OpenAI's limit for GPT Image models on /images/edits.
@@ -57,7 +57,7 @@ class OpenAIImageGenerator:
         }
         if images:
             fields["prompt"] = label_mentions(
-                request.prompt, images, lambda n: image_label(request.language, n)
+                request.prompt, images, lambda n: image_label(n, request.prompt)
             )
             payloads = [f.load() for f in images]
             parts = [("image[]", (p.filename, p.data, p.mime)) for p in payloads]
@@ -94,7 +94,7 @@ class OpenAIImageGenerator:
         except httpx.TimeoutException as exc:
             raise ProviderError("OpenAI did not answer in time") from exc
         except httpx.HTTPError as exc:
-            raise ProviderError(f"could not reach OpenAI: {exc}") from exc
+            raise ProviderError(f"could not reach OpenAI: {reason(exc)}") from exc
         if response.status_code >= 400:
             raise ProviderError(f"OpenAI {response.status_code}: {_error_message(response)}")
         return response

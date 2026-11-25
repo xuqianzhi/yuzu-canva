@@ -16,6 +16,19 @@ export function ProjectBar() {
   const undo = useCanvas((s) => s.undo);
   const redo = useCanvas((s) => s.redo);
   const readOnly = useCanvas((s) => s.lock.status !== "editing");
+  const cleanUp = useCanvas((s) => s.cleanUp);
+  const showNotice = useCanvas((s) => s.showNotice);
+  const hasNodes = useCanvas((s) => s.flowNodes.length > 0);
+  const [tidying, setTidying] = useState(false);
+  const tidy = async () => {
+    setTidying(true);
+    const moved = await cleanUp();
+    setTidying(false);
+    // null: it failed, and the error is already shown.
+    if (moved !== null) {
+      showNotice(moved ? t("clean_up_done", { n: moved }) : t("clean_up_tidy"), "info");
+    }
+  };
   const [name, setName] = useState(project?.name ?? "");
 
   const projectId = project?.id;
@@ -54,6 +67,20 @@ export function ProjectBar() {
         />
       )}
       <span className="topbar__spacer" />
+      <button
+        className="button button--small topbar__clean"
+        onClick={() => void tidy()}
+        disabled={readOnly || !hasNodes || tidying}
+        title={t("clean_up_title")}
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <rect x="2.5" y="2.5" width="4" height="4" rx="0.8" />
+          <rect x="9.5" y="2.5" width="4" height="4" rx="0.8" />
+          <rect x="2.5" y="9.5" width="4" height="4" rx="0.8" />
+          <rect x="9.5" y="9.5" width="4" height="4" rx="0.8" />
+        </svg>
+        {t("clean_up")}
+      </button>
       <div className="topbar__history">
         <button
           className="icon-button icon-button--plain"

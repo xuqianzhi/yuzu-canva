@@ -9,7 +9,9 @@ import {
 import { t, type Key } from "../i18n";
 import {
   type Edge,
+  type AiEdit,
   type ChatMessage,
+  type StepEntry,
   type StepRun,
   type Job,
   type Material,
@@ -109,6 +111,10 @@ export interface CanvasState {
     from: ConnectFrom,
   ): Promise<void>;
   commitPositions(ids: string[]): void;
+  /** Tidy the canvas: every node to the nearest free grid cell (one
+      request, one undo step). Resolves to how many nodes moved, or null if
+      saving failed (the error is shown). */
+  cleanUp(): Promise<number | null>;
   setPrompt(nodeId: string, prompt: string): void;
   /** Switch between image, video and text (undoable). */
   setShape(nodeId: string, shape: NodeShape): void;
@@ -144,7 +150,13 @@ export interface CanvasState {
   runs: Record<string, StepRun>;
   /** Run a step with a prompt and a count (its nodes are replaced).
       Resolves to an error message, or null. */
-  runStep(key: string, prompt: string, count: number | null): Promise<string | null>;
+  runStep(key: string, prompt: string, count: number): Promise<string | null>;
+  /** Complete a step by hand with these results (its nodes are replaced;
+      nothing is generated). Resolves to an error message, or null. */
+  completeStep(key: string, entries: StepEntry[]): Promise<string | null>;
+  /** Generate an image or video step's filled-in nodes (any not already
+      generating). Resolves to an error message, or null. */
+  generateStep(key: string): Promise<string | null>;
   /** Show another take of a node. */
   selectTake(nodeId: string, outputId: string): void;
   /** A hand-written text take. Resolves to an error message, or null. */
@@ -155,6 +167,9 @@ export interface CanvasState {
   loadChat(nodeId: string): Promise<void>;
   sendChat(nodeId: string, text: string): Promise<void>;
   applyProposal(nodeId: string, messageId: string): Promise<void>;
+  /** A suggested edit of one node's prompt (or workflow text result), as
+      `instruction` asks; nothing is saved. Throws with a message. */
+  aiEdit(nodeId: string, instruction: string): Promise<AiEdit>;
 }
 
 /** One undoable step: it knows how to undo and redo itself through the API. */

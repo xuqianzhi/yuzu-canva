@@ -51,8 +51,8 @@ Timestamp = datetime
 
 
 class Language(StrEnum):
-    """The app's language: the UI's, and that of every prompt the backend
-    writes for the models (the user's own text is sent as written)."""
+    """The app's language: the UI's only. What the models are told doesn't
+    follow it: they write in the language of the user's own words."""
 
     en = "en"
     zh = "zh"

@@ -4,8 +4,10 @@ import "@xyflow/react/dist/style.css";
 import "./styles.css";
 import { App } from "./App";
 import { startAuth } from "./auth";
+import { reportWindowPlacement } from "./devWindow";
 
 startAuth();
+reportWindowPlacement();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

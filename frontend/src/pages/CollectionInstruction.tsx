@@ -1,7 +1,8 @@
-// A collection's Instruction page: plain text that every new project in the
-// collection starts with as its own instruction. Saved shortly after typing
-// stops (and when leaving the page). Saving over someone else's newer
-// change is refused (the collection's version): reload to see theirs.
+// A collection's Instruction page: plain text every project in the
+// collection shares (the AI follows it alongside each project's own). Saved
+// shortly after typing stops (and when leaving the page). Saving over
+// someone else's newer change is refused (the collection's version): reload
+// to see theirs.
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError, unwrap } from "../api/client";
 import { errorText, t as tr, useT } from "../i18n";

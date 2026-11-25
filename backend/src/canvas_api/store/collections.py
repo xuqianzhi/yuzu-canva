@@ -72,6 +72,9 @@ class CollectionsMixin:
             your_role=r["role"],
             owner_email=r["owner_email"],
             updated_by_email=r["updated_by_email"],
+            direct_image=bool(r["direct_image"]),
+            direct_video=bool(r["direct_video"]),
+            no_daily_limit=bool(r["no_daily_limit"]),
             created_at=_dt(r["created_at"]),
             updated_at=_dt(r["updated_at"]),
         )
@@ -133,8 +136,8 @@ class CollectionsMixin:
     def update_collection(
         self, collection_id: str, user_id: str, body: CollectionUpdate
     ) -> Collection:
-        """Rename it or change its instruction; 409 ``edit_conflict`` if it
-        changed since ``body.version``."""
+        """Rename it, change its instruction or its settings; 409
+        ``edit_conflict`` if it changed since ``body.version``."""
         with self._tx() as db:
             row = db.execute(
                 "SELECT c.*, u.email AS updated_by_email FROM collections c "
@@ -152,11 +155,18 @@ class CollectionsMixin:
                     {"version": str(row["version"]), "by": who},
                 )
             db.execute(
-                "UPDATE collections SET name = ?, instruction = ?, version = version + 1, "
-                "updated_by = ?, updated_at = ? WHERE id = ?",
+                "UPDATE collections SET name = ?, instruction = ?, direct_image = ?, "
+                "direct_video = ?, no_daily_limit = ?, version = version + 1, updated_by = ?, "
+                "updated_at = ? "
+                "WHERE id = ?",
                 (
                     body.name if body.name is not None else row["name"],
                     body.instruction if body.instruction is not None else row["instruction"],
+                    body.direct_image if body.direct_image is not None else row["direct_image"],
+                    body.direct_video if body.direct_video is not None else row["direct_video"],
+                    body.no_daily_limit
+                    if body.no_daily_limit is not None
+                    else row["no_daily_limit"],
                     user_id,
                     _ts(now()),
                     collection_id,

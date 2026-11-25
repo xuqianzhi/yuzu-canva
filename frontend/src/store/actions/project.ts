@@ -4,7 +4,7 @@ import { t } from "../../i18n";
 import { currentStep, stepViews } from "../../workflow/status";
 import { type Job } from "../../api/types";
 import type { CanvasState, GetState, SetState } from "../types";
-import { toFlowEdge, message, toFlowNode, session } from "../core";
+import { toFlowEdge, message, runsOf, toFlowNode, session } from "../core";
 import type { Core } from "../core";
 
 export function projectActions(
@@ -74,7 +74,7 @@ export function projectActions(
         load: { status: "ready" },
       });
       // The workflow opens at its first step not run yet.
-      const runs = Object.fromEntries((graph.runs ?? []).map((r) => [r.step, r]));
+      const runs = runsOf(graph);
       set({ runs });
       const views = stepViews(graph.project.workflow, get().nodes, runs);
       const current = currentStep(views);

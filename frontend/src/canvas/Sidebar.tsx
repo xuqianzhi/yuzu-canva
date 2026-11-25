@@ -4,6 +4,8 @@ import { useReactFlow } from "@xyflow/react";
 import { useRef, useState, type DragEvent } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { Material } from "../api/types";
+import { collectionHref } from "../router";
+import { useView } from "../store/view";
 import { useCanvas } from "../store/canvas";
 import { NodeNameInput } from "./NodeName";
 import { useT, type Key } from "../i18n";
@@ -14,11 +16,11 @@ export const MATERIAL_MIME = "application/x-seedance-material";
 const ACCEPT = "image/png,image/jpeg,image/webp,video/mp4,video/quicktime";
 
 // "Assets" in the UI; the project API calls them materials.
-type Panel = "assets" | "nodes" | "instruction";
+type Panel = "assets" | "canvas" | "instruction";
 
 const PANEL_LABELS: Record<Panel, Key> = {
   assets: "nav_assets",
-  nodes: "nav_nodes",
+  canvas: "nav_canvas",
   instruction: "nav_instruction",
 };
 
@@ -51,9 +53,9 @@ export function Sidebar() {
           }
         />
         <RailButton
-          label={t("nav_nodes")}
-          active={open === "nodes"}
-          onClick={() => toggle("nodes")}
+          label={t("nav_canvas")}
+          active={open === "canvas"}
+          onClick={() => toggle("canvas")}
           icon={
             <>
               <rect x="3" y="3.5" width="5" height="4" rx="1" />
@@ -77,7 +79,7 @@ export function Sidebar() {
       {open && (
         <aside className="sidebar__panel" aria-label={t(PANEL_LABELS[open])}>
           {open === "assets" && <MaterialsPanel />}
-          {open === "nodes" && <NodesPanel />}
+          {open === "canvas" && <CanvasPanel />}
           {open === "instruction" && <InstructionPanel />}
         </aside>
       )}
@@ -221,15 +223,32 @@ function MaterialItem({ material }: { material: Material }) {
   );
 }
 
-// --- Nodes ---------------------------------------------------------------------------
+// --- Canvas: what's shown, and the nodes ------------------------------------------
 
-function NodesPanel() {
+function CanvasPanel() {
   const t = useT();
   const ids = useCanvas(useShallow((s) => s.flowNodes.map((n) => n.id)));
+  const links = useCanvas((s) => s.flowEdges.length);
+  const showLinks = useView((s) => s.showLinks);
+  const setShowLinks = useView((s) => s.setShowLinks);
   return (
     <div className="panel">
       <header className="panel__head">
-        <h2>{t("nav_nodes")}</h2>
+        <h2>{t("nav_canvas")}</h2>
+      </header>
+      <label className="panel__switch">
+        <input
+          type="checkbox"
+          role="switch"
+          checked={showLinks}
+          onChange={(e) => setShowLinks(e.target.checked)}
+        />
+        <span>{t("show_links")}</span>
+        <span className="panel__count">{links}</span>
+      </label>
+      <p className="panel__help">{t("show_links_help")}</p>
+      <header className="panel__head panel__head--sub">
+        <h3>{t("nav_nodes")}</h3>
         <span className="panel__count">{ids.length}</span>
       </header>
       <p className="panel__help">{t("nodes_help")}</p>
@@ -277,17 +296,44 @@ function NodeRow({ nodeId }: { nodeId: string }) {
   );
 }
 
+/** The project's own instruction, under its collection's (shared by the
+    series, read-only here: shown on hover, or pinned open with a click). */
 function InstructionPanel() {
   const t = useT();
   const instruction = useCanvas((s) => s.project?.instruction ?? "");
+  const shared = useCanvas((s) => s.project?.collection_instruction ?? "");
+  const collectionId = useCanvas((s) => s.project?.collection_id ?? "");
   const setInstruction = useCanvas((s) => s.setProjectInstruction);
+  const [pinned, setPinned] = useState(false);
   return (
     <div className="panel panel--fill">
       <header className="panel__head">
         <h2>{t("nav_instruction")}</h2>
       </header>
-      <p className="panel__help">{t("project_instruction_help")}</p>
+      <p className="panel__help">{t("instruction_both_help")}</p>
+      <div className={`shared-instruction${pinned ? " is-open" : ""}`}>
+        <button
+          className="shared-instruction__head"
+          aria-expanded={pinned}
+          onClick={() => setPinned((p) => !p)}
+          title={t("shared_instruction_toggle")}
+        >
+          <span>{t("shared_instruction_title")}</span>
+          <small>{shared.trim() ? t("shared_instruction_view_only") : t("shared_instruction_none")}</small>
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M4 6l4 4 4-4" />
+          </svg>
+        </button>
+        <div className="shared-instruction__body">
+          {shared.trim() ? <p>{shared}</p> : null}
+          <a href={collectionHref(collectionId, "instruction")}>{t("shared_instruction_edit")}</a>
+        </div>
+      </div>
+      <label className="panel__label" htmlFor="project-instruction">
+        {t("project_instruction_title")}
+      </label>
       <textarea
+        id="project-instruction"
         className="instruction-input panel__instruction"
         aria-label={t("project_instruction_aria")}
         placeholder={t("project_instruction_placeholder")}

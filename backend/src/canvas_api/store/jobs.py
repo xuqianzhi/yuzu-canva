@@ -111,6 +111,18 @@ class JobsMixin:
                 return None
         return self.get_job(job_id)
 
+    def set_provider_seed(self, job_id: str, seed: int, sent_at: float) -> None:
+        """Saved just before a create request goes out (see billing_safety)."""
+        with self._tx() as db:
+            db.execute(
+                "UPDATE jobs SET provider_seed = ?, sent_at = ? WHERE id = ?",
+                (seed, sent_at, job_id),
+            )
+
+    def provider_sent_at(self, job_id: str) -> float | None:
+        row = self._one("SELECT sent_at FROM jobs WHERE id = ?", job_id)
+        return row["sent_at"] if row else None
+
     def set_provider_task_id(self, job_id: str, task_id: str) -> None:
         with self._tx() as db:
             db.execute("UPDATE jobs SET provider_task_id = ? WHERE id = ?", (task_id, job_id))

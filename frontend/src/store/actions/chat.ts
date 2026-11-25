@@ -8,8 +8,21 @@ export function chatActions(
   set: SetState,
   get: GetState,
   core: Core,
-): Pick<CanvasState, "loadChat" | "sendChat" | "applyProposal"> {
+): Pick<CanvasState, "loadChat" | "sendChat" | "applyProposal" | "aiEdit"> {
   return {
+  async aiEdit(nodeId, instruction) {
+    try {
+      return unwrap(
+        await api.POST("/api/nodes/{node_id}/ai-edit", {
+          params: { path: { node_id: nodeId } },
+          body: { instruction },
+        }),
+      );
+    } catch (error) {
+      throw new Error(message(error));
+    }
+  },
+
   async loadChat(nodeId) {
     try {
       const messages = unwrap(

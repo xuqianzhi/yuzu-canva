@@ -18,6 +18,9 @@
   --ok: #1f7a4d;
   --warn: #9a5b00;
   color-scheme: light;
+  --canvas-bg: #ecece8;
+  --canvas-dots: #bdbdb5;
+  --card: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -166,8 +169,6 @@ select {
 /* --- canvas -------------------------------------------------------------- */
 
 .react-flow {
-  --xy-background-color: var(--bg);
-  --xy-background-pattern-color: var(--dots);
   --xy-minimap-background-color: var(--surface);
   --xy-minimap-mask-background-color: var(--minimap-mask);
   --xy-minimap-node-background-color: var(--minimap-node);
@@ -175,6 +176,13 @@ select {
   --xy-controls-button-background-color-hover: var(--surface-2);
   --xy-controls-button-color: var(--text);
   --xy-controls-button-border-color: var(--border);
+  --xy-edge-stroke: var(--muted);
+  --xy-edge-stroke-selected: var(--accent);
+  --xy-edge-stroke-width: 2;
+  --xy-connectionline-stroke: var(--accent);
+  --xy-connectionline-stroke-width: 2;
+  --xy-background-color: var(--canvas-bg);
+  --xy-background-pattern-color: var(--canvas-dots);
 }
 
 .canvas__empty {
@@ -189,24 +197,13 @@ select {
 
 /* --- generation node ------------------------------------------------------ */
 
-.gen-node {
-  width: 320px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: var(--shadow);
-  overflow: hidden;
-}
-
 .gen-node--selected {
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent), var(--shadow);
 }
 
 .gen-node__header {
   display: flex;
   align-items: center;
-  padding: 8px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -235,12 +232,6 @@ select {
 }
 
 .gen-node__preview {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 180px;
-  background: var(--surface-2);
   color: var(--muted);
   font-size: 12px;
 }
@@ -248,29 +239,27 @@ select {
 .gen-node__preview img,
 .gen-node__preview video {
   display: block;
-  width: 100%;
-  height: auto;
 }
 
 .gen-node__text {
   margin: 0;
   padding: 10px 12px;
-  max-height: 240px;
   overflow: auto;
   white-space: pre-wrap;
   color: var(--text);
   align-self: stretch;
+  max-height: none;
 }
 
 .gen-node__progress {
   position: absolute;
   inset: 0;
   display: flex;
-  gap: 8px;
   align-items: center;
   justify-content: center;
   background: color-mix(in srgb, var(--surface-2) 75%, transparent);
   color: var(--text);
+  flex-direction: column;
 }
 
 .spinner {
@@ -291,60 +280,20 @@ select {
 .gen-node__prompt {
   display: block;
   width: 100%;
-  resize: vertical;
   border: 0;
   border-bottom: 1px solid var(--border);
   background: transparent;
   padding: 10px 12px;
   outline: none;
   min-height: 64px;
-}
-
-.gen-node__params {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px;
-  flex-wrap: wrap;
-}
-
-.gen-node__params select {
-  font-size: 12px;
+  resize: none;
 }
 
 .gen-node__spacer {
   flex: 1;
 }
 
-.gen-node__error {
-  padding: 8px 12px;
-  background: var(--danger-bg);
-  color: var(--danger);
-  font-size: 12px;
-  border-top: 1px solid var(--border);
-}
-
 /* --- references ------------------------------------------------------------ */
-
-.react-flow {
-  --xy-edge-stroke: var(--muted);
-  --xy-edge-stroke-selected: var(--accent);
-  --xy-edge-stroke-width: 2;
-  --xy-connectionline-stroke: var(--accent);
-  --xy-connectionline-stroke-width: 2;
-}
-
-.gen-node {
-  overflow: visible;
-}
-
-.gen-node__header {
-  border-radius: 12px 12px 0 0;
-}
-
-.gen-node__error {
-  border-radius: 0 0 12px 12px;
-}
 
 .react-flow__handle.gen-node__handle {
   width: 14px;
@@ -373,7 +322,6 @@ select {
 
 .ref-chip {
   position: relative;
-  width: 40px;
   height: 40px;
   border-radius: 6px;
   overflow: hidden;
@@ -405,6 +353,7 @@ select {
   font-size: 10px;
   line-height: 16px;
   text-align: center;
+  white-space: nowrap;
 }
 
 .canvas__notice {
@@ -426,7 +375,6 @@ select {
 /* --- video ------------------------------------------------------------------ */
 
 .gen-node__progress {
-  flex-direction: column;
   gap: 4px;
 }
 
@@ -475,24 +423,7 @@ select {
   color: var(--muted);
 }
 
-.ref-chip__label {
-  white-space: nowrap;
-}
-
 /* --- fixed-size nodes -------------------------------------------------------- */
-
-/* Every node is the same size whatever it produced: the preview is a fixed
-   box, and media keeps its own shape inside it (letterboxed). */
-.gen-node__preview {
-  height: 220px;
-  min-height: 0;
-  overflow: hidden;
-  background: var(--media-bg);
-}
-
-.gen-node__preview--empty {
-  background: var(--surface-2);
-}
 
 .gen-node__preview img,
 .gen-node__preview video {
@@ -502,26 +433,20 @@ select {
 }
 
 .gen-node__text {
-  max-height: none;
   width: 100%;
   height: 100%;
   background: var(--surface-2);
 }
 
 /* Inputs float over the top-left corner: keep text clear of them. */
-.gen-node__media:has(.gen-node__refs) .gen-node__text {
-  padding-top: 52px;
-}
 
 .gen-node__prompt {
-  resize: none;
   height: 76px;
 }
 
 /* --- home page ---------------------------------------------------------------- */
 
 .home {
-  min-height: 100%;
   display: flex;
   flex-direction: column;
 }
@@ -774,11 +699,7 @@ a.button {
 .create-menu {
   position: absolute;
   z-index: 20;
-  min-width: 190px;
-  padding: 4px;
-  background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
   box-shadow: var(--shadow);
   transform: translate(8px, 8px);
 }
@@ -792,12 +713,8 @@ a.button {
 .create-menu button {
   display: flex;
   width: 100%;
-  align-items: baseline;
   justify-content: space-between;
-  gap: 12px;
-  padding: 6px 8px;
   border: 0;
-  border-radius: 6px;
   background: transparent;
   cursor: pointer;
   text-align: left;
@@ -815,10 +732,6 @@ a.button {
 }
 
 /* --- uniform node layout -------------------------------------------------------- */
-
-.gen-node__header {
-  gap: 6px;
-}
 
 .button--small {
   padding: 3px 10px;
@@ -856,45 +769,9 @@ a.button {
   border-color: color-mix(in srgb, var(--danger) 40%, transparent);
 }
 
-.gen-node__media {
-  position: relative;
-}
-
 /* Inputs: a row of thumbnails over the top of the preview. */
-.gen-node__media .gen-node__refs {
-  position: absolute;
-  top: 6px;
-  left: 6px;
-  right: 6px;
-  padding: 0;
-  flex-wrap: nowrap;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.gen-node__media .ref-chip {
-  pointer-events: auto;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 35%);
-}
 
 /* Errors: a bar over the bottom of the preview. */
-.gen-node__media .gen-node__error {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  max-height: 50%;
-  overflow: auto;
-  border-top: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
-  border-radius: 0;
-}
-
-.gen-node__params {
-  height: 44px;
-  flex-wrap: nowrap;
-  overflow: hidden;
-  border-radius: 0 0 12px 12px;
-}
 
 .gen-node__hint {
   font-size: 12px;
@@ -912,7 +789,6 @@ a.button {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 6px 6px 6px 14px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -930,17 +806,6 @@ a.button {
   font-size: 12px;
   pointer-events: none;
   white-space: nowrap;
-}
-
-.button--danger {
-  background: var(--danger);
-  border-color: var(--danger);
-  color: var(--danger-text);
-}
-
-.button--danger:hover:not(:disabled) {
-  background: var(--danger);
-  filter: brightness(1.08);
 }
 
 .react-flow__selection {
@@ -975,22 +840,6 @@ a.button {
 
 .canvas__map:active {
   cursor: grabbing;
-}
-
-/* --- node footer: delete and generate ---------------------------------------------- */
-
-.gen-node__params {
-  border-radius: 0;
-}
-
-.gen-node__footer {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: 42px;
-  padding: 0 8px;
-  border-top: 1px solid var(--border);
-  border-radius: 0 0 12px 12px;
 }
 
 /* --- undo/redo and notices ------------------------------------------------------- */
@@ -1415,12 +1264,6 @@ a.button {
   pointer-events: none;
 }
 
-/* Same header height whether it holds the kind tabs or the "Uploaded" badge,
-   so every node is the same size. */
-.gen-node__header {
-  height: 44px;
-}
-
 /* --- landing page: projects (70%) over global assets (30%) ------------------------ */
 
 .home {
@@ -1450,10 +1293,7 @@ a.rail-button {
   margin: 10px 0 0;
   padding-top: 10px;
   border-top: 1px solid var(--border);
-  font-size: 9.5px;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
   text-align: center;
   color: var(--muted);
 }
@@ -1550,13 +1390,9 @@ a.rail-button {
   font: inherit;
   font-size: 12.5px;
   color: var(--text);
-  background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 6px;
   outline: none;
-}
-
-.global-card__name {
   font-weight: 600;
   background: transparent;
   border-color: transparent;
@@ -1729,11 +1565,6 @@ a.rail-button {
   cursor: default;
 }
 
-.gen-node__error--warn {
-  background: color-mix(in srgb, #f5b400 18%, var(--surface));
-  color: var(--text);
-}
-
 /* --- highlighted IDs in prompts ---------------------------------------------------- */
 
 /* Same approach as seedance-ui: the backdrop draws the text (with
@@ -1856,6 +1687,88 @@ a.rail-button {
 .panel__instruction {
   flex: 1;
   min-height: 160px;
+}
+
+.panel__label {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* The collection's instruction in a project: folded, opened by hovering
+   (or pinned open by clicking its head). */
+.shared-instruction {
+  margin: 0 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.shared-instruction__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.shared-instruction__head span {
+  white-space: nowrap;
+}
+
+.shared-instruction__head small {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.shared-instruction__head svg {
+  width: 14px;
+  height: 14px;
+  margin-left: auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  transition: transform 0.15s;
+}
+
+.shared-instruction__body {
+  display: none;
+  padding: 0 10px 10px;
+  font-size: 12.5px;
+}
+
+.shared-instruction__body p {
+  max-height: 220px;
+  margin: 0 0 8px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  color: var(--muted);
+}
+
+.shared-instruction__body a {
+  font-size: 12px;
+}
+
+.shared-instruction:hover .shared-instruction__body,
+.shared-instruction:focus-within .shared-instruction__body,
+.shared-instruction.is-open .shared-instruction__body {
+  display: block;
+}
+
+.shared-instruction:hover .shared-instruction__head svg,
+.shared-instruction.is-open .shared-instruction__head svg {
+  transform: rotate(180deg);
 }
 
 /* --- workflow -------------------------------------------------------------------- */
@@ -2083,9 +1996,6 @@ a.rail-button {
   margin: 0;
   color: var(--muted);
   font-size: 12.5px;
-}
-
-.step-panel__muted {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -2143,6 +2053,11 @@ a.rail-button {
   gap: 8px;
 }
 
+.run .step-panel__actions {
+  flex-direction: column;
+  align-items: stretch;
+}
+
 .step-panel__continue {
   display: flex;
   flex-wrap: wrap;
@@ -2150,6 +2065,11 @@ a.rail-button {
   gap: 8px;
   padding-top: 10px;
   border-top: 1px solid var(--border);
+}
+
+.step-panel__download-error {
+  flex-basis: 100%;
+  margin: 0;
 }
 
 .node-work {
@@ -2173,6 +2093,8 @@ a.rail-button {
   background: var(--surface);
   font-size: 12px;
   cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .item-chip--approved {
@@ -2426,8 +2348,6 @@ a.rail-button {
 
 .item-chip {
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -2579,6 +2499,39 @@ a.rail-button {
 
 .run__prompt:focus {
   border-color: var(--accent);
+}
+
+/* The step prompt with "@" mentions: the box draws the border; the text and
+   its highlighted copy behind it share the same size and padding. */
+.run__box {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.run__box:focus-within {
+  border-color: var(--accent);
+}
+
+.run__box .run__prompt {
+  height: auto;
+  min-height: 72px;
+  max-height: 240px;
+  margin: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  line-height: 1.45;
+}
+
+.run__box .mention-prompt__backdrop.run__prompt {
+  max-height: none;
+  color: var(--text);
+}
+
+.run__box .mention-prompt__input.run__prompt {
+  color: transparent;
+  resize: vertical;
 }
 
 .run__count {
@@ -3017,6 +2970,11 @@ a.rail-button {
   flex: 0 1 92px;
 }
 
+/* The dropdowns whose options are short phrases. */
+.designer__step--row .designer__field--wide {
+  flex: 0 1 172px;
+}
+
 .designer__step--row .designer__field--count {
   flex: 0 0 84px;
 }
@@ -3104,4 +3062,788 @@ a.rail-button {
 
 .designer__step.is-drop-after {
   box-shadow: 0 5px 0 -2px var(--accent);
+}
+
+/* --- a step: AI or by hand ---------------------------------------------------- */
+
+.mode-switch {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.mode-switch button {
+  flex: 1;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.mode-switch button.is-active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.manual {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.manual__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.manual__row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.manual__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.manual__number {
+  flex: none;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.manual__id {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+}
+
+.manual__tools {
+  display: flex;
+  flex: none;
+  gap: 1px;
+  margin-left: auto;
+}
+
+.manual__text {
+  min-height: 64px;
+}
+
+.manual__media {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.manual__media img,
+.manual__media video {
+  width: 96px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.manual__placeholder {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 96px;
+  height: 72px;
+  justify-content: center;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  font-size: 11.5px;
+  color: var(--muted);
+  text-align: center;
+  overflow: hidden;
+}
+
+.manual__drop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
+
+.manual__drop.is-dragging {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+/* --- an image or video step's two parts: fill in, then generate ------------------- */
+
+.run__part {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: color-mix(in srgb, currentColor 18%, transparent);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.step-panel__inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.step-panel__inline select {
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  font: inherit;
+  color: var(--text);
+}
+
+/* --- zooming many nodes and links smoothly (see Canvas.tsx) ---------------------- */
+
+/* While the view moves, it's one layer the browser scales as a picture. */
+.canvas--moving .react-flow__viewport {
+  will-change: transform;
+}
+
+/* Zoomed far out, the small print isn't drawn (it keeps its space). */
+.canvas--far .gen-node__refs,
+.canvas--far .gen-node__bar,
+.canvas--far .gen-node .mention-prompt,
+.canvas--far .gen-node__upload-info > * {
+  visibility: hidden;
+}
+
+/* --- Canvas panel: what's shown -------------------------------------------------- */
+
+.panel__switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 2px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.panel__switch input {
+  accent-color: var(--accent);
+  margin: 0;
+}
+
+.panel__switch span:first-of-type {
+  flex: 1;
+}
+
+.panel__head--sub {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.panel__head--sub h3 {
+  flex: 1;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+/* --- nodes: an output square over a prompt card ------------------------------------ */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas-bg: #232323;
+    --canvas-dots: #484848;
+    --card: #171717;
+  }
+}
+
+/* The node itself draws nothing: a header, the output square and the card.
+   It's as wide as the card (480); the output square is centred above it. */
+.gen-node {
+  width: 480px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.gen-node--selected {
+  box-shadow: none;
+}
+
+.gen-node__header {
+  height: 30px;
+  margin-bottom: 6px;
+  padding: 0 2px;
+  gap: 6px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+/* The output square: invisible; its content keeps its own shape. */
+.gen-node__media {
+  position: relative;
+  width: 320px;
+  height: 320px;
+  margin: 0 auto;
+}
+
+.gen-node__preview {
+  position: absolute;
+  inset: 0;
+  height: auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  background: transparent;
+}
+
+/* Exactly the output's shape: the image or video's own size, the
+   placeholder's (set inline), or the whole square for text. */
+.gen-node__frame {
+  position: relative;
+  display: flex;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.gen-node__frame--fill {
+  width: 100%;
+  height: 100%;
+}
+
+.gen-node__preview .gen-node__output {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 320px;
+  max-height: 320px;
+  object-fit: contain;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+
+.gen-node__placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px dashed var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--card) 45%, transparent);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.gen-node__preview .gen-node__text {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 12px 14px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  white-space: pre-wrap;
+}
+
+/* "Generating…": centred in the frame and never wider or taller than it
+   (it wraps, and is clipped if the frame is very short). */
+.gen-node__preview .gen-node__progress {
+  inset: auto;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  box-sizing: border-box;
+  width: max-content;
+  max-width: calc(100% - 16px);
+  max-height: calc(100% - 16px);
+  padding: 8px 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--card) 88%, transparent);
+  font-size: 12px;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.gen-node__preview .gen-node__progress small {
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+/* Selected: the output and the card get the accent ring. */
+.gen-node--selected .gen-node__card,
+.gen-node--selected .gen-node__output,
+.gen-node--selected .gen-node__placeholder,
+.gen-node--selected .gen-node__text {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* The prompt card. */
+.gen-node__card {
+  position: relative;
+  margin-top: 10px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+.gen-node__card .gen-node__refs {
+  position: static;
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px 0;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.gen-node__card .gen-node__prompt {
+  height: 72px;
+  padding: 10px 12px 4px;
+  border-bottom: 0;
+}
+
+.gen-node__bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 8px 0 10px;
+}
+
+.gen-node__bar select {
+  max-width: 88px;
+  padding: 2px 4px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 11.5px;
+}
+
+.round-button {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--text);
+  color: var(--card);
+  cursor: pointer;
+}
+
+.round-button svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.round-button--stop svg {
+  fill: currentColor;
+  stroke: none;
+}
+
+.round-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* An uploaded file's card: what it is, in place of a prompt. */
+.gen-node__card.gen-node__upload-info {
+  height: auto;
+  padding: 12px;
+  border-top: 1px solid var(--border);
+}
+
+/* Links come into the prompt card's left edge and go out of its right
+   edge, both 402 down (header 30 + gap 6 + square 320 + gap 10, then 36).
+   Canvas.tsx's LINK_TOP matches these. */
+.react-flow__handle-left.gen-node__handle,
+.react-flow__handle-right.gen-node__handle {
+  top: 402px;
+}
+
+/* What's invisible lets clicks through to the canvas (and nodes behind):
+   only the header, the output itself, errors and the card catch them. */
+.react-flow__node-gen {
+  pointer-events: none !important;
+}
+
+.react-flow__node-gen .gen-node > :not(.gen-node__media),
+.react-flow__node-gen .gen-node__media > :not(.gen-node__preview),
+.react-flow__node-gen .gen-node__preview > * {
+  pointer-events: auto;
+}
+
+/* --- the menu after dropping a connection: an icon per kind ------------------------ */
+
+.create-menu {
+  min-width: 230px;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--card);
+}
+
+.create-menu button {
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 8px;
+}
+
+.create-menu__icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.create-menu__icon svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.create-menu__label {
+  flex: 1;
+}
+
+/* --- a node's error or warning: a badge on the prompt card, detail on hover ---- */
+
+.node-alert {
+  position: absolute;
+  top: -11px;
+  right: 12px;
+  z-index: 4;
+  outline: none;
+}
+
+.node-alert__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 9px 0 4px;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
+  border-radius: 11px;
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: default;
+}
+
+.node-alert__mark {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--danger);
+  color: var(--danger-bg);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.node-alert__detail {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  display: none;
+  width: max-content;
+  max-width: 340px;
+  max-height: 220px;
+  padding: 8px 11px;
+  overflow: auto;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.node-alert:hover .node-alert__detail,
+.node-alert:focus-within .node-alert__detail,
+.node-alert:focus .node-alert__detail {
+  display: block;
+}
+
+.node-alert--warn .node-alert__badge {
+  border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+  background: color-mix(in srgb, var(--warn) 16%, var(--card));
+  color: var(--warn);
+}
+
+.node-alert--warn .node-alert__mark {
+  background: var(--warn);
+  color: var(--card);
+}
+
+.node-alert--warn .node-alert__detail {
+  border-color: color-mix(in srgb, var(--warn) 35%, transparent);
+}
+
+/* --- Clean up (project bar) ------------------------------------------------------ */
+
+.topbar__clean {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 6px;
+}
+
+.topbar__clean svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.3;
+}
+
+/* --- the node's header row: ID, step (or kind), delete; and where it drags --------- */
+
+/* The ID sits in the header row, beside the step badge. */
+.gen-node__header .gen-node__name {
+  position: static;
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+
+/* As wide as what's typed, so the rest of the row still drags the node. */
+.gen-node__header .node-name input {
+  field-sizing: content;
+  width: auto;
+  min-width: 48px;
+  max-width: 220px;
+}
+
+.gen-node__header .node-name__error {
+  top: auto;
+  bottom: 100%;
+  margin: 0 0 3px;
+}
+
+/* Wherever a press drags the node, say so. */
+.gen-node__header,
+.gen-node__preview > *,
+.gen-node__card {
+  cursor: grab;
+}
+
+.react-flow__node.dragging .gen-node,
+.react-flow__node.dragging .gen-node * {
+  cursor: grabbing;
+}
+
+.gen-node input,
+.gen-node textarea {
+  cursor: text;
+}
+
+.gen-node select,
+.gen-node button,
+.gen-node label,
+.gen-node video {
+  cursor: pointer;
+}
+
+.gen-node .wf-badge {
+  cursor: grab;
+}
+
+/* --- links: the hovered (or selected) node's stand out ---------------------------- */
+
+.canvas--focus .react-flow__edge {
+  opacity: 0.22;
+  transition: opacity 0.12s;
+}
+
+.canvas--focus .react-flow__edge.edge--active {
+  opacity: 1;
+}
+
+.react-flow__edge.edge--active .react-flow__edge-path {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+
+/* The selection bar says what's selected (Backspace or Delete removes it). */
+.selection-bar {
+  padding: 6px 14px;
+}
+
+/* --- a collection's "generate directly" switches (Workflows page) ------------------ */
+
+.direct {
+  max-width: 560px;
+  margin: 4px 0 20px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.direct__title {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.direct__help {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.direct__title--sub {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+/* --- "Edit with AI" on a node: a box under its card -------------------------------- */
+
+.round-button--ghost {
+  background: transparent;
+  color: var(--muted);
+}
+
+.round-button--ghost:hover,
+.round-button--ghost.is-active {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+
+.round-button--ghost svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+  stroke: none;
+}
+
+.ai-edit {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 5;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  pointer-events: auto;
+  cursor: default;
+}
+
+.ai-edit__input {
+  width: 100%;
+  resize: vertical;
+  font: inherit;
+  font-size: 13px;
+}
+
+.ai-edit__label,
+.ai-edit__note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.ai-edit__error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--danger);
+}
+
+.ai-edit__result {
+  max-height: 160px;
+  margin: 0;
+  overflow: auto;
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.ai-edit__result mark {
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: inherit;
+}
+
+.ai-edit__actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.wf-badge__edited {
+  color: var(--accent);
 }

@@ -28,6 +28,9 @@ class Me(CompleteModel):
     daily limits (0 means no limit)."""
 
     email: str
+    # On the allowlist (or local work): may lift a collection's daily
+    # limits (``Collection.no_daily_limit``).
+    admin: bool = False
     used_today: UsageCounts
     daily_limits: UsageCounts
     # ``used_today`` by collection and person, biggest first.

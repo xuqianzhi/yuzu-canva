@@ -73,6 +73,8 @@ make test       # tests in Docker (each test gets its own Postgres schema)
 make down
 ```
 
+Every Seedance task Ark creates is billed, so the backend never sends a create request twice by accident. The rules, and a list of every other guard against paying twice, are in one place: `backend/src/canvas_api/providers/billing_safety.py`.
+
 ## Changing the contract
 
 Edit the models in `backend/src/canvas_api/contract/`, then:

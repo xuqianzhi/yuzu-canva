@@ -20,11 +20,11 @@ if TYPE_CHECKING:
 def queue_generation(
     store: Store, worker: Worker, node: Node, actor: str, spending: Spending | None = None
 ) -> Job:
-    """Generate `node` for `actor` (prompts are written in their language).
+    """Generate `node` for `actor`.
     With `spending`, the generation is counted against the limits once it is
     known to be valid (callers that already counted pass None)."""
     refs = [Reference(node=n, output=o) for n, o in store.node_inputs(node)]
-    planned = plan(node, refs, store.get_language(actor).value)
+    planned = plan(node, refs)
     if spending is not None:
         collection_id = store.collection_of(node.project_id)
         spending.check_jobs(collection_id, 1)

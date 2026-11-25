@@ -15,13 +15,14 @@ from typing import Any, Protocol
 import httpx
 
 from ..contract import MediaKind
-from ..domain.workflow import OutputSpec, image_label, words
+from ..domain.workflow import OutputSpec, W, image_label
 from .base import (
     GenerationRequest,
     GenerationResult,
     ProviderError,
     RefPayload,
     label_mentions,
+    reason,
 )
 
 
@@ -97,7 +98,7 @@ class OpenAITextModel:
         except httpx.TimeoutException as exc:
             raise ProviderError("OpenAI did not answer in time") from exc
         except httpx.HTTPError as exc:
-            raise ProviderError(f"could not reach OpenAI: {exc}") from exc
+            raise ProviderError(f"could not reach OpenAI: {reason(exc)}") from exc
         if response.status_code >= 400:
             raise ProviderError(f"OpenAI {response.status_code}: {_error_message(response)}")
         try:
@@ -121,11 +122,9 @@ class TextGenerator:
     async def run(self, request: GenerationRequest) -> GenerationResult:
         files = [f for f in request.files if f.kind == MediaKind.image]
         images = [f.load() for f in files]
-        prompt = label_mentions(
-            request.prompt, files, lambda n: image_label(request.language, n)
-        )
+        prompt = label_mentions(request.prompt, files, lambda n: image_label(n, request.prompt))
         answer = await self._model.complete(
-            request.system or words(request.language)["plain"],
+            request.system or W["plain"],
             [{"role": "user", "content": prompt}],
             None,
             images,

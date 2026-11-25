@@ -23,6 +23,7 @@ import {
   session,
 } from "../core";
 import type { Core } from "../core";
+import { cleanUpMoves, type Move } from "../../canvas/grid";
 
 export function graphActions(
   set: SetState,
@@ -34,6 +35,7 @@ export function graphActions(
   | "addNode"
   | "addConnectedNode"
   | "commitPositions"
+  | "cleanUp"
   | "setPrompt"
   | "setShape"
   | "setParams"
@@ -153,6 +155,54 @@ export function graphActions(
         },
       });
     }
+  },
+
+  async cleanUp() {
+    const project = get().project;
+    if (!project) return 0;
+    const moves = cleanUpMoves(Object.values(get().nodes));
+    if (!moves.length) return 0;
+    /** Put each node at `to` (or `from`) on screen. */
+    const show = (list: Move[], where: "from" | "to") => {
+      const at = new Map(list.map((m) => [m.id, m[where]]));
+      set((s) => ({
+        nodes: Object.fromEntries(
+          Object.entries(s.nodes).map(([id, n]) => [id, at.has(id) ? { ...n, position: at.get(id)! } : n]),
+        ),
+        flowNodes: s.flowNodes.map((n) => (at.has(n.id) ? { ...n, position: at.get(n.id)! } : n)),
+      }));
+    };
+    /** ...then save them all in one request (one transaction). */
+    const place = async (list: Move[], where: "from" | "to") => {
+      show(list, where);
+      set((s) => ({ pendingSaves: s.pendingSaves + 1 }));
+      try {
+        unwrap(
+          await api.PATCH("/api/projects/{project_id}/positions", {
+            params: { path: { project_id: project.id } },
+            body: { moves: list.map((m) => ({ node_id: m.id, position: m[where] })) },
+          }),
+        );
+      } catch (error) {
+        // Nothing was saved (it's all or nothing): put them back.
+        show(list, where === "to" ? "from" : "to");
+        throw error;
+      } finally {
+        set((s) => ({ pendingSaves: s.pendingSaves - 1 }));
+      }
+    };
+    try {
+      await place(moves, "to");
+    } catch (error) {
+      get().showNotice(message(error));
+      return null;
+    }
+    record({
+      label: "h_clean_up",
+      undo: () => place(moves, "from"),
+      redo: () => place(moves, "to"),
+    });
+    return moves.length;
   },
 
   setPrompt(nodeId, prompt) {

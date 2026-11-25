@@ -31,10 +31,14 @@ class FakeArk:
         self.statuses = list(statuses)
         self.requests: list[httpx.Request] = []
         self.post_responses: list[httpx.Response] = []
+        # Ark's recent tasks (newest first), for finding a lost create.
+        self.listing: list[dict] = []
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
         url = str(request.url)
+        if request.method == "GET" and url.startswith(f"{TASKS}?"):
+            return httpx.Response(200, json={"items": self.listing, "total": len(self.listing)})
         if request.method == "POST" and url == TASKS:
             if self.post_responses:
                 return self.post_responses.pop(0)
@@ -182,12 +186,79 @@ def test_api_error_is_surfaced():
 
 
 def test_post_is_not_retried_on_server_error():
-    """A 5xx on create may still have made (and billed) the task."""
+    """A 5xx on create may still have made (and billed) the task: it's
+    looked up, never sent again."""
     ark = FakeArk()
     ark.post_responses = [httpx.Response(502, text="bad gateway")] * 3
-    with pytest.raises(ProviderError, match="502"):
+    with pytest.raises(ProviderError, match="502") as caught:
         asyncio.run(generator(ark).run(request()))
+    assert "generating again is safe" in str(caught.value)
     assert len(ark.bodies("POST")) == 1
+
+
+def test_server_error_on_create_finds_the_task_ark_made():
+    ark = FakeArk(statuses=("succeeded",))
+    ark.post_responses = [httpx.Response(500, text="oops")]
+    seeds = []
+    submitted = []
+    req = GenerationRequest(
+        **{
+            **request(seed=42).__dict__,
+            "on_sending": lambda seed, at: seeds.append(seed),
+            "on_submitted": submitted.append,
+        }
+    )
+    ark.listing = [
+        {
+            "id": "cgt-123",
+            "seed": 42,
+            "duration": 4,
+            "ratio": "9:16",
+            "resolution": "480p",
+            "created_at": int(time.time()),
+        },
+    ]
+    result = asyncio.run(generator(ark).run(req))
+    assert result.data == VIDEO and seeds == [42] and submitted == ["cgt-123"]
+    assert len(ark.bodies("POST")) == 1
+
+
+def test_a_restart_mid_send_finds_the_task_by_seed():
+    """The backend stopped while sending: the saved seed finds Ark's task,
+    and nothing is sent again."""
+    ark = FakeArk(statuses=("succeeded",))
+    ark.listing = [
+        {
+            "id": "cgt-123",
+            "seed": 99,
+            "duration": 4,
+            "ratio": "9:16",
+            "resolution": "480p",
+            "created_at": int(time.time()),
+        },
+    ]
+    submitted = []
+    req = GenerationRequest(
+        **{
+            **request().__dict__,
+            "resume_seed": 99,
+            "resume_since": time.time() - 60,
+            "on_submitted": submitted.append,
+        }
+    )
+    result = asyncio.run(generator(ark).run(req))
+    assert result.data == VIDEO and submitted == ["cgt-123"]
+    assert ark.bodies("POST") == []
+
+
+def test_a_restart_mid_send_without_a_task_says_retry_is_safe():
+    ark = FakeArk()
+    req = GenerationRequest(
+        **{**request().__dict__, "resume_seed": 99, "resume_since": time.time() - 60}
+    )
+    with pytest.raises(ProviderError, match="nothing was charged"):
+        asyncio.run(generator(ark).run(req))
+    assert ark.bodies("POST") == []
 
 
 def test_post_is_retried_on_rate_limit():

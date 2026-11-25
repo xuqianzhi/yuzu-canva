@@ -8,9 +8,18 @@ still one video each, plus what its projects share:
   editing it) applies to every project. A project keeps its step results by
   step key, so steps missing from the active workflow are hidden, not
   deleted.
-- an **instruction**: new projects start with a copy of it.
+- an **instruction**: what every project in it shares (the AI follows it
+  alongside each project's own); edited here, read live by its projects.
 - **assets**: named images and videos; each new project starts with them
   as uploaded nodes (its own copies).
+- **generating directly** (``direct_image``, ``direct_video``): normally
+  running an image or video step only fills in its prompts, for the user
+  to check before ``generateStep`` pays for them. With this on for the
+  step's kind, the run generates them as soon as they're filled in.
+- **no daily limit** (``no_daily_limit``): what's generated in it doesn't
+  count against the owner's daily limits (it's still recorded; an
+  editor's own limits, the cap on waiting jobs and the rate limit still
+  apply). Only admins (``Me.admin``) may change it.
 
 **Members.** The person who creates a collection is its **owner**; they
 invite **editors** by email, who accept before they get in. Editors can do
@@ -87,6 +96,12 @@ class Collection(CompleteModel):
     owner_email: str
     # Who saved the name or instruction last (null: nobody since creating it).
     updated_by_email: str | None = None
+    # Run image / video steps straight through: fill in the prompts and
+    # generate them, with no stop to check the prompts first. Off by default.
+    direct_image: bool = False
+    direct_video: bool = False
+    # Generating here skips the owner's daily limits (see the module doc).
+    no_daily_limit: bool = False
     created_at: Timestamp
     updated_at: Timestamp
 
@@ -111,6 +126,10 @@ class CollectionUpdate(ContractModel):
     version: int
     name: str | None = Field(default=None, min_length=1, max_length=200)
     instruction: str | None = Field(default=None, max_length=MAX_INSTRUCTION_CHARS)
+    direct_image: bool | None = None
+    direct_video: bool | None = None
+    # Admins only (403 ``forbidden`` for anyone else).
+    no_daily_limit: bool | None = None
 
 
 # --- members and invites ------------------------------------------------------------

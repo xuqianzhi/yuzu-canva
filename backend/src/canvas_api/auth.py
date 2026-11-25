@@ -32,6 +32,12 @@ class User:
     email: str
 
 
+def is_admin(settings: Settings, email: str) -> bool:
+    """An admin: on the allowlist (CANVAS_ALLOWED_EMAILS), or anyone in local
+    work (CANVAS_DEV_AUTH). Admins may lift a collection's daily limits."""
+    return settings.dev_auth or email.lower() in settings.allowed_emails
+
+
 def _unauthenticated(message: str = "sign in first") -> ApiError:
     return ApiError(401, ErrorCode.unauthenticated, message)
 

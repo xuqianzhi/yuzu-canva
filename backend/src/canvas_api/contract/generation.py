@@ -96,7 +96,8 @@ class JobInput(CompleteModel):
     refs: list[ResolvedRef] = Field(default_factory=list)
     # Text jobs: the instructions given to the model before the prompt.
     system: str = ""
-    # The language of the prompt's wording (how images are named, etc.).
+    # Unused: kept so older jobs still read. (Labels like "image 1" or
+    # "图片1" now follow the prompt's own script.)
     language: Language = Language.en
 
 
@@ -116,6 +117,9 @@ class Job(CompleteModel):
     # submitted. Lets a restarted backend resume polling instead of paying
     # twice, and helps when checking a job in the provider's console.
     provider_task_id: str | None = None
+    # The seed a create request was sent with, saved before sending: finds
+    # the provider's task if the backend stopped mid-send.
+    provider_seed: int | None = None
     created_at: Timestamp
     started_at: Timestamp | None = None
     finished_at: Timestamp | None = None

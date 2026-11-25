@@ -10,10 +10,10 @@ from ..contract import (
     JobStatus,
     Node,
     NodeCreate,
+    NodeMove,
     NodeSource,
     NodeUpdate,
     Output,
-    OutputUse,
     default_params,
     name_key,
     normalize_name,
@@ -25,9 +25,6 @@ from ..domain.mentions import (
     remove_mentions,
     replace_mentions,
     to_valid_id,
-)
-from ..domain.workflow import (
-    step_by_key,
 )
 from ..errors import ApiError
 from ..ids import new_id
@@ -80,6 +77,37 @@ class GraphMixin:
             self._touch_project(db, project_id)
         return self.get_node(node_id)
 
+    def move_nodes(self, project_id: str, moves: list[NodeMove]) -> list[Node]:
+        """Move several of a project's nodes in one transaction: all of them,
+        or (a node missing, or in another project) none. One query moves them
+        and one reads them back, however many there are."""
+        ts = _ts(now())
+        positions = {m.node_id: m.position.model_dump_json() for m in moves}  # the last wins
+        rows = ", ".join("(?, ?)" for _ in positions)
+        with self._tx() as db:
+            done = db.execute(
+                "UPDATE nodes SET position = v.position, updated_at = ? "
+                f"FROM (VALUES {rows}) AS v(id, position) "
+                "WHERE nodes.id = v.id AND nodes.project_id = ? AND nodes.deleted_at IS NULL",
+                (ts, *(x for pair in positions.items() for x in pair), project_id),
+            )
+            if done.rowcount != len(positions):
+                alive = {
+                    r["id"]
+                    for r in db.execute(
+                        "SELECT id FROM nodes WHERE project_id = ? AND deleted_at IS NULL",
+                        (project_id,),
+                    )
+                }
+                raise _not_found("node", next(i for i in positions if i not in alive))
+            self._touch_project(db, project_id)
+        marks = ", ".join("?" * len(positions))
+        found = {
+            r["id"]: self._node(r)
+            for r in self._all(f"SELECT * FROM nodes WHERE id IN ({marks})", *positions)
+        }
+        return [found[m.node_id] for m in moves]
+
     def update_node(self, node_id: str, body: NodeUpdate) -> Node:
         node = self.get_node(node_id)
         changes = body.model_fields_set
@@ -91,15 +119,6 @@ class GraphMixin:
                 ErrorCode.validation_error,
                 "an uploaded node's kind and settings come from its file",
             )
-        if node.workflow_step and "name" in changes:
-            step = step_by_key(self.get_project(node.project_id).workflow, node.workflow_step)
-            if step is not None and step.output == OutputUse.one_to_one:
-                raise ApiError(
-                    409,
-                    ErrorCode.workflow_locked,
-                    "a one-to-one step's nodes have no ID: only the next step uses them",
-                    {"node_id": node_id},
-                )
         if node.workflow_step and body.kind is not None and body.kind != node.kind:
             raise ApiError(
                 409,
@@ -141,6 +160,9 @@ class GraphMixin:
                 selected = None
 
         size = body.size if "size" in changes else node.size
+        prompt = body.prompt if body.prompt is not None else node.prompt
+        # A workflow node's prompt changed after its run made it.
+        edited = node.edited or (node.workflow_step is not None and prompt != node.prompt)
         with self._tx() as db:
             if "name" in changes:
                 self._check_name_free(db, node.project_id, name, node_id)
@@ -149,15 +171,16 @@ class GraphMixin:
                     self._rename_mentions(db, node.project_id, node_id, node.name, name)
             db.execute(
                 "UPDATE nodes SET kind = ?, title = ?, position = ?, size = ?, prompt = ?, "
-                "params = ?, selected_output_id = ?, updated_at = ? WHERE id = ?",
+                "params = ?, selected_output_id = ?, edited = ?, updated_at = ? WHERE id = ?",
                 (
                     kind.value,
                     name or "",
                     (body.position or node.position).model_dump_json(),
                     size.model_dump_json() if size else None,
-                    body.prompt if body.prompt is not None else node.prompt,
+                    prompt,
                     params.model_dump_json(),
                     selected,
+                    edited,
                     _ts(now()),
                     node_id,
                 ),

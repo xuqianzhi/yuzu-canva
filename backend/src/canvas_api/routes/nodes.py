@@ -9,6 +9,7 @@ from ..contract import (
     Node,
     NodeCreate,
     NodeId,
+    NodeMoves,
     NodeSource,
     NodeUpdate,
     Output,
@@ -29,6 +30,18 @@ router = APIRouter(tags=["nodes"])
 )
 def create_node(project_id: ProjectId, body: NodeCreate, store: StoreDep) -> Node:
     return store.create_node(project_id, body)
+
+
+@router.patch(
+    "/projects/{project_id}/positions",
+    operation_id="moveNodes",
+    responses=responses(404, 409),
+)
+def move_nodes(project_id: ProjectId, body: NodeMoves, store: StoreDep) -> list[Node]:
+    """Move several nodes at once, in one transaction (all of them, or 404
+    if any isn't in this project): for tidying the canvas onto a grid
+    without a request per node. Returns the moved nodes."""
+    return store.move_nodes(project_id, body.moves)
 
 
 @router.patch("/nodes/{node_id}", operation_id="updateNode", responses=responses(404))
