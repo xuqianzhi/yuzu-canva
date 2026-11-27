@@ -363,6 +363,12 @@ WHERE jsonb_path_exists(
     """
 ALTER TABLE projects RENAME COLUMN instruction TO description;
 """,
+    # 14: drop what removed features left behind: node chat's messages, and
+    # a collection's "generate directly" switches.
+    """
+DROP TABLE messages;
+ALTER TABLE collections DROP COLUMN direct_image, DROP COLUMN direct_video;
+""",
 ]
 
 # Row-level security with no policies on every table: Supabase's public Data
@@ -379,7 +385,6 @@ TABLES = [
     "jobs",
     "outputs",
     "step_runs",
-    "messages",
     "materials",
     "collections",
     "collection_workflows",
