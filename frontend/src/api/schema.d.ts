@@ -455,6 +455,8 @@ export interface paths {
          *
          *     The node is named after the file (made unique), and its single take is the
          *     file, already selected, so it can be used as another node's input at once.
+         *     Prompts that already mention that name are linked to it (reload the graph
+         *     for the new edges).
          */
         post: operations["placeMaterial"];
         delete?: never;

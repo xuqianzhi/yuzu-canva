@@ -120,6 +120,19 @@ def test_unsupported_uploads_are_refused(client):
     assert client.get(f"/api/projects/{project}/materials").json() == []
 
 
+def test_placing_a_material_links_the_prompts_that_already_mention_it(client):
+    project = new_project(client)
+    shot = new_node(client, project, prompt="The fox from Fox_photo.", name="shot")
+    material = upload(client, project, "Fox_photo.png", PNG).json()
+    placed = client.post(
+        f"/api/materials/{material['id']}/place", json={"position": {"x": 0, "y": 0}}
+    ).json()
+    edges = client.get(f"/api/projects/{project}").json()["edges"]
+    assert [(e["source_node_id"], e["target_node_id"]) for e in edges] == [
+        (placed["id"], shot["id"])
+    ]
+
+
 def test_placed_material_is_an_uploaded_node_that_feeds_others(client, fake_image):
     project = new_project(client)
     material = upload(client, project, "fox.png", PNG).json()

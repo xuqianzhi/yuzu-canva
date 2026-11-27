@@ -93,7 +93,8 @@ Or by hand: `cd backend && docker compose up -d api`, then
   Escape cancels). Unique in the canvas (ignoring case), and made of letters
   (any script), digits, `_` and `-`. A node needs an ID before anything can
   use its output: without one its output handle is a grey circle (hover it
-  for why). Uploaded nodes start out with an ID made from the file name.
+  for why). Uploaded nodes start out with an ID made from the file name,
+  and prompts that already contain it are linked to them.
 - **Using another node's output:** put its ID in a prompt. Any node ID in
   the text links that node as an input (no "@" needed; Latin IDs match as
   whole words, Chinese needs no spaces), and linked IDs are highlighted.

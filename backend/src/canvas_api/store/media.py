@@ -237,7 +237,8 @@ class MediaMixin:
         """Create an uploaded node from a material, with its own copy of the file.
 
         The node is named after the file (made unique), and its one take is
-        the file, already selected, so it can feed other nodes right away.
+        the file, already selected, so it can feed other nodes right away: any
+        prompt already mentioning that name is linked to it.
         """
         material = self.get_material(material_id)
         asset, source = self.asset_file(material.asset.id)
@@ -260,6 +261,7 @@ class MediaMixin:
                     copy_from=source,
                 )
                 written.append(key)
+                self.sync_links(db, material.project_id)  # prompts may name it
                 self._touch_project(db, material.project_id)
         except BaseException:
             delete_all(self.files, written)

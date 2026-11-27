@@ -4662,7 +4662,7 @@
     },
     "/api/materials/{material_id}/place": {
       "post": {
-        "description": "Put a material on the canvas as an uploaded node.\n\nThe node is named after the file (made unique), and its single take is the\nfile, already selected, so it can be used as another node's input at once.",
+        "description": "Put a material on the canvas as an uploaded node.\n\nThe node is named after the file (made unique), and its single take is the\nfile, already selected, so it can be used as another node's input at once.\nPrompts that already mention that name are linked to it (reload the graph\nfor the new edges).",
         "operationId": "placeMaterial",
         "parameters": [
           {

@@ -11,7 +11,7 @@ export function mediaActions(
   get: GetState,
   core: Core,
 ): Pick<CanvasState, "uploadFiles" | "deleteMaterial" | "placeMaterial"> {
-  const { record, addLocal, apiRestore, deleteNow } = core;
+  const { record, addLocal, apiRestore, deleteNow, refreshLinks } = core;
   return {
   async uploadFiles(files) {
     const project = get().project;
@@ -88,6 +88,7 @@ export function mediaActions(
       undo: async () => void (await deleteNow([node.id], [])),
       redo: () => apiRestore([node.id], []),
     });
+    await refreshLinks(); // prompts that already name it are now linked
   },
   };
 }
