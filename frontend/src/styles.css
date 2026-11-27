@@ -76,6 +76,17 @@ textarea {
   height: 100%;
 }
 
+/* Under a project's header: room for the menu's rail (its panel opens over
+   the page), kept while loading too, so nothing shifts when it appears. */
+.app__body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding-left: 64px;
+}
+
 .app__main {
   position: relative;
   flex: 1;
@@ -942,11 +953,6 @@ a.button {
   border-right: 1px solid var(--border);
   box-shadow: var(--shadow);
   overflow-y: auto;
-}
-
-/* Keep the canvas's own controls clear of the rail. */
-.canvas .react-flow__controls {
-  left: 64px;
 }
 
 /* The hand / select tool buttons: the one in use is lit. */
@@ -3978,6 +3984,11 @@ a.rail-button {
 
 .material.material--view {
   cursor: default;
+}
+
+.node-row--elsewhere {
+  cursor: default;
+  opacity: 0.55;
 }
 
 /* --- each step's results under the workflow bar, basic view only

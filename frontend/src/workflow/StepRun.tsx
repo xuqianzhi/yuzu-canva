@@ -17,7 +17,14 @@ import { errorText, useT, type Key } from "../i18n";
 import { useCanvas } from "../store/canvas";
 import { confirmReplace, confirmVideos } from "./confirm";
 import { ManualForm } from "./ManualForm";
-import { carriedForward, stepViews, type StepState, type StepView } from "./status";
+import {
+  ABOUT_STEP,
+  aboutState,
+  carriedForward,
+  stepViews,
+  type StepState,
+  type StepView,
+} from "./status";
 
 /** What a step's state pill says. */
 export const STEP_STATE_LABELS: Record<StepState, Key> = {
@@ -93,6 +100,17 @@ export function DownloadAll({ view }: { view: StepView }) {
 
 /** What the workflow says this step is for (written on the Workflows page;
     read-only in a project). */
+/** Step 0 as the views show it. */
+export function useAboutStep() {
+  const t = useT();
+  const description = useCanvas((s) => s.project?.description ?? "");
+  return {
+    key: ABOUT_STEP,
+    name: t("project_description_title"),
+    state: aboutState(description),
+  };
+}
+
 export function StepDescription({ view }: { view: StepView }) {
   const text = view.step.description.trim();
   return text ? <p className="step-desc">{text}</p> : null;

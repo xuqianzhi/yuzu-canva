@@ -1,7 +1,7 @@
 // The basic view of a project: one page per workflow step (the workflow bar
-// above is its tabs). A page runs its step and shows its nodes as cards. It's
-// the same project as the canvas -- the same store, nodes, links and actions
-// -- laid out differently: every part of a page is a shared piece (StepForms,
+// above is its tabs). Step 0's page describes the video; every other page
+// runs its step and shows its nodes as cards. It's the same project as the
+// canvas -- the same store, nodes, links and actions -- laid out differently: every part of a page is a shared piece (StepForms,
 // NodePreview, NodeBody, TakeSwitcher), so a feature changed there changes
 // in both views. Nodes outside the workflow show only on the canvas.
 import { memo, useEffect, useRef } from "react";
@@ -11,15 +11,21 @@ import { NodeBody } from "../node/NodeBody";
 import { aspect, NodePreview, useChosenOutput, useNodeGenerating } from "../node/NodePreview";
 import { TakeSwitcher } from "../node/Takes";
 import { UploadBadge, UploadInfo, uploadRatio } from "../node/UploadInfo";
-import { ProjectDescription, SharedInstruction } from "../project/Instruction";
+import { AboutVideo } from "../project/Instruction";
 import { useCanvas } from "../store/canvas";
-import { currentStep, type StepView } from "../workflow/status";
+import {
+  ABOUT_STEP,
+  currentStepKey,
+  type StepState,
+  type StepView,
+} from "../workflow/status";
 import {
   DownloadAll,
   NodePicker,
   STEP_STATE_LABELS,
   StepDescription,
   StepForms,
+  useAboutStep,
   useStepViews,
 } from "../workflow/StepRun";
 
@@ -29,21 +35,70 @@ export function BasicView() {
   const openStep = useCanvas((s) => s.openStep);
   const view = views.find((v) => v.step.key === activeStep);
 
-  // A page is always open: the step the canvas had open, else the first not
-  // done yet.
-  const fallback = currentStep(views)?.step.key;
+  // A page is always open: the step the canvas had open, else the one the
+  // project is at.
+  const description = useCanvas((s) => s.project?.description ?? "");
+  const about = activeStep === ABOUT_STEP;
+  const fallback = currentStepKey(description, views);
   useEffect(() => {
-    if (!view && fallback) openStep(fallback);
-  }, [view, fallback, openStep]);
+    if (!view && !about) openStep(fallback);
+  }, [view, about, fallback, openStep]);
 
+  if (about) return <AboutPage views={views} />;
   if (!view) return null;
   return (
     <StepPage
       key={view.step.key}
       view={view}
       total={views.length}
-      previous={views[view.index - 1]}
+      previous={views[view.index - 1]?.step}
     />
+  );
+}
+
+/** Step 0's page: the same as the menu's Instruction panel. */
+function AboutPage({ views }: { views: StepView[] }) {
+  const t = useT();
+  const openStep = useCanvas((s) => s.openStep);
+  const about = useAboutStep();
+  const next = views[0]?.step;
+  return (
+    <div className="basic">
+      <div className="basic__page">
+        <PageHeader
+          eyebrow={t("step_of", { n: 0, total: views.length })}
+          title={about.name}
+          state={about.state}
+        />
+        <section className="basic__card">
+          <AboutVideo className="basic__description" />
+        </section>
+        {next && (
+          <footer className="basic__nav">
+            <span className="basic__spacer" />
+            <button
+              className={`button${about.state === "done" ? " button--primary" : ""}`}
+              onClick={() => openStep(next.key)}
+            >
+              {t("go_to_arrow", { step: next.name })}
+            </button>
+          </footer>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PageHeader({ eyebrow, title, state }: { eyebrow: string; title: string; state: StepState }) {
+  const t = useT();
+  return (
+    <header className="basic__head">
+      <div>
+        <small>{eyebrow}</small>
+        <h1>{title}</h1>
+      </div>
+      <span className={`state-pill state-pill--${state}`}>{t(STEP_STATE_LABELS[state])}</span>
+    </header>
   );
 }
 
@@ -54,9 +109,12 @@ function StepPage({
 }: {
   view: StepView;
   total: number;
-  previous: StepView | undefined;
+  /** None before the first step: step 0 comes before it. */
+  previous: StepView["step"] | undefined;
 }) {
   const t = useT();
+  const about = useAboutStep();
+  const back = previous ?? about;
   const openStep = useCanvas((s) => s.openStep);
   const activeNodeId = useCanvas((s) => s.activeNodeId);
   const readOnly = useCanvas((s) => s.lock.status !== "editing");
@@ -64,28 +122,12 @@ function StepPage({
   return (
     <div className="basic">
       <div className="basic__page">
-        <header className="basic__head">
-          <div>
-            <small>
-              {t("step_of", { n: view.index + 1, total })} · {t(`kind_${view.step.kind}`)}
-            </small>
-            <h1>{view.step.name}</h1>
-          </div>
-          <span className={`state-pill state-pill--${view.state}`}>
-            {t(STEP_STATE_LABELS[view.state])}
-          </span>
-        </header>
+        <PageHeader
+          eyebrow={`${t("step_of", { n: view.index + 1, total })} · ${t(`kind_${view.step.kind}`)}`}
+          title={view.step.name}
+          state={view.state}
+        />
         <StepDescription view={view} />
-
-        {/* What the video is about comes first: every step is told it. */}
-        {view.index === 0 && (
-          <section className="basic__card basic__about">
-            <SharedInstruction />
-            <fieldset className="readonly-fence" disabled={readOnly}>
-              <ProjectDescription className="basic__description" />
-            </fieldset>
-          </section>
-        )}
 
         <section className="basic__card" aria-label={view.step.name}>
           <fieldset className="readonly-fence" disabled={readOnly}>
@@ -108,13 +150,9 @@ function StepPage({
         )}
 
         <footer className="basic__nav">
-          {previous ? (
-            <button className="button" onClick={() => openStep(previous.step.key)}>
-              {t("basic_prev", { step: previous.step.name })}
-            </button>
-          ) : (
-            <span />
-          )}
+          <button className="button" onClick={() => openStep(back.key)}>
+            {t("basic_prev", { step: back.name })}
+          </button>
           <span className="basic__spacer" />
           {view.state === "done" && <DownloadAll view={view} />}
           {view.next && (

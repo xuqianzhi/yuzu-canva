@@ -1,11 +1,21 @@
 // The side panel for one workflow step: its run form, then a selector that
 // jumps to each of its nodes on the canvas (a node's prompt, versions and
-// actions are on the node itself).
+// actions are on the node itself). Step 0's panel describes the video.
 import { useNodesInitialized, useReactFlow } from "@xyflow/react";
 import { useEffect, useRef } from "react";
 import { useT } from "../i18n";
+import { AboutVideo } from "../project/Instruction";
 import { useCanvas } from "../store/canvas";
-import { DownloadAll, NodePicker, STEP_STATE_LABELS, StepDescription, StepForms, useStepViews } from "./StepRun";
+import {
+  DownloadAll,
+  NodePicker,
+  STEP_STATE_LABELS,
+  StepDescription,
+  StepForms,
+  useAboutStep,
+  useStepViews,
+} from "./StepRun";
+import { ABOUT_STEP, type StepState, type StepView } from "./status";
 
 export function StepPanel() {
   const t = useT();
@@ -17,26 +27,15 @@ export function StepPanel() {
   const node = view?.nodes.find((n) => n.id === activeNodeId) ?? view?.nodes[0];
   useFocus(node?.id);
 
+  if (activeStep === ABOUT_STEP) return <AboutPanel views={views} />;
   if (!view) return null;
   return (
     <aside className="step-panel" aria-label={t("step_panel_aria", { step: view.step.name })}>
-      <header className="step-panel__head">
-        <div className="step-panel__heading">
-          <small>
-            {t("step_of", { n: view.index + 1, total: views.length })} · {t(`kind_${view.step.kind}`)}
-          </small>
-          <h2>{view.step.name}</h2>
-        </div>
-        <span className={`state-pill state-pill--${view.state}`}>{t(STEP_STATE_LABELS[view.state])}</span>
-        <button
-          className="icon-button icon-button--plain"
-          onClick={() => openStep(null)}
-          aria-label={t("close_panel")}
-          title={t("close")}
-        >
-          ×
-        </button>
-      </header>
+      <PanelHeader
+        eyebrow={`${t("step_of", { n: view.index + 1, total: views.length })} · ${t(`kind_${view.step.kind}`)}`}
+        title={view.step.name}
+        state={view.state}
+      />
       <div className="step-panel__body">
         <StepDescription view={view} />
         <StepForms key={view.step.key} view={view} />
@@ -49,6 +48,56 @@ export function StepPanel() {
                 {t("go_to_arrow", { step: view.next.name })}
               </button>
             )}
+          </div>
+        )}
+      </div>
+    </aside>
+  );
+}
+
+/** A step panel's title, state and close button. */
+function PanelHeader({ eyebrow, title, state }: { eyebrow: string; title: string; state: StepState }) {
+  const t = useT();
+  const openStep = useCanvas((s) => s.openStep);
+  return (
+    <header className="step-panel__head">
+      <div className="step-panel__heading">
+        <small>{eyebrow}</small>
+        <h2>{title}</h2>
+      </div>
+      <span className={`state-pill state-pill--${state}`}>{t(STEP_STATE_LABELS[state])}</span>
+      <button
+        className="icon-button icon-button--plain"
+        onClick={() => openStep(null)}
+        aria-label={t("close_panel")}
+        title={t("close")}
+      >
+        ×
+      </button>
+    </header>
+  );
+}
+
+/** Step 0's panel: the same as the menu's Instruction panel. */
+function AboutPanel({ views }: { views: StepView[] }) {
+  const t = useT();
+  const openStep = useCanvas((s) => s.openStep);
+  const about = useAboutStep();
+  const next = views[0]?.step;
+  return (
+    <aside className="step-panel" aria-label={t("step_panel_aria", { step: about.name })}>
+      <PanelHeader
+        eyebrow={t("step_of", { n: 0, total: views.length })}
+        title={about.name}
+        state={about.state}
+      />
+      <div className="step-panel__body">
+        <AboutVideo className="panel__instruction" />
+        {about.state === "done" && next && (
+          <div className="step-panel__continue">
+            <button className="button button--primary" onClick={() => openStep(next.key)}>
+              {t("go_to_arrow", { step: next.name })}
+            </button>
           </div>
         )}
       </div>

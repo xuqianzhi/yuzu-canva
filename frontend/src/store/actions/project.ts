@@ -1,7 +1,7 @@
 // Opening and closing a project; its name, description and viewport.
 import { api, ApiError, unwrap } from "../../api/client";
 import { t } from "../../i18n";
-import { currentStep, stepViews } from "../../workflow/status";
+import { currentStepKey, stepViews } from "../../workflow/status";
 import { type Job } from "../../api/types";
 import type { CanvasState, GetState, SetState } from "../types";
 import { toFlowEdge, message, runsOf, toFlowNode, session } from "../core";
@@ -70,12 +70,14 @@ export function projectActions(
         nodeErrors: {},
         load: { status: "ready" },
       });
-      // The workflow opens at its first step not run yet.
+      // The workflow opens at the step it's at.
       const runs = runsOf(graph);
       set({ runs });
       const views = stepViews(graph.project.workflow, get().nodes, runs);
-      const current = currentStep(views);
-      if (current) set({ activeStep: current.step.key, activeNodeId: null });
+      set({
+        activeStep: currentStepKey(graph.project.description, views),
+        activeNodeId: null,
+      });
       for (const job of Object.values(jobs)) poll(job.node_id, job.id);
       // A step may still be running (started before a reload).
       void watchRuns(graph.project.id);

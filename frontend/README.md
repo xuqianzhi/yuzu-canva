@@ -66,8 +66,8 @@ Or by hand: `cd backend && docker compose up -d api`, then
     form and its nodes as cards. Under each step in the workflow bar, its
     results are listed with their IDs (click one to copy it).
   - **Canvas**: every node on a canvas, with the open step in a panel on the
-    right. The menu, adding and linking nodes, selecting and moving the view
-    below are the canvas's.
+    right. Adding and linking nodes, selecting and moving the view below are
+    the canvas's.
 - Inside a project, **← Projects** goes back to its collection, and the
   name in the header can be edited in place.
 - **One editor at a time:** opening a project takes its lock (renewed every
@@ -75,13 +75,17 @@ Or by hand: `cd backend && docker compose up -d api`, then
   your other tab) holds it, the project opens **view only**: a banner says
   who, every control is off, and the view refreshes every 5 s; once they
   leave, **Start editing**. Your own other tab can be taken over.
-- **Menu (left edge):**
+- **Menu (down the left, under the header, both views):**
   - **Assets** — the project's uploaded images (PNG, JPEG, WebP) and
     videos (MP4, MOV). **Upload**, or drop files on the panel. Drag one onto
     the canvas to make it an *uploaded node*. Dropping files from Finder
-    straight onto the canvas uploads and places them in one go.
-  - **Nodes** — every node by name. Rename here, or click a row to select
-    the node and bring it to the middle of the view.
+    straight onto the canvas uploads and places them in one go. Basic only
+    uploads and removes: there's nothing to drag onto.
+  - **Canvas** (**Nodes** in Basic) — every node by name, and on the canvas
+    a switch to show or hide links. Rename here, or click a row to go to the
+    node: the canvas selects it and brings it to the middle; Basic opens its
+    step and scrolls to its card. Nodes outside the workflow have no card,
+    so Basic lists them faded.
   - **Instruction** — the collection's instruction (read-only here) and
     **Describe this video**, the project's own description. Editing it
     (saved as you type) changes only this project.
@@ -167,6 +171,11 @@ project in it runs on the active one. The default has five steps:
   (saved as a new version when you click away); change its prompt (or a
   step's text result) with **Edit prompt with AI**; generate it again. A
   step's node selector moves the view to a node.
+- **Step 0, Describe this video:** every project's workflow starts with it,
+  before the steps designed in the collection (it isn't listed there). Its
+  page is the same as the menu's **Instruction** panel, so what's typed in
+  one shows in the other. It's optional, ✓ once there's a description, and
+  where a project with nothing described or made yet opens.
 - **The workflow bar** shows each step (✓ once every node has an output,
   with how many are made). Workflow nodes show their step and number, and
   can't be deleted or switched to another kind.
@@ -194,14 +203,15 @@ src/
               (prompt card), NodeSettings.tsx, Takes.tsx (versions),
               UploadInfo.tsx, MediaThumb.tsx
   project/    Instruction.tsx (the collection instruction and "Describe this
-              video")
-  canvas/     the canvas view: Canvas.tsx, GenNode.tsx, Sidebar.tsx (menu),
+              video", shown by the menu and by step 0)
+  canvas/     the canvas view: Canvas.tsx, GenNode.tsx, Sidebar.tsx (the menu,
+              in both views),
               NodeName.tsx, ProjectBar.tsx (with the Basic | Canvas switch),
               inputs.ts
   basic/      the basic view (the default): BasicView.tsx, one page per
               workflow step with its nodes as cards; StepResults.tsx, each
               step's results under the workflow bar
-  workflow/   status.ts (step states, from runs and nodes), keepOpen.ts ("keep
+  workflow/   status.ts (step states, from runs and nodes, and step 0), keepOpen.ts ("keep
               this page open" while generating), StepRun.tsx (running a step,
               shared by both views), WorkflowBar.tsx, StepPanel.tsx,
               ManualForm.tsx (Provide my own), confirm.ts

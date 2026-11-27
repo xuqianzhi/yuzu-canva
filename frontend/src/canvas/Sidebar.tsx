@@ -1,5 +1,6 @@
-// The menu bar on the left of the canvas: a rail of buttons, each opening a
-// panel over the canvas edge.
+// The menu bar down the left of a project, in both views: a rail of buttons,
+// each opening a panel over the page's edge. What needs a canvas (showing
+// links, dragging an asset in) is offered only there.
 import { useReactFlow } from "@xyflow/react";
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { api, unwrap } from "../api/client";
@@ -7,9 +8,11 @@ import { useShallow } from "zustand/react/shallow";
 import type { CollectionAsset, Material } from "../api/types";
 import { useView } from "../store/view";
 import { useCanvas } from "../store/canvas";
+import { useShownView } from "../projectView";
+import { useStepViews } from "../workflow/StepRun";
 import { NodeNameInput } from "./NodeName";
 import { MediaThumb } from "../node/MediaThumb";
-import { ProjectDescription, SharedInstruction } from "../project/Instruction";
+import { AboutVideo } from "../project/Instruction";
 import { errorText, useT, type Key } from "../i18n";
 
 /** dataTransfer type for dragging a material onto the canvas. */
@@ -18,30 +21,24 @@ export const MATERIAL_MIME = "application/x-seedance-material";
 const ACCEPT = "image/png,image/jpeg,image/webp,video/mp4,video/quicktime";
 
 // "Assets" in the UI; the project API calls them materials.
-type Panel = "assets" | "canvas" | "instruction";
-
-const PANEL_LABELS: Record<Panel, Key> = {
-  assets: "nav_assets",
-  canvas: "nav_canvas",
-  instruction: "nav_instruction",
-};
+type Panel = "assets" | "nodes" | "instruction";
 
 export function Sidebar() {
   const t = useT();
   const [open, setOpen] = useState<Panel | null>(null);
   const toggle = (panel: Panel) => setOpen((current) => (current === panel ? null : panel));
+  const basic = useShownView() === "basic";
+  const readOnly = useCanvas((s) => s.lock.status !== "editing");
+  // On the canvas, the nodes' panel also holds what's shown on it.
+  const labels: Record<Panel, Key> = {
+    assets: "nav_assets",
+    nodes: basic ? "nav_nodes" : "nav_canvas",
+    instruction: "nav_instruction",
+  };
 
   return (
-    // Drags over the menu never reach the canvas behind it: a file dropped
-    // on the Assets panel is uploaded once, and an asset dropped back on
-    // the menu does not land on the canvas underneath.
-    <div
-      className="sidebar"
-      onDragOver={(e) => e.stopPropagation()}
-      onDragLeave={(e) => e.stopPropagation()}
-      onDrop={(e) => e.stopPropagation()}
-    >
-      <nav className="sidebar__rail" aria-label={t("canvas_menu")}>
+    <div className="sidebar">
+      <nav className="sidebar__rail" aria-label={t("project_menu")}>
         <RailButton
           label={t("nav_assets")}
           active={open === "assets"}
@@ -55,9 +52,9 @@ export function Sidebar() {
           }
         />
         <RailButton
-          label={t("nav_canvas")}
-          active={open === "canvas"}
-          onClick={() => toggle("canvas")}
+          label={t(labels.nodes)}
+          active={open === "nodes"}
+          onClick={() => toggle("nodes")}
           icon={
             <>
               <rect x="3" y="3.5" width="5" height="4" rx="1" />
@@ -79,10 +76,12 @@ export function Sidebar() {
         />
       </nav>
       {open && (
-        <aside className="sidebar__panel" aria-label={t(PANEL_LABELS[open])}>
-          {open === "assets" && <MaterialsPanel />}
-          {open === "canvas" && <CanvasPanel />}
-          {open === "instruction" && <InstructionPanel />}
+        <aside className="sidebar__panel" aria-label={t(labels[open])}>
+          <fieldset className="readonly-fence" disabled={readOnly}>
+            {open === "assets" && <MaterialsPanel basic={basic} />}
+            {open === "nodes" && (basic ? <BasicNodesPanel /> : <CanvasPanel />)}
+            {open === "instruction" && <InstructionPanel />}
+          </fieldset>
         </aside>
       )}
     </div>
@@ -112,19 +111,21 @@ function RailButton(props: {
 
 // --- Assets (the project's materials) ----------------------------------------------
 
-function MaterialsPanel() {
+function MaterialsPanel({ basic }: { basic: boolean }) {
   const t = useT();
   const materials = useCanvas((s) => s.materials);
   const uploading = useCanvas((s) => s.uploading);
   const uploadFiles = useCanvas((s) => s.uploadFiles);
   const input = useRef<HTMLInputElement>(null);
   const [dropping, setDropping] = useState(false);
+  // The panel's fence doesn't stop drops, so they're refused here.
+  const readOnly = useCanvas((s) => s.lock.status !== "editing");
 
   const onDrop = (event: DragEvent) => {
     if (!event.dataTransfer.types.includes("Files")) return;
     event.preventDefault();
     setDropping(false);
-    void uploadFiles([...event.dataTransfer.files]);
+    if (!readOnly) void uploadFiles([...event.dataTransfer.files]);
   };
 
   return (
@@ -132,9 +133,10 @@ function MaterialsPanel() {
       className={`panel${dropping ? " panel--dropping" : ""}`}
       onDragOver={(e) => {
         if (!e.dataTransfer.types.includes("Files")) return;
+        // Taken even when refused: else the browser would open the file.
         e.preventDefault();
-        e.dataTransfer.dropEffect = "copy";
-        setDropping(true);
+        e.dataTransfer.dropEffect = readOnly ? "none" : "copy";
+        setDropping(!readOnly);
       }}
       onDragLeave={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget as globalThis.Node | null)) {
@@ -160,7 +162,7 @@ function MaterialsPanel() {
           }}
         />
       </header>
-      <p className="panel__help">{t("assets_help")}</p>
+      <p className="panel__help">{t(basic ? "assets_help_basic" : "assets_help")}</p>
       {uploading > 0 && (
         <p className="panel__status">
           <span className="spinner" /> {t.n("uploading_files", uploading)}
@@ -173,7 +175,7 @@ function MaterialsPanel() {
       ) : (
         <ul className="material-grid">
           {materials.map((m) => (
-            <MaterialItem key={m.id} material={m} />
+            <MaterialItem key={m.id} material={m} draggable={!basic} />
           ))}
         </ul>
       )}
@@ -232,7 +234,7 @@ function CollectionAssetList() {
   );
 }
 
-function MaterialItem({ material }: { material: Material }) {
+function MaterialItem({ material, draggable }: { material: Material; draggable: boolean }) {
   const t = useT();
   const deleteMaterial = useCanvas((s) => s.deleteMaterial);
   const { asset } = material;
@@ -245,13 +247,13 @@ function MaterialItem({ material }: { material: Material }) {
 
   return (
     <li
-      className="material"
-      draggable
+      className={`material${draggable ? "" : " material--view"}`}
+      draggable={draggable}
       onDragStart={(e) => {
         e.dataTransfer.setData(MATERIAL_MIME, material.id);
         e.dataTransfer.effectAllowed = "copy";
       }}
-      title={t("material_title", { name: material.name })}
+      title={draggable ? t("material_title", { name: material.name }) : material.name}
     >
       <div className="material__thumb">
         <MediaThumb kind={asset.kind} url={asset.url} />
@@ -271,11 +273,43 @@ function MaterialItem({ material }: { material: Material }) {
   );
 }
 
-// --- Canvas: what's shown, and the nodes ------------------------------------------
+// --- The nodes (on the canvas, also what's shown on it) ---------------------------
+
+/** The "Nodes" heading and its list: a row for every node, in the canvas's
+    order. */
+function NodeList({
+  sub = false,
+  help,
+  empty,
+  row,
+}: {
+  /** Under the panel's own heading. */
+  sub?: boolean;
+  help: string;
+  empty: string;
+  row: (id: string) => React.ReactNode;
+}) {
+  const t = useT();
+  const ids = useCanvas(useShallow((s) => s.flowNodes.map((n) => n.id)));
+  const Heading = sub ? "h3" : "h2";
+  return (
+    <>
+      <header className={`panel__head${sub ? " panel__head--sub" : ""}`}>
+        <Heading>{t("nav_nodes")}</Heading>
+        <span className="panel__count">{ids.length}</span>
+      </header>
+      <p className="panel__help">{help}</p>
+      {ids.length === 0 ? (
+        <p className="panel__help">{empty}</p>
+      ) : (
+        <ul className="node-list">{ids.map(row)}</ul>
+      )}
+    </>
+  );
+}
 
 function CanvasPanel() {
   const t = useT();
-  const ids = useCanvas(useShallow((s) => s.flowNodes.map((n) => n.id)));
   const links = useCanvas((s) => s.flowEdges.length);
   const showLinks = useView((s) => s.showLinks);
   const setShowLinks = useView((s) => s.setShowLinks);
@@ -295,26 +329,17 @@ function CanvasPanel() {
         <span className="panel__count">{links}</span>
       </label>
       <p className="panel__help">{t("show_links_help")}</p>
-      <header className="panel__head panel__head--sub">
-        <h3>{t("nav_nodes")}</h3>
-        <span className="panel__count">{ids.length}</span>
-      </header>
-      <p className="panel__help">{t("nodes_help")}</p>
-      {ids.length === 0 ? (
-        <p className="panel__help">{t("nodes_empty")}</p>
-      ) : (
-        <ul className="node-list">
-          {ids.map((id) => (
-            <NodeRow key={id} nodeId={id} />
-          ))}
-        </ul>
-      )}
+      <NodeList
+        sub
+        help={t("nodes_help")}
+        empty={t("nodes_empty")}
+        row={(id) => <CanvasNodeRow key={id} nodeId={id} />}
+      />
     </div>
   );
 }
 
-function NodeRow({ nodeId }: { nodeId: string }) {
-  const t = useT();
+function CanvasNodeRow({ nodeId }: { nodeId: string }) {
   const node = useCanvas((s) => s.nodes[nodeId]);
   const selected = useCanvas((s) => s.flowNodes.find((n) => n.id === nodeId)?.selected ?? false);
   const flow = useReactFlow();
@@ -332,12 +357,62 @@ function NodeRow({ nodeId }: { nodeId: string }) {
     });
   };
 
+  return <NodeRow nodeId={nodeId} selected={selected} onClick={focus} />;
+}
+
+/** The nodes in the basic view: a row goes to its node's card. A node
+    outside the workflow has none (it shows only on the canvas). */
+function BasicNodesPanel() {
+  const t = useT();
+  const views = useStepViews();
+  const activeNodeId = useCanvas((s) => s.activeNodeId);
+  const jumpToNode = useCanvas((s) => s.jumpToNode);
+  const stepOf = new Map(views.flatMap((v) => v.nodes.map((n) => [n.id, v.step.key] as const)));
+  return (
+    <div className="panel">
+      <NodeList
+        help={t("nodes_help_basic")}
+        empty={t("nodes_empty_basic")}
+        row={(id) => {
+          const step = stepOf.get(id);
+          return (
+            <NodeRow
+              key={id}
+              nodeId={id}
+              selected={activeNodeId === id}
+              onClick={step ? () => jumpToNode(step, id) : undefined}
+            />
+          );
+        }}
+      />
+    </div>
+  );
+}
+
+/** One node: its kind and its ID (editable). Without `onClick` there is
+    nowhere to go. */
+function NodeRow({
+  nodeId,
+  selected,
+  onClick,
+}: {
+  nodeId: string;
+  selected: boolean;
+  onClick: (() => void) | undefined;
+}) {
+  const t = useT();
+  const node = useCanvas((s) => s.nodes[nodeId]);
+  if (!node) return null;
   const kind =
     node.source === "upload"
       ? t("kind_uploaded", { kind: t(`kind_${node.kind}`) })
       : t(`kind_${node.kind}`);
   return (
-    <li className={`node-row${selected ? " is-selected" : ""}`} onClick={focus}>
+    <li
+      className={`node-row${selected ? " is-selected" : ""}${onClick ? "" : " node-row--elsewhere"}`}
+      onClick={onClick}
+      title={onClick ? undefined : t("node_only_on_canvas")}
+    >
       <span className={`node-row__kind node-row__kind--${node.kind}`}>{kind}</span>
       <NodeNameInput nodeId={nodeId} className="node-row__name" />
     </li>
@@ -352,9 +427,7 @@ function InstructionPanel() {
       <header className="panel__head">
         <h2>{t("nav_instruction")}</h2>
       </header>
-      <p className="panel__help">{t("instruction_both_help")}</p>
-      <SharedInstruction />
-      <ProjectDescription className="panel__instruction" />
+      <AboutVideo className="panel__instruction" />
     </div>
   );
 }

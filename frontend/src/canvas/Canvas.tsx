@@ -26,7 +26,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useView } from "../store/view";
 import { GenNode } from "./GenNode";
 import { RefEdge } from "./RefEdge";
-import { MATERIAL_MIME, Sidebar } from "./Sidebar";
+import { MATERIAL_MIME } from "./Sidebar";
 import { useT, type Key, type T } from "../i18n";
 
 const nodeTypes: NodeTypes = { gen: GenNode };
@@ -357,7 +357,6 @@ export function Canvas() {
       }}
       onDrop={(e) => void onDrop(e)}
     >
-      <Sidebar />
       <ReactFlow<GenFlowNode, RefFlowEdge>
         nodes={flowNodes}
         edges={edges}

@@ -1,14 +1,15 @@
-// The workflow bar under the project header: every step with its state.
-// The current step (the first that isn't done) is highlighted; clicking a
-// step opens it: in the side panel on the canvas, as the page in the basic
-// view (where each step with results also lists them underneath).
+// The workflow bar under the project header: every step with its state,
+// starting with step 0 ("Describe this video"). The step the project is at is
+// highlighted; clicking a step opens it: in the side panel on the canvas, as
+// the page in the basic view (where each step with results also lists them
+// underneath).
 import { StepResults } from "../basic/StepResults";
 import { useT, type Key } from "../i18n";
 import { useShownView } from "../projectView";
 import { useCanvas } from "../store/canvas";
 import { useView } from "../store/view";
-import { useStepViews } from "./StepRun";
-import { currentStep, type StepState } from "./status";
+import { useAboutStep, useStepViews } from "./StepRun";
+import { currentStepKey, type StepState } from "./status";
 
 const STATE_TITLES: Record<StepState, Key> = {
   ready: "st_ready",
@@ -22,25 +23,35 @@ export function WorkflowBar() {
   const activeStep = useCanvas((s) => s.activeStep);
   const openStep = useCanvas((s) => s.openStep);
   const views = useStepViews();
+  const about = useAboutStep();
   const collapsed = useView((s) => s.stripCollapsed);
   const setCollapsed = useView((s) => s.setStripCollapsed);
   const basic = useShownView() === "basic";
-  if (!project || !views.length) return null;
-  const current = currentStep(views);
+  if (!project) return null;
+  const current = currentStepKey(project.description, views);
+  // Step 0, then the workflow's own.
+  const items = [
+    { key: about.key, number: 0, label: about.name, state: about.state, view: undefined },
+    ...views.map((view) => ({
+      key: view.step.key,
+      number: view.index + 1,
+      label: view.step.name,
+      state: view.state,
+      view,
+    })),
+  ];
   const hasResults = basic && views.some((v) => v.made > 0);
 
   return (
     <nav className={`wf-bar${basic ? " wf-bar--basic" : ""}`} aria-label={t("wf_aria")}>
       <span className="wf-bar__title">{project.workflow.name}</span>
       <ol className="wf-bar__steps">
-        {views.map((view) => {
-          const { step, state } = view;
-          const isCurrent = current?.step.key === step.key;
-          const active = activeStep === step.key;
-          const label = step.name;
+        {items.map(({ key, number, label, state, view }) => {
+          const isCurrent = current === key;
+          const active = activeStep === key;
           return (
-            <li key={step.key} className="wf-bar__item">
-              {view.index > 0 && <span className="wf-bar__line" aria-hidden="true" />}
+            <li key={key} className="wf-bar__item">
+              {number > 0 && <span className="wf-bar__line" aria-hidden="true" />}
               {/* The step, and under it (basic view) what it made: one
                   column, so they're as wide as each other. */}
               <div className="wf-bar__column">
@@ -56,24 +67,22 @@ export function WorkflowBar() {
                   onClick={() =>
                     // A basic page opens at its top, not scrolled to a node.
                     openStep(
-                      active && !basic ? null : step.key,
-                      basic ? null : (view.nodes[0]?.id ?? null),
+                      active && !basic ? null : key,
+                      basic ? null : (view?.nodes[0]?.id ?? null),
                     )
                   }
                 >
                   <span className="wf-step__dot" aria-hidden="true">
-                    {state === "done" ? "✓" : view.index + 1}
+                    {state === "done" ? "✓" : number}
                   </span>
                   <span className="wf-step__label">{label}</span>
-                  {view.nodes.length > 0 && (
+                  {view && view.nodes.length > 0 && (
                     <span className="wf-step__count">
                       {view.made}/{view.nodes.length}
                     </span>
                   )}
                 </button>
-                {basic && !collapsed && (
-                  <StepResults name={label} nodes={view.nodes} />
-                )}
+                {basic && !collapsed && view && <StepResults name={label} nodes={view.nodes} />}
               </div>
             </li>
           );

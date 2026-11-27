@@ -106,8 +106,8 @@ const en = {
   undo: "Undo",
   redo: "Redo",
 
-  // --- canvas menu ---
-  canvas_menu: "Canvas menu",
+  // --- project menu ---
+  project_menu: "Project menu",
   nav_nodes: "Nodes",
   nav_canvas: "Canvas",
   node_failed: "Failed",
@@ -117,6 +117,11 @@ const en = {
   collection_assets_title: "From the collection",
   collection_assets_help: "Shared by every project in the collection. View only here; change them on the collection's Assets page.",
   assets_help: "Images (PNG, JPEG, WebP) and videos (MP4, MOV). Drag one onto the canvas to make it a node.",
+  assets_help_basic: "Images (PNG, JPEG, WebP) and videos (MP4, MOV). To drag one in as a node, switch to Canvas.",
+  node_only_on_canvas: "Not in the workflow: it shows on the canvas only",
+  nodes_help_basic:
+    "IDs are optional and unique in this project; a node needs one before others can use it. Click a row to go to the node. Faded ones are on the canvas only.",
+  nodes_empty_basic: "No nodes yet. Run a step to add some.",
   uploading_files_one: "Uploading {n} file…",
   uploading_files_other: "Uploading {n} files…",
   assets_empty: "Drop files here or click to upload",
@@ -568,7 +573,7 @@ const zh: Record<Key, string> = {
   undo: "撤销",
   redo: "重做",
 
-  canvas_menu: "画布菜单",
+  project_menu: "项目菜单",
   nav_nodes: "节点",
   nav_canvas: "画布",
   node_failed: "失败",
@@ -578,6 +583,10 @@ const zh: Record<Key, string> = {
   collection_assets_title: "来自合集",
   collection_assets_help: "合集里的所有项目共用。这里只能查看，请到合集的素材页修改。",
   assets_help: "图片（PNG、JPEG、WebP）和视频（MP4、MOV）。把它拖到画布上即可成为节点。",
+  assets_help_basic: "图片（PNG、JPEG、WebP）和视频（MP4、MOV）。要把它拖入成为节点，请切换到画布。",
+  node_only_on_canvas: "不在工作流中：只在画布上显示",
+  nodes_help_basic: "ID 可选，且在项目中唯一；节点需要有 ID 才能被其他节点使用。点击一行即可前往节点。变淡的节点只在画布上。",
+  nodes_empty_basic: "还没有节点。运行某一步即可添加。",
   uploading_files_one: "正在上传 {n} 个文件…",
   uploading_files_other: "正在上传 {n} 个文件…",
   assets_empty: "把文件拖到这里，或点击上传",

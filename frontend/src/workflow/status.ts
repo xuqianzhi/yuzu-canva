@@ -16,6 +16,16 @@ export type StepState =
   /** Run, and every node has an output. */
   | "done";
 
+/** Step 0, "Describe this video", which every project's workflow starts
+    with. It isn't part of the workflow's definition: it fills the project's
+    description. (No real step key can be spelled like this.) */
+export const ABOUT_STEP = "@about";
+
+/** Step 0's state: done once the video is described. */
+export function aboutState(description: string): StepState {
+  return description.trim() ? "done" : "ready";
+}
+
 export interface StepView {
   step: WorkflowStep;
   index: number;
@@ -59,9 +69,12 @@ export function stepViews(
   });
 }
 
-/** The first step that isn't done. */
-export function currentStep(views: StepView[]): StepView | undefined {
-  return views.find((v) => v.state !== "done") ?? views[views.length - 1];
+/** The key of the step to be at: step 0 for a project with nothing described
+    or made yet, else the first step that isn't done. */
+export function currentStepKey(description: string, views: StepView[]): string {
+  const untouched = aboutState(description) !== "done" && views.every((v) => v.state === "ready");
+  if (untouched) return ABOUT_STEP;
+  return (views.find((v) => v.state !== "done") ?? views[views.length - 1])?.step.key ?? ABOUT_STEP;
 }
 
 /**

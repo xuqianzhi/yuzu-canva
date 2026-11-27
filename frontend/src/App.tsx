@@ -4,6 +4,7 @@ import { BasicView } from "./basic/BasicView";
 import { Canvas } from "./canvas/Canvas";
 import { LockBanner } from "./canvas/LockBanner";
 import { ProjectBar } from "./canvas/ProjectBar";
+import { Sidebar } from "./canvas/Sidebar";
 import { HomePage } from "./pages/HomePage";
 import { SignInGate } from "./pages/SignIn";
 import { collectionHref, homeHref, syncProject, useRoute } from "./router";
@@ -47,39 +48,47 @@ function ProjectPage() {
     <ReactFlowProvider>
       <div className="app">
         <ProjectBar />
-        {load.status === "ready" && project && <WorkflowBar />}
-        <main className="app__main">
-          {load.status === "error" ? (
-            <div className="app__notice app__notice--error">
-              <strong>{t("open_error")}</strong>
-              <span>{load.message}</span>
-              <a className="button" href={project ? collectionHref(project.collection_id) : homeHref}>
-                {t("back_to_projects")}
-              </a>
-            </div>
-          ) : load.status === "loading" || !project ? (
-            <div className="app__notice">{t("loading")}</div>
-          ) : (
+        {/* The menu runs down the left of all that's under the header. */}
+        <div className="app__body">
+          {load.status === "ready" && project && (
             <>
-              <LockBanner />
-              {basic ? (
-                // Fences off its own editing controls: moving between steps
-                // stays usable while view-only.
-                <BasicView />
-              ) : (
-                // View-only while someone else edits: every control inside
-                // is disabled (the server refuses changes anyway).
-                <fieldset className="readonly-fence" disabled={readOnly}>
-                  {/* Remount per project so the saved viewport applies. */}
-                  <Canvas key={project.id} />
-                  <StepPanel />
-                </fieldset>
-              )}
-              <Notice />
-              <KeepOpenNotice />
+              <Sidebar />
+              <WorkflowBar />
             </>
           )}
-        </main>
+          <main className="app__main">
+            {load.status === "error" ? (
+              <div className="app__notice app__notice--error">
+                <strong>{t("open_error")}</strong>
+                <span>{load.message}</span>
+                <a className="button" href={project ? collectionHref(project.collection_id) : homeHref}>
+                  {t("back_to_projects")}
+                </a>
+              </div>
+            ) : load.status === "loading" || !project ? (
+              <div className="app__notice">{t("loading")}</div>
+            ) : (
+              <>
+                <LockBanner />
+                {basic ? (
+                  // Fences off its own editing controls: moving between steps
+                  // stays usable while view-only.
+                  <BasicView />
+                ) : (
+                  // View-only while someone else edits: every control inside
+                  // is disabled (the server refuses changes anyway).
+                  <fieldset className="readonly-fence" disabled={readOnly}>
+                    {/* Remount per project so the saved viewport applies. */}
+                    <Canvas key={project.id} />
+                    <StepPanel />
+                  </fieldset>
+                )}
+                <Notice />
+                <KeepOpenNotice />
+              </>
+            )}
+          </main>
+        </div>
       </div>
     </ReactFlowProvider>
   );
