@@ -28,9 +28,10 @@ images and videos, and see the result; everything saves, and ⌘Z undoes it.
   time; others see it view-only until it's free.
 - **Workflows**: designed per collection (a list of steps, each a
   name and what it makes); its projects run on the active one. In a project,
-  each step runs with a prompt and a number: with the project instruction
-  and the step before's results, the AI writes that many results (text) or
-  prompts (images, videos, generated at once). See frontend/README.md.
+  each step runs with an optional instruction and a number: with the project
+  description and what earlier steps settled on, the AI writes that many
+  results (text) or prompts (images, videos: checked, then generated). See
+  frontend/README.md.
 - **Text nodes** (OpenAI `OPENAI_TEXT_MODEL`, default gpt-5-mini).
 - **Image nodes** (OpenAI): text to image with no inputs, image edit with
   one or more image inputs ("image 1", "image 2" in the prompt).
@@ -58,8 +59,6 @@ frontend's dev sign-in). Each user sees only their own projects, templates,
 assets and settings, within daily limits. Media links are signed instead.
 
 Deploying (Firebase Hosting + Cloud Run + Supabase): see [DEPLOY.md](DEPLOY.md).
-
-Not yet: streaming chat answers.
 
 ## Backend
 

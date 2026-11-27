@@ -133,7 +133,6 @@ export function WorkflowDesigner({ view }: { view: CollectionView }) {
       <div className="home__inner">
         <h1 className="home__title">{t("wf_title")}</h1>
         <p className="home__help">{t("wf_help")}</p>
-        <CollectionSwitches view={view} />
         {error && (
           <p className="home__error" role="alert">
             {error}
@@ -164,7 +163,7 @@ export function WorkflowDesigner({ view }: { view: CollectionView }) {
                       key: "step_1",
                       name: t("wf_new_step"),
                       kind: "text",
-                      carry: "all",
+                      carry: "none",
                       count: null,
                       description: "",
                     },
@@ -337,13 +336,16 @@ export function WorkflowDesigner({ view }: { view: CollectionView }) {
                         ))}
                       </select>
                     </label>
-                    <label
-                      className="designer__field designer__field--wide"
-                      title={t("wf_carry_help")}
-                    >
-                      <span>{t("wf_carry")}</span>
+                    {/* Not a <label> around it all: a click on the info icon
+                        would go to the select. */}
+                    <div className="designer__field designer__field--wide">
+                      <span className="designer__label">
+                        {t("wf_carry")}
+                        <InfoTip text={t("wf_carry_help")} />
+                      </span>
                       <select
                         value={step.carry}
+                        aria-label={t("wf_carry")}
                         disabled={index === draft.steps.length - 1}
                         onChange={(e) =>
                           setStep(index, {
@@ -353,10 +355,9 @@ export function WorkflowDesigner({ view }: { view: CollectionView }) {
                         }
                       >
                         <option value="all">{t("wf_carry_all")}</option>
-                        <option value="used">{t("wf_carry_used")}</option>
                         <option value="none">{t("wf_carry_none")}</option>
                       </select>
-                    </label>
+                    </div>
                     <CountField
                       step={step}
                       onChange={(count) => setStep(index, { ...step, count })}
@@ -400,7 +401,7 @@ export function WorkflowDesigner({ view }: { view: CollectionView }) {
                         key: freeKey(draft.steps),
                         name: t("wf_new_step"),
                         kind: "text",
-                        carry: "all",
+                        carry: "none",
                         count: null,
                         description: "",
                       },
@@ -426,94 +427,6 @@ function saveError(e: unknown, fallback: string): string {
   return e instanceof ApiError && e.code === "edit_conflict"
     ? tr("conflict", { email: e.body.error.context.by ?? "?" })
     : fallback;
-}
-
-/** The collection's switches: running image / video steps straight through
-    (fill in the prompts and generate them, without stopping to let them be
-    checked first), and, for admins only, lifting its owner's daily limits.
-    Saved at once (with the collection's version). */
-function CollectionSwitches({ view }: { view: CollectionView }) {
-  const t = useT();
-  const { collection } = view;
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  // Admins (the allowlist, or anyone in local work) see the daily-limit switch.
-  const [admin, setAdmin] = useState(false);
-  useEffect(() => {
-    api
-      .GET("/api/me")
-      .then((result) => setAdmin(result.data?.admin ?? false))
-      .catch(() => setAdmin(false));
-  }, []);
-
-  const save = async (change: {
-    direct_image?: boolean;
-    direct_video?: boolean;
-    no_daily_limit?: boolean;
-  }) => {
-    setBusy(true);
-    setError("");
-    try {
-      unwrap(
-        await api.PATCH("/api/collections/{collection_id}", {
-          params: { path: { collection_id: collection.id } },
-          body: { version: collection.version, ...change },
-        }),
-      );
-    } catch (e) {
-      setError(saveError(e, tr("save_error", { error: errorText(e) })));
-    }
-    await view.reload();
-    setBusy(false);
-  };
-
-  return (
-    <section className="direct" aria-label={t("direct_title")}>
-      <h2 className="direct__title">{t("direct_title")}</h2>
-      <label className="panel__switch">
-        <input
-          type="checkbox"
-          role="switch"
-          checked={collection.direct_image}
-          disabled={busy}
-          onChange={(e) => void save({ direct_image: e.target.checked })}
-        />
-        <span>{t("direct_image")}</span>
-      </label>
-      <label className="panel__switch">
-        <input
-          type="checkbox"
-          role="switch"
-          checked={collection.direct_video}
-          disabled={busy}
-          onChange={(e) => void save({ direct_video: e.target.checked })}
-        />
-        <span>{t("direct_video")}</span>
-      </label>
-      <p className="direct__help">{t("direct_help")}</p>
-      {admin && (
-        <>
-          <h2 className="direct__title direct__title--sub">{t("limit_title")}</h2>
-          <label className="panel__switch">
-            <input
-              type="checkbox"
-              role="switch"
-              checked={collection.no_daily_limit}
-              disabled={busy}
-              onChange={(e) => void save({ no_daily_limit: e.target.checked })}
-            />
-            <span>{t("no_daily_limit")}</span>
-          </label>
-          <p className="direct__help">{t("no_daily_limit_help")}</p>
-        </>
-      )}
-      {error && (
-        <p className="home__error" role="alert">
-          {error}
-        </p>
-      )}
-    </section>
-  );
 }
 
 /** A step's default count: how many a run makes unless the project says
@@ -605,5 +518,20 @@ function CopyFrom({
         </option>
       ))}
     </select>
+  );
+}
+
+/** A small ⓘ that explains a field: hover it (for half a second) or focus it. */
+function InfoTip({ text }: { text: string }) {
+  return (
+    <span className="info-tip" tabIndex={0} role="note" aria-label={text}>
+      <svg viewBox="0 0 16 16" aria-hidden="true">
+        <circle cx="8" cy="8" r="6.25" />
+        <path d="M8 7.2v3.6M8 5.1v.1" />
+      </svg>
+      <span className="info-tip__text" aria-hidden="true">
+        {text}
+      </span>
+    </span>
   );
 }

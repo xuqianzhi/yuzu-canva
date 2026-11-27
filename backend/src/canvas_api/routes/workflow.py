@@ -1,18 +1,17 @@
-"""Running a project's workflow steps, hand-written takes, and each text
-node's chat. Plus the app's settings. (Workflows themselves belong to
+"""Running a project's workflow steps, hand-written takes, and AI edits
+of a node. Plus the app's settings. (Workflows themselves belong to
 collections: routes/collections.py.)"""
 
 from __future__ import annotations
 
 import asyncio
 import io
-import json
 import logging
 import mimetypes
 import re
 import zipfile
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from urllib.parse import quote
 
 from fastapi import APIRouter, Request
@@ -24,9 +23,6 @@ from ..contract import (
     AiEditRequest,
     AppSettings,
     AppSettingsUpdate,
-    ChatMessage,
-    ChatRequest,
-    ChatRole,
     EditTarget,
     ErrorCode,
     MediaKind,
@@ -52,13 +48,10 @@ from ..domain.workflow import (
     RunItem,
     W,
     carried_piece,
-    chat_spec,
-    chat_system,
-    current_version_block,
-    decisions_block,
     edit_messages,
     edit_spec,
     image_label,
+    keep_used,
     name_images,
     parse_edit,
     parse_run,
@@ -71,13 +64,9 @@ from ..errors import ApiError, responses
 from ..files import FileMissing
 from ..jobs.queue import queue_generation, ref_file
 from ..providers.base import ProviderError, RefFile
-from ..providers.openai_text import parse_chat_answer
 
 router = APIRouter(tags=["workflow"])
 log = logging.getLogger(__name__)
-
-# How much of a chat is sent back to the model with each new message.
-CHAT_HISTORY = 20
 
 
 def _provider_error(exc: ProviderError) -> ApiError:
@@ -99,16 +88,11 @@ class _Run:
     """A step run, worked out before it starts."""
 
     project_id: str
-    # Who runs it (pays nothing: the collection's owner does).
-    actor: str
     collection_id: str
     step: WorkflowStep
     prompt: str
     count: int
     media: bool
-    # Generate the nodes as soon as they're filled in (the collection's
-    # direct_image / direct_video), instead of waiting for generateStep.
-    direct: bool
 
 
 @router.post(
@@ -137,21 +121,14 @@ async def run_step(
     The prompt, the instructions, what earlier steps settled on and the
     nodes the prompt mentions (by ID) go to a text model, which writes
     ``count`` results (a text step: its nodes' text) or prompts (an image or
-    video step: one node each, with the mentioned nodes as references, and
-    for a video its length in seconds). Image and video nodes are only
-    filled in: ``generateStep`` then generates them -- unless the
-    collection generates that kind directly (``Collection.direct_image`` /
-    ``direct_video``): then the run generates them itself once they're
-    filled in (and fails, with the nodes in place, if that's refused).
+    video step: one node each, referring to the mentioned nodes it uses,
+    and for a video its length in seconds). Image and video nodes are only
+    filled in: ``generateStep`` then generates them.
     """
-    run = await run_in_threadpool(_plan_run, store, project_id, step_key, body, user.id)
-    if run.direct:
-        # Refuse up front what would refuse the generating anyway.
-        spending.check_on()
-        spending.check_jobs(run.collection_id, run.count)
+    run = await run_in_threadpool(_plan_run, store, project_id, step_key, body)
     spending.charge(user.id, run.collection_id, "text")
     await run_in_threadpool(store.start_run, project_id, step_key, run.prompt, run.count)
-    task = asyncio.create_task(_finish_run(run, store, worker, text_model, spending))
+    task = asyncio.create_task(_finish_run(run, store, worker, text_model))
     tasks: set[asyncio.Task] = request.app.state.tasks
     tasks.add(task)
     task.add_done_callback(tasks.discard)
@@ -174,7 +151,7 @@ def complete_step(
     in order -- texts for a text step, uploaded files (``uploadMaterial``)
     for an image or video step, each copied in as its node's take. Nothing
     is generated or charged. 409 while the step is running."""
-    _, cancelled = store.complete_step(project_id, step_key, body.entries)
+    cancelled = store.complete_step(project_id, step_key, body.entries)
     for job_id in cancelled:
         worker.abort(job_id)
     return store.get_graph(project_id)
@@ -304,22 +281,19 @@ def _zip_stream(store, entries: list[_ZipEntry]) -> Iterator[bytes]:
     yield pipe.take()
 
 
-def _plan_run(store, project_id: str, step_key: str, body: StepRunRequest, actor: str) -> _Run:
+def _plan_run(store, project_id: str, step_key: str, body: StepRunRequest) -> _Run:
     project = store.get_project(project_id)
     step = _step_or_404(project, step_key)
     media = step.kind != MediaKind.text
-    direct = media and getattr(project, f"direct_{step.kind.value}", False)
     # The prompt is optional: the instructions, the step's description and
     # earlier steps may be enough.
     return _Run(
         project_id,
-        actor,
         project.collection_id,
         step,
         body.prompt.strip(),
         body.count,
         media,
-        direct,
     )
 
 
@@ -332,11 +306,11 @@ class _Asked:
     images: list
     # Decisions and references, to turn "image 2" in the answer into IDs.
     pieces: list[Piece]
-    # The IDs the prompt mentions: each prompt keeps them in as references.
+    # The IDs the prompt mentions: each media prompt keeps the ones it uses.
     mentioned: list[str]
 
 
-async def _finish_run(run: _Run, store, worker, text_model, spending) -> None:
+async def _finish_run(run: _Run, store, worker, text_model) -> None:
     """The slow part of a run (the text model), then its new nodes. The
     database work runs in threads, off the event loop."""
 
@@ -346,38 +320,14 @@ async def _finish_run(run: _Run, store, worker, text_model, spending) -> None:
     try:
         asked = await run_in_threadpool(_ask_for_run, store, run)
         items = await _write_items(text_model, run, asked)
-        nodes, cancelled = await run_in_threadpool(_save_run, store, run, items)
+        cancelled = await run_in_threadpool(_save_run, store, run, items)
         for job_id in cancelled:
             worker.abort(job_id)
     except ApiError as exc:
-        return await fail(exc.detail.message)
+        await fail(exc.detail.message)
     except Exception as exc:  # noqa: BLE001 - shown on the run
         log.exception("running step %s of %s failed", run.step.key, run.project_id)
-        return await fail(f"internal error: {type(exc).__name__}")
-    if not run.direct:
-        return
-    try:
-        await run_in_threadpool(
-            _generate_nodes,
-            store,
-            worker,
-            spending,
-            run.collection_id,
-            run.step,
-            nodes,
-            run.actor,
-        )
-        await run_in_threadpool(store.finish_run, run.project_id, run.step.key)
-    except ApiError as exc:
-        await fail(
-            f"the prompts are filled in, but generating didn't start: {exc.detail.message}"
-        )
-    except Exception as exc:  # noqa: BLE001 - shown on the run
-        log.exception("generating step %s of %s failed", run.step.key, run.project_id)
-        await fail(
-            "the prompts are filled in, but generating didn't start "
-            f"(internal error: {type(exc).__name__})"
-        )
+        await fail(f"internal error: {type(exc).__name__}")
 
 
 def _save_run(store, run: _Run, items: list[RunItem]):
@@ -388,9 +338,8 @@ def _save_run(store, run: _Run, items: list[RunItem]):
         [i.text for i in items],
         run.count,
         names=[i.name for i in items],
+        prompts=[i.prompt or "" for i in items],
         params=[_params(run.step, i) for i in items],
-        # Generating directly: the run is over once that has started.
-        done=not run.direct,
     )
 
 
@@ -524,32 +473,31 @@ async def _write_items(text_model, run: _Run, asked: _Asked) -> list[RunItem]:
             answer = await text_model.complete(
                 asked.system,
                 [{"role": "user", "content": asked.user}],
-                run_spec(run.count, named=True, seconds=run.step.kind == MediaKind.video),
+                run_spec(
+                    run.count,
+                    named=True,
+                    seconds=run.step.kind == MediaKind.video,
+                    prompted=run.step.kind == MediaKind.text,
+                    uses=run.media and bool(asked.mentioned),
+                ),
                 asked.images,
             )
             items = parse_run(answer, run.count)
             texts = name_images([i.text for i in items], asked.pieces)
-            items = [RunItem(t, i.name, i.seconds) for t, i in zip(texts, items, strict=True)]
+            items = [replace(i, text=t) for t, i in zip(texts, items, strict=True)]
         except ProviderError as exc:
             raise _provider_error(exc) from exc
         except RunFormatError:
             continue
         if items:
             if run.media:
-                # The prompt's mentions are each node's references: keep them in.
-                items = [
-                    RunItem(
-                        " ".join([i.text, *(n for n in asked.mentioned if n not in i.text)]),
-                        i.name,
-                        i.seconds,
-                    )
-                    for i in items
-                ]
+                # Each prompt gets the mentioned references it uses, not all of them.
+                items = [keep_used(i, asked.mentioned) for i in items]
             return items
     raise ApiError(502, ErrorCode.provider_error, "the model returned no results; try again")
 
 
-# --- takes and chat --------------------------------------------------------------------
+# --- takes and AI edits --------------------------------------------------------------------
 
 
 @router.post(
@@ -580,8 +528,9 @@ async def edit_with_ai(
     asks ("a dog, not a cat": "a cat surfing" becomes "a dog surfing").
     Nothing is saved or generated: the answer is applied by the client.
 
-    For a workflow text node (no prompt; its result is its text) it's the
-    result that is edited, applied as a new take. A video's length comes
+    For a workflow text node (its prompt only made its result) it's the
+    result that is edited, applied as a new take; so too for a text node
+    with a result and no prompt. A video's length comes
     back too (kept unless asked to change). The model sees what a step run
     would: the instructions, the step, what earlier steps settled on and
     the nodes the text mentions. 409 ``not_generatable`` for an uploaded
@@ -617,7 +566,10 @@ def _prepare_edit(store, spending, actor: str, node_id: str, body: AiEditRequest
         raise ApiError(409, ErrorCode.not_generatable, "an uploaded node has no prompt to edit")
     project = store.get_project(node.project_id)
     step = step_by_key(project.workflow, node.workflow_step) if node.workflow_step else None
-    if node.kind == MediaKind.text and not node.prompt.strip() and node.selected_output_id:
+    # A workflow text node's result is what it's for (its prompt only made
+    # it): the edit changes the result, as a new take.
+    edits_result = node.workflow_step is not None or not node.prompt.strip()
+    if node.kind == MediaKind.text and edits_result and node.selected_output_id:
         target = EditTarget.text
         current = store.get_output(node.selected_output_id).text or ""
         what = W["what_text"]
@@ -641,94 +593,6 @@ def _prepare_edit(store, spending, actor: str, node_id: str, body: AiEditRequest
         node.params.duration_s if video else None,
     )
     return _EditAsk(system, user, target, video)
-
-
-@router.get("/nodes/{node_id}/chat", operation_id="listChat", responses=responses(404))
-def list_chat(node_id: NodeId, store: StoreDep) -> list[ChatMessage]:
-    """The node's chat, oldest first."""
-    return store.list_messages(node_id)
-
-
-@router.post(
-    "/nodes/{node_id}/chat",
-    operation_id="sendChat",
-    responses=responses(404, 409, 429, 502, 503),
-)
-async def send_chat(
-    node_id: NodeId,
-    body: ChatRequest,
-    store: StoreDep,
-    text_model: TextModelDep,
-    spending: SpendingDep,
-    user: UserDep,
-) -> list[ChatMessage]:
-    """Ask the model about a text node; returns your message and its answer.
-
-    The model sees the project instruction (for a workflow node, and its
-    step), the current version and the chat so far. When it suggests a new
-    version, the answer's ``proposal`` holds it whole; ``applyProposal``
-    turns it into a take. Nothing is saved if the model fails (502).
-    """
-    system, messages = await run_in_threadpool(
-        _chat_messages, store, spending, user.id, node_id, body.text
-    )
-    try:
-        answer = await text_model.complete(system, messages, chat_spec())
-        reply, proposal = parse_chat_answer(answer)
-    except ProviderError as exc:
-        raise _provider_error(exc) from exc
-    proposal_text = str(proposal).strip() if proposal is not None else None
-    return await run_in_threadpool(
-        store.add_messages,
-        node_id,
-        [(ChatRole.user, body.text, None), (ChatRole.assistant, reply, proposal_text or None)],
-    )
-
-
-def _chat_messages(
-    store, spending, actor: str, node_id: str, text: str
-) -> tuple[str, list[dict[str, str]]]:
-    """(system, messages) for a chat: the context first (what earlier steps
-    settled on, and the current version), then the chat so far, then `text`."""
-    node = store.get_node(node_id)
-    if node.kind != MediaKind.text:
-        raise ApiError(409, ErrorCode.not_generatable, "chat works on text nodes")
-    project = store.get_project(node.project_id)
-    spending.charge(actor, project.collection_id, "text")
-    step = step_by_key(project.workflow, node.workflow_step) if node.workflow_step else None
-    current = None
-    if node.selected_output_id:
-        current = store.get_output(node.selected_output_id).text
-    _, decisions, _ = _context(store, project, step, [])
-    context = current_version_block(current)
-    if decisions:
-        context = f"{decisions_block(decisions)}\n\n{context}"
-    understood = json.dumps({"reply": W["understood"], "proposal": None}, ensure_ascii=False)
-    messages = [
-        {"role": "user", "content": f"{context}\n\n{W['context_note']}"},
-        {"role": "assistant", "content": understood},
-    ]
-    for message in store.list_messages(node_id)[-CHAT_HISTORY:]:
-        if message.role == ChatRole.user:
-            messages.append({"role": "user", "content": message.text})
-        else:
-            said = {"reply": message.text, "proposal": message.proposal}
-            messages.append(
-                {"role": "assistant", "content": json.dumps(said, ensure_ascii=False)}
-            )
-    messages.append({"role": "user", "content": text})
-    return chat_system(Instructions.of(project), step), messages
-
-
-@router.post(
-    "/chat/{message_id}/apply",
-    status_code=201,
-    operation_id="applyProposal",
-    responses=responses(404, 409),
-)
-def apply_proposal(message_id: str, store: StoreDep) -> Output:
-    """Turn an answer's proposal into a take of its node (selected)."""
-    return store.apply_proposal(message_id)
 
 
 # --- settings --------------------------------------------------------------------------

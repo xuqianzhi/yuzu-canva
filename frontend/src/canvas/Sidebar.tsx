@@ -1,14 +1,16 @@
 // The menu bar on the left of the canvas: a rail of buttons, each opening a
 // panel over the canvas edge.
 import { useReactFlow } from "@xyflow/react";
-import { useRef, useState, type DragEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
+import { api, unwrap } from "../api/client";
 import { useShallow } from "zustand/react/shallow";
-import type { Material } from "../api/types";
-import { collectionHref } from "../router";
+import type { CollectionAsset, Material } from "../api/types";
 import { useView } from "../store/view";
 import { useCanvas } from "../store/canvas";
 import { NodeNameInput } from "./NodeName";
-import { useT, type Key } from "../i18n";
+import { MediaThumb } from "../node/MediaThumb";
+import { ProjectDescription, SharedInstruction } from "../project/Instruction";
+import { errorText, useT, type Key } from "../i18n";
 
 /** dataTransfer type for dragging a material onto the canvas. */
 export const MATERIAL_MIME = "application/x-seedance-material";
@@ -175,8 +177,58 @@ function MaterialsPanel() {
           ))}
         </ul>
       )}
+      <CollectionAssetList />
       {dropping && <div className="panel__drop">{t("drop_to_upload")}</div>}
     </div>
+  );
+}
+
+/** The collection's assets, to look at only: they're managed on the
+    collection's Assets page. Fetched each time the panel opens. */
+function CollectionAssetList() {
+  const t = useT();
+  const collectionId = useCanvas((s) => s.project?.collection_id);
+  const [assets, setAssets] = useState<CollectionAsset[]>([]);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!collectionId) return;
+    let stale = false;
+    void (async () => {
+      try {
+        const listed = unwrap(
+          await api.GET("/api/collections/{collection_id}/assets", {
+            params: { path: { collection_id: collectionId } },
+          }),
+        );
+        if (!stale) setAssets(listed);
+      } catch (e) {
+        if (!stale) setError(t("ga_load_error", { error: errorText(e) }));
+      }
+    })();
+    return () => {
+      stale = true;
+    };
+  }, [collectionId, t]);
+
+  if (error) return <p className="panel__status">{error}</p>;
+  if (!assets.length) return null;
+  return (
+    <section className="panel__section" aria-label={t("collection_assets_title")}>
+      <h3 className="panel__label">{t("collection_assets_title")}</h3>
+      <p className="panel__help">{t("collection_assets_help")}</p>
+      <ul className="material-grid">
+        {assets.map((a) => (
+          <li key={a.id} className="material material--view" title={a.name}>
+            <div className="material__thumb">
+              <MediaThumb kind={a.kind} url={a.url} />
+              {a.kind === "video" && <span className="material__badge">▶</span>}
+            </div>
+            <span className="material__name">{a.name}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -202,11 +254,7 @@ function MaterialItem({ material }: { material: Material }) {
       title={t("material_title", { name: material.name })}
     >
       <div className="material__thumb">
-        {asset.kind === "image" ? (
-          <img src={asset.url} alt="" draggable={false} />
-        ) : (
-          <video src={`${asset.url}#t=0.1`} muted playsInline preload="metadata" />
-        )}
+        <MediaThumb kind={asset.kind} url={asset.url} />
         {asset.kind === "video" && <span className="material__badge">▶ {details}</span>}
       </div>
       <span className="material__name">{material.name}</span>
@@ -296,51 +344,17 @@ function NodeRow({ nodeId }: { nodeId: string }) {
   );
 }
 
-/** The project's own instruction, under its collection's (shared by the
-    series, read-only here: shown on hover, or pinned open with a click). */
+/** The project's description, under its collection's instruction. */
 function InstructionPanel() {
   const t = useT();
-  const instruction = useCanvas((s) => s.project?.instruction ?? "");
-  const shared = useCanvas((s) => s.project?.collection_instruction ?? "");
-  const collectionId = useCanvas((s) => s.project?.collection_id ?? "");
-  const setInstruction = useCanvas((s) => s.setProjectInstruction);
-  const [pinned, setPinned] = useState(false);
   return (
     <div className="panel panel--fill">
       <header className="panel__head">
         <h2>{t("nav_instruction")}</h2>
       </header>
       <p className="panel__help">{t("instruction_both_help")}</p>
-      <div className={`shared-instruction${pinned ? " is-open" : ""}`}>
-        <button
-          className="shared-instruction__head"
-          aria-expanded={pinned}
-          onClick={() => setPinned((p) => !p)}
-          title={t("shared_instruction_toggle")}
-        >
-          <span>{t("shared_instruction_title")}</span>
-          <small>{shared.trim() ? t("shared_instruction_view_only") : t("shared_instruction_none")}</small>
-          <svg viewBox="0 0 16 16" aria-hidden="true">
-            <path d="M4 6l4 4 4-4" />
-          </svg>
-        </button>
-        <div className="shared-instruction__body">
-          {shared.trim() ? <p>{shared}</p> : null}
-          <a href={collectionHref(collectionId, "instruction")}>{t("shared_instruction_edit")}</a>
-        </div>
-      </div>
-      <label className="panel__label" htmlFor="project-instruction">
-        {t("project_instruction_title")}
-      </label>
-      <textarea
-        id="project-instruction"
-        className="instruction-input panel__instruction"
-        aria-label={t("project_instruction_aria")}
-        placeholder={t("project_instruction_placeholder")}
-        maxLength={20000}
-        value={instruction}
-        onChange={(e) => setInstruction(e.target.value)}
-      />
+      <SharedInstruction />
+      <ProjectDescription className="panel__instruction" />
     </div>
   );
 }

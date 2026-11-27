@@ -13,7 +13,7 @@ from canvas_api.contract import Operation
 from canvas_api.routes import collections, me
 
 from .conftest import ALICE, BOB, PNG, auth, open_store, signed_in, wait_for_job
-from .helpers import graph_of, run_step, step_nodes
+from .helpers import run_step
 from .test_api import (
     default_collection,
     error_code,
@@ -159,22 +159,6 @@ def test_a_run_cut_off_by_a_restart_is_failed(settings, fake_image):
         assert run["status"] == "failed" and "restart" in run["error"]
 
 
-def test_generating_directly_over_the_limit_keeps_the_prompts(limited):
-    collection = default_collection(limited)
-    patch_collection(limited, collection, direct_image=True)
-    project = new_project(limited, "P", collection)
-    # 3 images would pass the limit of 2: nothing is generated, but the
-    # filled-in prompts stay, and the run says why.
-    failed = run_step(limited, project, "characters", "three foxes", 3, generate=False)
-    assert failed.status_code == 502
-    assert failed.json()["error"]["message"].startswith(
-        "the prompts are filled in, but generating didn't start"
-    )
-    graph = graph_of(limited, project)
-    assert len(step_nodes(graph, "characters")) == 3
-    assert graph["active_jobs"] == []
-
-
 def test_an_admin_can_lift_a_collections_daily_limits(limited):
     assert limited.get("/api/me").json()["admin"] is True
     collection = default_collection(limited)
@@ -201,7 +185,7 @@ def test_only_admins_change_the_daily_limit(client, monkeypatch):
     refused = patch_collection(client, collection, no_daily_limit=True)
     assert (refused.status_code, error_code(refused)) == (403, "forbidden")
     # Their other settings are theirs to change.
-    assert patch_collection(client, collection, direct_image=True).status_code == 200
+    assert patch_collection(client, collection, name="Mine").status_code == 200
 
 
 def test_who_is_an_admin(settings):

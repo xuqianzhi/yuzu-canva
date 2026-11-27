@@ -14,25 +14,22 @@ class Project(CompleteModel):
     collection_id: str = Field(pattern=r"^col_[A-Za-z0-9]+$")
     name: str
     viewport: Viewport
-    # The project's own instruction (see contract/instructions.py).
-    instruction: str
+    # What this video is about, in the user's words (see
+    # contract/instructions.py).
+    description: str
     # Its collection's instruction, read live (edited in the collection).
     collection_instruction: str = ""
     # Its collection's active workflow (see contract/collections.py).
     workflow: WorkflowDefinition
-    # Its collection's settings for running image / video steps straight
-    # through (``Collection.direct_image`` / ``direct_video``), read live.
-    direct_image: bool = False
-    direct_video: bool = False
     created_at: Timestamp
     updated_at: Timestamp
 
 
 class ProjectCreate(ContractModel):
     name: str = Field(default="Untitled", min_length=1, max_length=200)
-    # The project's own instruction (omitted: none). The collection's applies
+    # What this video is about (omitted: nothing yet). The collection's instruction applies
     # anyway; it isn't copied.
-    instruction: str | None = Field(default=None, max_length=MAX_INSTRUCTION_CHARS)
+    description: str | None = Field(default=None, max_length=MAX_INSTRUCTION_CHARS)
 
 
 class ProjectUpdate(ContractModel):
@@ -40,4 +37,4 @@ class ProjectUpdate(ContractModel):
 
     name: str | None = Field(default=None, min_length=1, max_length=200)
     viewport: Viewport | None = None
-    instruction: str | None = Field(default=None, max_length=MAX_INSTRUCTION_CHARS)
+    description: str | None = Field(default=None, max_length=MAX_INSTRUCTION_CHARS)

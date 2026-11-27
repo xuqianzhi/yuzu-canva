@@ -10,7 +10,7 @@ Names are the user's own text, sent and shown as written in every language.
 
 A project runs on its collection's active workflow (``Project.workflow``).
 In a project, each step is **run** with a prompt and a count: the prompt,
-the project instruction, what earlier steps settled on and the nodes it
+the project description, what earlier steps settled on and the nodes it
 mentions go to a text model, which writes that many results (a text step)
 or prompts (an image or video step, generated afterwards). Running a step
 again replaces its nodes.
@@ -33,8 +33,6 @@ from .common import (
     Language,
     MaterialId,
     MediaKind,
-    NodeId,
-    OutputId,
     Timestamp,
 )
 
@@ -53,11 +51,7 @@ class Carry(StrEnum):
 
     # All of them: a set that is used together (the cast, the script).
     all = "all"
-    # Only the ones used later -- mentioned in a later step's prompt or in a
-    # node's prompt: the step's results are options to choose from (a
-    # brainstorm). None used yet: none given.
-    used = "used"
-    # None: only what a prompt mentions.
+    # None: only what a prompt mentions (@).
     none = "none"
 
 
@@ -66,26 +60,28 @@ class WorkflowStep(CompleteModel):
     key: str = Field(pattern=STEP_KEY)
     name: str = Field(min_length=1, max_length=80)
     # What this step is for, in the user's words: sent to the text model with
-    # the project instruction whenever it writes for this step (a run, or a
-    # chat on one of its nodes). Empty: nothing extra.
+    # the project description whenever it writes for this step (a run, or a
+    # AI edit of one of its nodes). Empty: nothing extra.
     description: str = Field(default="", max_length=MAX_STEP_DESCRIPTION)
     kind: MediaKind
     # How many a run makes unless the project says otherwise (the run form
     # starts with it). Null: no default, the project must say.
     count: int | None = Field(default=None, ge=1, le=MAX_ITEMS)
     # Which results later steps get by themselves (see Carry); not given:
-    # "all".
-    carry: Carry = Carry.all
+    # "none".
+    carry: Carry = Carry.none
 
     @model_validator(mode="before")
     @classmethod
     def _default_carry(cls, data: Any) -> Any:
         if not isinstance(data, dict):
             return data
-        # Definitions saved by older clients may still carry an `output`.
+        # Definitions saved by older clients may still carry an `output`;
+        # such a step without a carry carried everything.
+        old = "output" in data
         data = {k: v for k, v in data.items() if k != "output"}
         if data.get("carry") is None:
-            return {**data, "carry": Carry.all}
+            return {**data, "carry": Carry.all if old else Carry.none}
         return data
 
 
@@ -162,7 +158,7 @@ class StepCompleteRequest(ContractModel):
     entries: list[StepEntry] = Field(min_length=1, max_length=MAX_ITEMS)
 
 
-# --- settings, approval, takes, chat ---------------------------------------------------
+# --- settings, approval, takes, AI edits ---------------------------------------------------
 
 
 class AppSettings(CompleteModel):
@@ -181,34 +177,11 @@ class TakeCreate(ContractModel):
     text: str = Field(min_length=1, max_length=100_000)
 
 
-class ChatRole(StrEnum):
-    user = "user"
-    assistant = "assistant"
-
-
-class ChatMessage(CompleteModel):
-    """One message of a node's chat. An assistant message may carry a
-    ``proposal``: a complete new version of the node's text, which
-    ``applyProposal`` turns into a take."""
-
-    id: str = Field(pattern=r"^msg_[A-Za-z0-9]+$")
-    node_id: NodeId
-    role: ChatRole
-    text: str
-    proposal: str | None = None
-    # The take made from the proposal, once applied.
-    applied_output_id: OutputId | None = None
-    created_at: Timestamp
-
-
-class ChatRequest(ContractModel):
-    text: str = Field(min_length=1, max_length=20_000)
-
-
 class EditTarget(StrEnum):
     #: The node's prompt (any generated node that has one, or none yet).
     prompt = "prompt"
-    #: A workflow text node's result (its chosen take): it has no prompt.
+    #: A workflow text node's result (its chosen take), or a text node's
+    #: with no prompt.
     text = "text"
 
 

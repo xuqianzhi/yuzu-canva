@@ -103,7 +103,7 @@ def pipeline_template(client, first: str = "text", second: str = "image") -> str
         "id": "x",
         "name": "Pipeline",
         "steps": [
-            {"key": "prompts", "name": "Prompts", "kind": first},
+            {"key": "prompts", "name": "Prompts", "kind": first, "carry": "all"},
             {"key": "scenes", "name": "Scenes", "kind": second},
         ],
     }

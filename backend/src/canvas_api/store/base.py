@@ -59,8 +59,7 @@ PURGE_AFTER = timedelta(days=1)
 # A project row as `_project` reads it: with its collection's active
 # workflow as `workflow`. Add "WHERE ..." (projects are `p`).
 PROJECT_SQL = (
-    "SELECT p.*, w.definition AS workflow, c.instruction AS collection_instruction, "
-    "c.direct_image, c.direct_video "
+    "SELECT p.*, w.definition AS workflow, c.instruction AS collection_instruction "
     "FROM projects p "
     "JOIN collections c ON c.id = p.collection_id "
     "JOIN collection_workflows w ON w.id = c.active_workflow_id "
@@ -224,11 +223,9 @@ class StoreBase:
             collection_id=r["collection_id"],
             name=r["name"],
             viewport=Viewport.model_validate_json(r["viewport"]),
-            instruction=r["instruction"],
+            description=r["description"],
             collection_instruction=r.get("collection_instruction") or "",
             workflow=_workflow_of(r["workflow"]),
-            direct_image=bool(r["direct_image"]),
-            direct_video=bool(r["direct_video"]),
             created_at=_dt(r["created_at"]),
             updated_at=_dt(r["updated_at"]),
         )

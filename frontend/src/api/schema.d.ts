@@ -21,26 +21,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/chat/{message_id}/apply": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Apply Proposal
-         * @description Turn an answer's proposal into a take of its node (selected).
-         */
-        post: operations["applyProposal"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/collection-assets/{asset_id}": {
         parameters: {
             query?: never;
@@ -129,9 +109,8 @@ export interface paths {
         head?: never;
         /**
          * Update Collection
-         * @description Rename it, change its instruction, or turn generating directly
-         *     (``direct_image`` / ``direct_video``) on or off. 409 ``edit_conflict``
-         *     if someone saved since ``version``. Only admins may change
+         * @description Rename it or change its instruction. 409 ``edit_conflict`` if
+         *     someone saved since ``version``. Only admins may change
          *     ``no_daily_limit`` (403 ``forbidden``).
          */
         patch: operations["updateCollection"];
@@ -552,43 +531,15 @@ export interface paths {
          *     asks ("a dog, not a cat": "a cat surfing" becomes "a dog surfing").
          *     Nothing is saved or generated: the answer is applied by the client.
          *
-         *     For a workflow text node (no prompt; its result is its text) it's the
-         *     result that is edited, applied as a new take. A video's length comes
+         *     For a workflow text node (its prompt only made its result) it's the
+         *     result that is edited, applied as a new take; so too for a text node
+         *     with a result and no prompt. A video's length comes
          *     back too (kept unless asked to change). The model sees what a step run
          *     would: the instructions, the step, what earlier steps settled on and
          *     the nodes the text mentions. 409 ``not_generatable`` for an uploaded
          *     node; 502 if the model fails.
          */
         post: operations["editWithAi"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/nodes/{node_id}/chat": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Chat
-         * @description The node's chat, oldest first.
-         */
-        get: operations["listChat"];
-        put?: never;
-        /**
-         * Send Chat
-         * @description Ask the model about a text node; returns your message and its answer.
-         *
-         *     The model sees the project instruction (for a workflow node, and its
-         *     step), the current version and the chat so far. When it suggests a new
-         *     version, the answer's ``proposal`` holds it whole; ``applyProposal``
-         *     turns it into a take. Nothing is saved if the model fails (502).
-         */
-        post: operations["sendChat"];
         delete?: never;
         options?: never;
         head?: never;
@@ -928,12 +879,9 @@ export interface paths {
          *     The prompt, the instructions, what earlier steps settled on and the
          *     nodes the prompt mentions (by ID) go to a text model, which writes
          *     ``count`` results (a text step: its nodes' text) or prompts (an image or
-         *     video step: one node each, with the mentioned nodes as references, and
-         *     for a video its length in seconds). Image and video nodes are only
-         *     filled in: ``generateStep`` then generates them -- unless the
-         *     collection generates that kind directly (``Collection.direct_image`` /
-         *     ``direct_video``): then the run generates them itself once they're
-         *     filled in (and fails, with the nodes in place, if that's refused).
+         *     video step: one node each, referring to the mentioned nodes it uses,
+         *     and for a video its length in seconds). Image and video nodes are only
+         *     filled in: ``generateStep`` then generates them.
          */
         post: operations["runStep"];
         delete?: never;
@@ -1098,44 +1046,7 @@ export interface components {
          *     it.
          * @enum {string}
          */
-        Carry: "all" | "used" | "none";
-        /**
-         * ChatMessage
-         * @description One message of a node's chat. An assistant message may carry a
-         *     ``proposal``: a complete new version of the node's text, which
-         *     ``applyProposal`` turns into a take.
-         */
-        ChatMessage: {
-            /** Applied Output Id */
-            applied_output_id: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Id */
-            id: string;
-            /**
-             * Node Id
-             * @example nod_a91x
-             */
-            node_id: string;
-            /** Proposal */
-            proposal: string | null;
-            role: components["schemas"]["ChatRole"];
-            /** Text */
-            text: string;
-        };
-        /** ChatRequest */
-        ChatRequest: {
-            /** Text */
-            text: string;
-        };
-        /**
-         * ChatRole
-         * @enum {string}
-         */
-        ChatRole: "user" | "assistant";
+        Carry: "all" | "none";
         /** Collection */
         Collection: {
             /**
@@ -1148,16 +1059,6 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
-            /**
-             * Direct Image
-             * @default false
-             */
-            direct_image: boolean;
-            /**
-             * Direct Video
-             * @default false
-             */
-            direct_video: boolean;
             /**
              * Id
              * @example col_k2m9
@@ -1250,16 +1151,6 @@ export interface components {
              */
             created_at: string;
             /**
-             * Direct Image
-             * @default false
-             */
-            direct_image: boolean;
-            /**
-             * Direct Video
-             * @default false
-             */
-            direct_video: boolean;
-            /**
              * Id
              * @example col_k2m9
              */
@@ -1301,10 +1192,6 @@ export interface components {
          * @description Partial update; ``version`` is the one you last read.
          */
         CollectionUpdate: {
-            /** Direct Image */
-            direct_image?: boolean | null;
-            /** Direct Video */
-            direct_video?: boolean | null;
             /** Instruction */
             instruction?: string | null;
             /** Name */
@@ -1868,23 +1755,13 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
-            /**
-             * Direct Image
-             * @default false
-             */
-            direct_image: boolean;
-            /**
-             * Direct Video
-             * @default false
-             */
-            direct_video: boolean;
+            /** Description */
+            description: string;
             /**
              * Id
              * @example prj_8f2k1
              */
             id: string;
-            /** Instruction */
-            instruction: string;
             /** Name */
             name: string;
             /**
@@ -1897,8 +1774,8 @@ export interface components {
         };
         /** ProjectCreate */
         ProjectCreate: {
-            /** Instruction */
-            instruction?: string | null;
+            /** Description */
+            description?: string | null;
             /**
              * Name
              * @default Untitled
@@ -1962,16 +1839,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
-            /**
-             * Direct Image
-             * @default false
-             */
-            direct_image: boolean;
-            /**
-             * Direct Video
-             * @default false
-             */
-            direct_video: boolean;
+            /** Description */
+            description: string;
             /** Editing By */
             editing_by: string | null;
             /**
@@ -1984,8 +1853,6 @@ export interface components {
              * @default 0
              */
             image_count: number;
-            /** Instruction */
-            instruction: string;
             /** Name */
             name: string;
             /**
@@ -2016,8 +1883,8 @@ export interface components {
          * @description Partial update: omitted fields are left as they are.
          */
         ProjectUpdate: {
-            /** Instruction */
-            instruction?: string | null;
+            /** Description */
+            description?: string | null;
             /** Name */
             name?: string | null;
             viewport?: components["schemas"]["Viewport"] | null;
@@ -2270,7 +2137,7 @@ export interface components {
         };
         /** WorkflowStep */
         WorkflowStep: {
-            /** @default all */
+            /** @default none */
             carry: components["schemas"]["Carry"];
             /** Count */
             count: number | null;
@@ -2327,55 +2194,6 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    applyProposal: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                message_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Output"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Conflict */
-            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3814,126 +3632,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AiEdit"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Too Many Requests */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Bad Gateway */
-            502: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Service Unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    listChat: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                node_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ChatMessage"][];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unprocessable Entity */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    sendChat: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                node_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ChatRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ChatMessage"][];
                 };
             };
             /** @description Not Found */

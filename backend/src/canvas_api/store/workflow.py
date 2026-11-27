@@ -88,15 +88,6 @@ class WorkflowMixin:
                 (error, _ts(now()), project_id, key),
             )
 
-    def finish_run(self, project_id: str, key: str) -> None:
-        """A run left ``running`` by replace_step_nodes(done=False) is done."""
-        with self._tx() as db:
-            db.execute(
-                "UPDATE step_runs SET status = 'done', updated_at = ? "
-                "WHERE project_id = ? AND step = ? AND status = 'running'",
-                (_ts(now()), project_id, key),
-            )
-
     def fail_interrupted_runs(self) -> None:
         """Runs cut off by a restart (the model call is lost)."""
         with self._tx() as db:
@@ -159,16 +150,15 @@ class WorkflowMixin:
         ]
 
     def carried_forward(self, project: Project, key: str) -> list[tuple[str, Node, Output]]:
-        """What earlier steps settled on, for a run (or chat) of step `key`:
+        """What earlier steps settled on, for a run (or AI edit) of step `key`:
         (step name, node, its chosen take) for each earlier step's results
-        that have one, in step order -- all of them, or for a step that
-        carries only what's used, those used (see Carry). Steps that carry
-        nothing aren't even read."""
+        that have one, in step order, for the steps that carry all (see
+        Carry). Steps that carry nothing aren't even read."""
         steps = project.workflow.steps
         index = next((i for i, s in enumerate(steps) if s.key == key), None)
         if index is None:
             return []
-        earlier = [s for s in steps[:index] if s.carry != Carry.none]
+        earlier = [s for s in steps[:index] if s.carry == Carry.all]
         if not earlier:
             return []
         marks = ", ".join("?" * len(earlier))
@@ -182,54 +172,13 @@ class WorkflowMixin:
         by_step: dict[str, list[Node]] = {}
         for r in rows:
             by_step.setdefault(r["workflow_step"], []).append(self._node(r))
-        used = (
-            self._used_nodes(project.id)
-            if any(s.carry == Carry.used for s in earlier)
-            else set()
-        )
-        chosen = [
-            (s.name, n)
-            for s in earlier
-            for n in by_step.get(s.key, [])
-            if s.carry != Carry.used or n.id in used
-        ]
+        chosen = [(s.name, n) for s in earlier for n in by_step.get(s.key, [])]
         outputs = self.outputs_by_id([n.selected_output_id for _, n in chosen])
         return [
             (name, n, outputs[n.selected_output_id])
             for name, n in chosen
             if n.selected_output_id in outputs
         ]
-
-    def _used_nodes(self, project_id: str) -> set[str]:
-        """Nodes something else uses: a link's source (a node prompt that
-        mentions it, or an old workflow edge), or mentioned in the prompt of
-        another step's run."""
-        with self._conn() as db:
-            ids = self._id_map(db, project_id)
-            used = {
-                r["source_node_id"]
-                for r in db.execute(
-                    "SELECT source_node_id FROM edges WHERE project_id = ? "
-                    "AND deleted_at IS NULL",
-                    (project_id,),
-                )
-            }
-            step_of = {
-                r["id"]: r["workflow_step"]
-                for r in db.execute(
-                    "SELECT id, workflow_step FROM nodes WHERE project_id = ? "
-                    "AND deleted_at IS NULL",
-                    (project_id,),
-                )
-            }
-            runs = db.execute(
-                "SELECT step, prompt FROM step_runs WHERE project_id = ?", (project_id,)
-            ).fetchall()
-        for run in runs:
-            used.update(
-                n for n in mentioned(run["prompt"], ids) if step_of.get(n) != run["step"]
-            )
-        return used
 
     def node_names(self, project_id: str) -> list[str]:
         """Every live node's ID in the project."""
@@ -281,17 +230,17 @@ class WorkflowMixin:
         files: list[tuple[Asset, str]] | None = None,
         manual: bool = False,
         params: list[NodeParams | None] | None = None,
-        done: bool = True,
-    ) -> tuple[list[Node], list[str]]:
+        prompts: list[str] | None = None,
+    ) -> list[str]:
         """Replace a step's nodes with one per item: a text step's nodes hold
-        the item as their take; an image or video step's nodes get it as
+        the item as their take (and `prompts`, if given, as their prompts:
+        what would make each on its own); an image or video step's nodes get it as
         their prompt (to be generated), or, with `files` (an asset and its
         file's key per item), a copy of that file as their take instead. `names` are
         the IDs given to the items (see _step_names). `manual`: completed by
         hand (the run's prompt is then left as it was). `params`: each
-        node's settings (None: the defaults). `done`: False leaves the run
-        ``running`` (something follows; ``finish_run`` ends it). Returns (the new nodes, ids
-        of jobs cancelled with the old ones)."""
+        node's settings (None: the defaults). Returns the ids of jobs cancelled
+        with the old nodes."""
         written: list[str] = []
         try:
             return self._replace_step_nodes(
@@ -305,7 +254,7 @@ class WorkflowMixin:
                 manual,
                 params,
                 written,
-                done,
+                prompts,
             )
         except BaseException:
             delete_all(self.files, written)
@@ -323,14 +272,13 @@ class WorkflowMixin:
         manual: bool,
         params: list[NodeParams | None] | None,
         written: list[str],
-        done: bool = True,
-    ) -> tuple[list[Node], list[str]]:
+        prompts: list[str] | None = None,
+    ) -> list[str]:
         project = self.get_project(project_id)
         wf = project.workflow
         step = step_by_key(wf, key)
         if step is None:
             raise _not_found("workflow step", key)
-        ids: list[str] = []
         with self._tx() as db:
             if manual:
                 running = db.execute(
@@ -358,6 +306,12 @@ class WorkflowMixin:
                 text_step = step.kind == MediaKind.text
                 file = files[index] if files else None
                 settings = (params[index] if params else None) or default_params(step.kind)
+                # A text node's prompt makes its result on its own; a media
+                # node's prompt is the item (unless it was given a file).
+                if text_step:
+                    node_prompt = prompts[index] if prompts else ""
+                else:
+                    node_prompt = "" if file else item
                 db.execute(
                     "INSERT INTO nodes (id, project_id, kind, title, position, size, prompt, "
                     "params, selected_output_id, created_at, updated_at, workflow_step, "
@@ -368,7 +322,7 @@ class WorkflowMixin:
                         step.kind.value,
                         name,
                         Position(x=x, y=y).model_dump_json(),
-                        "" if text_step or file else item,
+                        node_prompt,
                         settings.model_dump_json(),
                         ts,
                         ts,
@@ -380,7 +334,6 @@ class WorkflowMixin:
                     self._insert_text_take(db, node_id, item)
                 elif file is not None:
                     written.append(self._insert_file_take(db, project_id, node_id, *file))
-                ids.append(node_id)
             # By hand, the last run's prompt stays (for running it again).
             keep = "step_runs.prompt" if manual else "excluded.prompt"
             db.execute(
@@ -396,13 +349,13 @@ class WorkflowMixin:
                     prompt,
                     count,
                     _ts(now()),
-                    RunStatus.done.value if done else RunStatus.running.value,
+                    RunStatus.done.value,
                     manual,
                 ),
             )
             self.sync_links(db, project_id)
             self._touch_project(db, project_id)
-        return [self.get_node(i) for i in ids], active
+        return active
 
     def _remove_workflow_nodes(self, db: Db, node_ids: list[str]) -> list[str]:
         """Soft-delete a step's old nodes (and their edges); returns the ids
@@ -474,12 +427,10 @@ class WorkflowMixin:
         )
         return key
 
-    def complete_step(
-        self, project_id: str, key: str, entries: list[StepEntry]
-    ) -> tuple[list[Node], list[str]]:
+    def complete_step(self, project_id: str, key: str, entries: list[StepEntry]) -> list[str]:
         """A step's nodes from the user's own results (see StepCompleteRequest):
-        nothing is generated. Returns (the new nodes, ids of jobs cancelled
-        with the old ones)."""
+        nothing is generated. Returns the ids of jobs cancelled with the old
+        nodes."""
         step = step_by_key(self.get_project(project_id).workflow, key)
         if step is None:
             raise _not_found("workflow step", key)

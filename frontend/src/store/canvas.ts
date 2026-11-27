@@ -9,7 +9,6 @@ import { graphActions } from "./actions/graph";
 import { mediaActions } from "./actions/media";
 import { generationActions } from "./actions/generation";
 import { workflowActions } from "./actions/workflow";
-import { chatActions } from "./actions/chat";
 import type { CanvasState } from "./types";
 
 export { UNDO_KEY } from "./core";
@@ -37,15 +36,13 @@ export const useCanvas = create<CanvasState>()((set, get) => {
     lock: { status: "checking" },
     activeStep: null,
     activeNodeId: null,
+    jump: 0,
     runs: {},
-    chats: {},
-    chatSending: {},
 
     ...projectActions(set, get, core),
     ...graphActions(set, get, core),
     ...mediaActions(set, get, core),
     ...generationActions(set, get, core),
     ...workflowActions(set, get, core),
-    ...chatActions(set, get, core),
   };
 });

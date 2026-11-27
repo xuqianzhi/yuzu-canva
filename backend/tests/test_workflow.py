@@ -14,13 +14,15 @@ from canvas_api.domain.workflow import (
     Piece,
     RunItem,
     builtin_workflow,
+    keep_used,
     name_images,
     parse_run,
 )
+from canvas_api.providers.fake import FakeTextModel
 
 from .conftest import signed_in, wait_for_job
 from .helpers import graph_of, pipeline_template, run_step, step_nodes, wait_for_outputs
-from .test_api import error_code, new_collection, new_node, new_project, patch_collection
+from .test_api import error_code, new_collection, new_node, new_project
 
 
 def mini() -> dict:
@@ -141,8 +143,8 @@ def test_a_steps_description_goes_to_the_ai(client, fake_text):
     assert f"{step}\n<step_description>\n{described}\n</step_description>\n" in system
     assert system.index("Cozy.") < system.index(described)
     node = step_nodes(graph, "dishes")[0]["id"]
-    client.post(f"/api/nodes/{node}/chat", json={"text": "shorter please"})
-    assert f"{step}\n<step_description>\n{described}" in fake_text.calls[-1]["system"]
+    client.post(f"/api/nodes/{node}/ai-edit", json={"instruction": "shorter please"})
+    assert f"<step_description>\n{described}" in fake_text.calls[-1]["system"]
 
     too_long = [{**steps[0], "description": "x" * 4001}, steps[1]]
     assert add_workflow(client, collection, {**mini(), "steps": too_long}).status_code == 422
@@ -168,7 +170,6 @@ def test_switching_workflows_hides_steps_without_deleting_them(client):
 def test_the_active_workflow_cant_change_while_a_step_runs(settings, fake_image):
     from canvas_api.app import create_app
     from canvas_api.contract import Operation
-    from canvas_api.providers.fake import FakeTextModel
 
     from .conftest import signed_in
 
@@ -360,13 +361,13 @@ def test_old_one_to_one_steps_read_as_plain_steps(client):
         "name": "Old",
         "steps": [
             {"key": "a", "name": "A", "kind": "text", "output": "one_to_one", "carry": "none"},
-            {"key": "b", "name": "B", "kind": "text", "output": "independent", "carry": "used"},
+            {"key": "b", "name": "B", "kind": "text", "output": "independent", "carry": "none"},
             {"key": "c", "name": "C", "kind": "text", "output": "one_to_one"},
         ],
     }
     collection = new_collection(client, "Old", workflow=definition)
     saved = client.get(f"/api/collections/{collection}/workflows").json()[0]["definition"]
-    assert [s["carry"] for s in saved["steps"]] == ["none", "used", "all"]
+    assert [s["carry"] for s in saved["steps"]] == ["none", "none", "all"]
     assert all("output" not in s for s in saved["steps"])
 
 
@@ -527,55 +528,74 @@ def test_workflow_nodes_are_locked_but_editable(client):
     )
 
 
-def test_chat_and_takes_on_text_nodes(client, fake_text):
+def test_takes_on_text_nodes(client):
     project = new_project(client)
     node = step_nodes(run_step(client, project, "dishes", "soups", 1).json(), "dishes")[0]
-    sent = client.post(f"/api/nodes/{node['id']}/chat", json={"text": "make it spicier"})
-    assert sent.status_code == 200, sent.text
-    _, answer = sent.json()
-    chat = fake_text.calls[-1]
-    assert "This step is called “Dish brainstorming”" in chat["system"]
-    assert "reply, and write any new version, in the language and script" in chat["system"]
-    assert chat["messages"][0]["content"].startswith("<current_version>\nResult 1:")
-    applied = client.post(f"/api/chat/{answer['id']}/apply").json()
     take = client.post(f"/api/nodes/{node['id']}/takes", json={"text": "my own"}).json()
     outputs = client.get(f"/api/nodes/{node['id']}/outputs").json()
-    assert [o["id"] for o in outputs][:2] == [take["id"], applied["id"]]
-    image = new_node(client, project)["id"]
-    assert client.post(f"/api/nodes/{image}/chat", json={"text": "hi"}).status_code == 409
+    assert outputs[0]["id"] == take["id"] and len(outputs) == 2
 
 
-def test_a_collection_can_generate_images_or_videos_directly(client, fake_text, fake_image):
-    collection = new_collection(client, "Direct")
-    saved = client.get(f"/api/collections/{collection}").json()
-    assert (saved["direct_image"], saved["direct_video"]) == (False, False)  # off by default
-    project = new_project(client, "P", collection)
-    graph = run_step(client, project, "characters", "a fox", 2, generate=False).json()
-    assert graph["active_jobs"] == []  # only filled in
+def test_text_results_get_the_prompt_that_makes_them(client, fake_text):
+    project = pipeline_template(client)
+    graph = run_step(client, project, "prompts", "two ideas", 2).json()
+    nodes = step_nodes(graph, "prompts")
+    # Each result's own prompt goes in its node (the fake writes "Prompt n: ...").
+    assert [n["prompt"].split(":")[0] for n in nodes] == ["Prompt 1", "Prompt 2"]
+    assert "Give each result its `prompt` too" in fake_text.calls[-1]["system"]
+    # Media steps still get their prompts as the item itself.
+    graph = run_step(client, project, "scenes", "a scene", 1, generate=False).json()
+    assert step_nodes(graph, "scenes")[0]["prompt"].startswith("Result 1:")
 
-    changed = patch_collection(client, collection, direct_image=True).json()
-    assert (changed["direct_image"], changed["direct_video"]) == (True, False)
-    assert graph_of(client, project)["project"]["direct_image"] is True  # read live
-    fake_image.gate.clear()  # keep the jobs running while we look
-    graph = run_step(client, project, "characters", "a fox", 2, generate=False).json()
-    nodes = step_nodes(graph, "characters")
-    assert {j["node_id"] for j in graph["active_jobs"]} == {n["id"] for n in nodes}
-    assert next(r for r in graph["runs"] if r["step"] == "characters")["status"] == "done"
-    fake_image.gate.set()
+
+def test_each_prompt_keeps_only_the_mentions_it_uses():
+    ids = ["fox", "fox_2", "兔子"]
+
+    def kept(text: str, *uses: str) -> str:
+        return keep_used(RunItem(text, uses=uses), ids).text
+
+    # Listed but not written: added. Not listed: left out.
+    assert kept("a meadow", "fox") == "a meadow fox"
+    assert kept("the fox runs", "FOX") == "the fox runs"
+    assert kept("an empty room") == "an empty room"
+    # An ID the request didn't mention can't be added.
+    assert kept("a hill", "wolf") == "a hill"
+    assert kept("兔子 at dusk", "兔子", "fox") == "兔子 at dusk fox"
+    # One ID inside a longer one doesn't count as written.
+    assert kept("fox_2 and redfox", "fox") == "fox_2 and redfox fox"
+
+    answer = json.dumps(
+        {
+            "items": [
+                {"id": "a", "content": "x", "uses": ["fox", " "]},
+                {"id": "b", "content": "y", "uses": []},
+            ]
+        }
+    )
+    assert [i.uses for i in parse_run(answer, 2)] == [("fox",), ()]
+
+
+def test_media_runs_ask_which_mentions_each_prompt_uses(client, fake_image):
+    class Forgetful(FakeTextModel):
+        """Writes prompts that name nothing; only the first says it uses one."""
+
+        async def complete(self, system, messages, spec=None, images=None):
+            self.calls.append({"system": system, "spec": spec})
+            items = [
+                {"id": f"s{n}", "content": f"scene {n}", "uses": ["characters_1"][: 2 - n]}
+                for n in (1, 2)
+            ]
+            return json.dumps({"items": items})
+
+    project = new_project(client)
+    run_step(client, project, "characters", "a fox", 1)
     wait_for_outputs(client, project, "characters")
-
-
-def test_direct_video_is_its_own_setting(client, fake_text, fake_video):
-    project = pipeline_template(client, "text", "video")
-    collection = graph_of(client, project)["project"]["collection_id"]
-    patch_collection(client, collection, direct_image=True)
-    run_step(client, project, "prompts", "two scenes", 2)
-    graph = run_step(client, project, "scenes", "", 2, generate=False).json()
-    assert graph["active_jobs"] == []  # images go directly, videos don't
-    patch_collection(client, collection, direct_video=True)
-    fake_video.gate.clear()
-    graph = run_step(client, project, "scenes", "", 2, generate=False).json()
-    assert len(graph["active_jobs"]) == 2
-    fake_video.gate.set()
-    for job in graph["active_jobs"]:
-        assert wait_for_job(client, job["id"])["status"] == "succeeded"
+    model = client.app.state.text_model = Forgetful()
+    graph = run_step(
+        client, project, "dish_images", "dishes for characters_1", 2, generate=False
+    )
+    [call] = model.calls
+    assert "only those: a prompt that doesn't show it must not name it" in call["system"]
+    assert "uses" in call["spec"].schema["properties"]["items"]["items"]["required"]
+    prompts = [n["prompt"] for n in step_nodes(graph.json(), "dish_images")]
+    assert prompts == ["scene 1 characters_1", "scene 2"]

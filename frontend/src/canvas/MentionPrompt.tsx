@@ -24,14 +24,12 @@ export function MentionPrompt({
   nodeId,
   placeholder,
   onGenerate,
-  className = "",
   ariaLabel,
 }: {
   nodeId: string;
   placeholder: string;
   onGenerate: () => void;
-  className?: string;
-  ariaLabel?: string;
+  ariaLabel: string;
 }) {
   const prompt = useCanvas((s) => s.nodes[nodeId]?.prompt ?? "");
   // IDs of the nodes linked into this one by a mention.
@@ -57,7 +55,6 @@ export function MentionPrompt({
       isLinked={isLinked}
       placeholder={placeholder}
       onSubmit={onGenerate}
-      className={className}
       ariaLabel={ariaLabel}
     />
   );
@@ -118,6 +115,7 @@ export function MentionBox({
   const box = useRef<HTMLTextAreaElement>(null);
   const [picker, setPicker] = useState<{ start: number; query: string } | null>(null);
   const [active, setActive] = useState(0);
+  const [focused, setFocused] = useState(false);
 
   const matches = useMemo(() => {
     if (!picker) return [];
@@ -203,7 +201,9 @@ export function MentionBox({
       <textarea
         ref={box}
         id={id}
-        className={`gen-node__prompt mention-prompt__input nodrag nowheel ${inputClassName}`}
+        // The wheel scrolls the prompt only while it's being edited; on the
+        // canvas it otherwise zooms, like everywhere else.
+        className={`gen-node__prompt mention-prompt__input nodrag${focused ? " nowheel" : ""} ${inputClassName}`}
         aria-label={ariaLabel}
         placeholder={placeholder}
         onScroll={(e) => {
@@ -220,7 +220,11 @@ export function MentionBox({
             setPicker(activeQuery(e.currentTarget.value, e.currentTarget.selectionStart));
           }
         }}
-        onBlur={() => setTimeout(() => setPicker(null), 120)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => {
+          setFocused(false);
+          setTimeout(() => setPicker(null), 120);
+        }}
       />
       {picker && (
         <ul className="mention-picker nodrag nowheel" role="listbox" aria-label={t("node_ids_aria")}>

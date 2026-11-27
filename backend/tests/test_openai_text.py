@@ -8,7 +8,7 @@ import json
 import httpx
 import pytest
 
-from canvas_api.domain.workflow import chat_spec, run_spec
+from canvas_api.domain.workflow import run_spec
 from canvas_api.providers.base import ProviderError, RefPayload
 from canvas_api.providers.openai_text import OpenAITextModel
 
@@ -58,7 +58,7 @@ def test_structured_request_with_images():
     assert fmt["json_schema"]["schema"]["properties"]["items"]["maxItems"] == 5
 
 
-def test_plain_text_and_chat_shapes():
+def test_plain_text_has_no_response_format():
     bodies = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -67,9 +67,6 @@ def test_plain_text_and_chat_shapes():
 
     asyncio.run(model(handler).complete("s", [{"role": "user", "content": "hi"}]))
     assert "response_format" not in bodies[0]
-    asyncio.run(model(handler).complete("s", [{"role": "user", "content": "hi"}], chat_spec()))
-    schema = bodies[1]["response_format"]["json_schema"]["schema"]
-    assert schema["required"] == ["reply", "proposal"]
 
 
 def test_errors_are_provider_errors():

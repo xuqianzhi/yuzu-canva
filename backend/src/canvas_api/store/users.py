@@ -21,8 +21,6 @@ _WHERE_SQL = {
     "JOIN projects p ON p.id = j.project_id WHERE j.id = ?",
     "material": "SELECT p.collection_id, p.id AS project_id FROM materials m "
     "JOIN projects p ON p.id = m.project_id WHERE m.id = ?",
-    "message": "SELECT p.collection_id, p.id AS project_id FROM messages m "
-    "JOIN nodes n ON n.id = m.node_id JOIN projects p ON p.id = n.project_id WHERE m.id = ?",
     "output": "SELECT p.collection_id, p.id AS project_id FROM outputs o "
     "JOIN nodes n ON n.id = o.node_id JOIN projects p ON p.id = n.project_id WHERE o.id = ?",
     "workflow": "SELECT collection_id, NULL AS project_id FROM collection_workflows "

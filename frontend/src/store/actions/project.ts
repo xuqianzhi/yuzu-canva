@@ -1,4 +1,4 @@
-// Opening and closing a project; its name, instruction and viewport.
+// Opening and closing a project; its name, description and viewport.
 import { api, ApiError, unwrap } from "../../api/client";
 import { t } from "../../i18n";
 import { currentStep, stepViews } from "../../workflow/status";
@@ -18,7 +18,7 @@ export function projectActions(
   | "startEditing"
   | "closeProject"
   | "renameProject"
-  | "setProjectInstruction"
+  | "setProjectDescription"
   | "saveViewport"
 > {
   const {
@@ -27,9 +27,8 @@ export function projectActions(
     resetProjectState,
     flushViewport,
     flushName,
-    flushInstruction,
+    flushDescription,
     clearHistory,
-    step,
     watchRuns,
     lock,
   } = core;
@@ -45,8 +44,6 @@ export function projectActions(
       activeStep: null,
       activeNodeId: null,
       runs: {},
-      chats: {},
-      chatSending: {},
     });
     try {
       const graph = unwrap(
@@ -145,7 +142,7 @@ export function projectActions(
 
   async closeProject() {
     await flushTyping();
-    await Promise.all([flushViewport(), flushName(), flushInstruction()]);
+    await Promise.all([flushViewport(), flushName(), flushDescription()]);
     await session.historyChain;
     lock.stop();
     resetProjectState();
@@ -175,13 +172,13 @@ export function projectActions(
     session.renameTimer = setTimeout(() => void flushName(), 500);
   },
 
-  setProjectInstruction(instruction) {
+  setProjectDescription(description) {
     const project = get().project;
     if (!project || !editing()) return;
-    set({ project: { ...project, instruction } });
-    session.pendingInstruction = { projectId: project.id, instruction };
-    clearTimeout(session.instructionTimer);
-    session.instructionTimer = setTimeout(() => void flushInstruction(), 600);
+    set({ project: { ...project, description } });
+    session.pendingDescription = { projectId: project.id, description };
+    clearTimeout(session.descriptionTimer);
+    session.descriptionTimer = setTimeout(() => void flushDescription(), 600);
   },
 
   saveViewport(viewport) {

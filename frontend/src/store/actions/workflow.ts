@@ -1,4 +1,4 @@
-// The workflow panel: which step is open, and running a step.
+// The workflow: which step is open, and running a step.
 import { api, unwrap } from "../../api/client";
 import { t } from "../../i18n";
 import type { CanvasState, GetState, SetState } from "../types";
@@ -9,11 +9,15 @@ export function workflowActions(
   set: SetState,
   get: GetState,
   core: Core,
-): Pick<CanvasState, "openStep" | "runStep" | "completeStep" | "generateStep"> {
+): Pick<CanvasState, "openStep" | "jumpToNode" | "runStep" | "completeStep" | "generateStep"> {
   const { flushTyping, watchRuns, replaceGraph, takeGraph } = core;
   return {
   openStep(key, nodeId = null) {
     set({ activeStep: key, activeNodeId: nodeId });
+  },
+
+  jumpToNode(key, nodeId) {
+    set((s) => ({ activeStep: key, activeNodeId: nodeId, jump: s.jump + 1 }));
   },
 
   async runStep(key, prompt, count) {

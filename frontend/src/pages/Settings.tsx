@@ -1,11 +1,12 @@
 // The Settings page: the language of the UI and of every prompt the backend
 // writes for the models; your account, and what you pay for today (all that
-// was generated in your collections, by you or your editors).
-import { useEffect, useState } from "react";
-import { api } from "../api/client";
-import type { Me } from "../api/types";
+// was generated in your collections, by you or your editors); for admins,
+// which collections have no daily limit.
+import { useCallback, useEffect, useState } from "react";
+import { api, unwrap } from "../api/client";
+import type { CollectionSummary, Me } from "../api/types";
 import { useAuth } from "../auth";
-import { LANGUAGES, useLanguage, useT } from "../i18n";
+import { errorText, LANGUAGES, useLanguage, useT } from "../i18n";
 import { homeHref } from "../router";
 
 export function Settings() {
@@ -81,6 +82,7 @@ function Account() {
           <dd>{count("video")}</dd>
         </dl>
       </section>
+      {me?.admin && <DailyLimits />}
       {me && me.breakdown.length > 0 && (
         <section className="settings__row settings__row--stack">
           <h2 className="settings__label">{t("usage_breakdown")}</h2>
@@ -109,6 +111,74 @@ function Account() {
         </section>
       )}
     </>
+  );
+}
+
+/** Admins only: lift the daily limits for what's generated in a collection.
+    Saved at once (with the collection's version). */
+function DailyLimits() {
+  const t = useT();
+  const [collections, setCollections] = useState<CollectionSummary[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const load = useCallback(async () => {
+    try {
+      setCollections(unwrap(await api.GET("/api/collections")));
+    } catch (e) {
+      setError(errorText(e));
+    }
+  }, []);
+
+  useEffect(() => void load(), [load]);
+
+  const save = async (collection: CollectionSummary, no_daily_limit: boolean) => {
+    setBusy(true);
+    setError("");
+    try {
+      unwrap(
+        await api.PATCH("/api/collections/{collection_id}", {
+          params: { path: { collection_id: collection.id } },
+          body: { version: collection.version, no_daily_limit },
+        }),
+      );
+    } catch (e) {
+      setError(t("save_error", { error: errorText(e) }));
+    }
+    await load();
+    setBusy(false);
+  };
+
+  return (
+    <section className="settings__row settings__row--stack" aria-label={t("limit_title")}>
+      <div>
+        <h2 className="settings__label">{t("limit_title")}</h2>
+        <p className="home__help">{t("no_daily_limit_help")}</p>
+      </div>
+      {collections === null ? (
+        !error && <p className="home__help">{t("loading")}</p>
+      ) : collections.length === 0 ? (
+        <p className="home__help">{t("limit_no_collections")}</p>
+      ) : (
+        collections.map((c) => (
+          <label className="panel__switch" key={c.id}>
+            <input
+              type="checkbox"
+              role="switch"
+              checked={c.no_daily_limit}
+              disabled={busy}
+              onChange={(e) => void save(c, e.target.checked)}
+            />
+            <span>{c.name}</span>
+          </label>
+        ))
+      )}
+      {error && (
+        <p className="home__error" role="alert">
+          {error}
+        </p>
+      )}
+    </section>
   );
 }
 

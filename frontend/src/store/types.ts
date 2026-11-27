@@ -6,11 +6,10 @@ import {
   type Node as FlowNode,
   type NodeChange,
 } from "@xyflow/react";
-import { t, type Key } from "../i18n";
+import { type Key } from "../i18n";
 import {
   type Edge,
   type AiEdit,
-  type ChatMessage,
   type StepEntry,
   type StepRun,
   type Job,
@@ -94,8 +93,8 @@ export interface CanvasState {
   /** Save anything still pending, then forget the project. */
   closeProject(): Promise<void>;
   renameProject(name: string): void;
-  /** Edit the project's instruction (saved shortly after typing stops). */
-  setProjectInstruction(instruction: string): void;
+  /** Edit the project's description (saved shortly after typing stops). */
+  setProjectDescription(description: string): void;
   saveViewport(viewport: Viewport): void;
 
   onFlowNodesChange(changes: NodeChange<GenFlowNode>[]): void;
@@ -141,10 +140,15 @@ export interface CanvasState {
   cancel(nodeId: string): Promise<void>;
 
   // --- workflow ---
-  /** The workflow step open in the side panel, and the node shown there. */
+  /** The open workflow step (the canvas's side panel, or the basic view's
+      page), and its current node. */
   activeStep: string | null;
   activeNodeId: string | null;
-  /** Open a step in the panel (null closes it), optionally at one of its nodes. */
+  /** Counts picks in a step's node selector: each one moves the view to
+      the node, even one that's already active. */
+  jump: number;
+  jumpToNode(key: string, nodeId: string): void;
+  /** Open a step (null closes it), optionally at one of its nodes. */
   openStep(key: string | null, nodeId?: string | null): void;
   /** Each workflow step's last run, by step key. */
   runs: Record<string, StepRun>;
@@ -161,12 +165,6 @@ export interface CanvasState {
   selectTake(nodeId: string, outputId: string): void;
   /** A hand-written text take. Resolves to an error message, or null. */
   addTake(nodeId: string, text: string): Promise<string | null>;
-  /** Each text node's chat, once loaded. */
-  chats: Record<string, ChatMessage[]>;
-  chatSending: Record<string, boolean>;
-  loadChat(nodeId: string): Promise<void>;
-  sendChat(nodeId: string, text: string): Promise<void>;
-  applyProposal(nodeId: string, messageId: string): Promise<void>;
   /** A suggested edit of one node's prompt (or workflow text result), as
       `instruction` asks; nothing is saved. Throws with a message. */
   aiEdit(nodeId: string, instruction: string): Promise<AiEdit>;

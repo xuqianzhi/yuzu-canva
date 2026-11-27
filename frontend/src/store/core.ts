@@ -5,7 +5,7 @@ import { api, ApiError, unwrap } from "../api/client";
 import { inputKeys, labelInputs } from "../canvas/inputs";
 import { errorText, t } from "../i18n";
 import {
-  TERMINAL_JOB_STATUSES,
+  isActive,
   type Edge,
   type ProjectGraph,
   type StepRun,
@@ -61,8 +61,6 @@ export const toFlowNode = (node: Node): GenFlowNode => ({
 export const promptTimers = new Map<string, ReturnType<typeof setTimeout>>();
 export const pendingPrompts = new Map<string, string>();
 export const pollers = new Map<string, ReturnType<typeof setTimeout>>();
-/** False while addConnectedNode records the node and its edge as one step. */
-
 export const undoStack: HistoryEntry[] = [];
 export const redoStack: HistoryEntry[] = [];
 export const HISTORY_LIMIT = 200;
@@ -83,9 +81,10 @@ export const session: {
   pendingViewport: { projectId: string; viewport: Viewport } | undefined;
   renameTimer: ReturnType<typeof setTimeout> | undefined;
   pendingName: { projectId: string; name: string } | undefined;
-  instructionTimer: ReturnType<typeof setTimeout> | undefined;
-  pendingInstruction: { projectId: string; instruction: string } | undefined;
+  descriptionTimer: ReturnType<typeof setTimeout> | undefined;
+  pendingDescription: { projectId: string; description: string } | undefined;
   noticeTimer: ReturnType<typeof setTimeout> | undefined;
+  /** False while addConnectedNode records the node and its edge as one step. */
   recordIt: boolean;
   historyChain: Promise<void>;
   /** The project whose running step runs are being polled, if any. */
@@ -95,8 +94,8 @@ export const session: {
   pendingViewport: undefined,
   renameTimer: undefined,
   pendingName: undefined,
-  instructionTimer: undefined,
-  pendingInstruction: undefined,
+  descriptionTimer: undefined,
+  pendingDescription: undefined,
   noticeTimer: undefined,
   recordIt: true,
   historyChain: Promise.resolve(),
@@ -216,10 +215,8 @@ export function createCore(set: SetState, get: GetState) {
 
   /** Save all typing still waiting for its pause. */
   async function flushTyping(nodeIds?: string[]) {
-    const pick = (ids: Iterable<string>) => [...ids].filter((id) => !nodeIds || nodeIds.includes(id));
-    await Promise.all([
-      ...pick(pendingPrompts.keys()).map((id) => flushPrompt(id)),
-    ]);
+    const ids = [...pendingPrompts.keys()].filter((id) => !nodeIds || nodeIds.includes(id));
+    await Promise.all(ids.map((id) => flushPrompt(id)));
   }
 
   function stopPolling(nodeId: string) {
@@ -242,7 +239,7 @@ export function createCore(set: SetState, get: GetState) {
         }
         if (get().jobs[nodeId]?.id !== jobId) return; // superseded
         set((s) => ({ jobs: { ...s.jobs, [nodeId]: job } }));
-        if (!TERMINAL_JOB_STATUSES.includes(job.status)) return poll(nodeId, jobId);
+        if (isActive(job)) return poll(nodeId, jobId);
         pollers.delete(nodeId);
         if (job.status === "succeeded") await loadOutputs(nodeId, job.output_id ?? null);
       }, POLL_INTERVAL_MS),
@@ -296,10 +293,10 @@ export function createCore(set: SetState, get: GetState) {
     pendingPrompts.clear();
     clearTimeout(session.viewportTimer);
     clearTimeout(session.renameTimer);
-    clearTimeout(session.instructionTimer);
+    clearTimeout(session.descriptionTimer);
     session.pendingViewport = undefined;
     session.pendingName = undefined;
-    session.pendingInstruction = undefined;
+    session.pendingDescription = undefined;
   }
 
   async function flushViewport() {
@@ -332,16 +329,16 @@ export function createCore(set: SetState, get: GetState) {
     );
   }
 
-  async function flushInstruction() {
-    clearTimeout(session.instructionTimer);
-    const pending = session.pendingInstruction;
-    session.pendingInstruction = undefined;
+  async function flushDescription() {
+    clearTimeout(session.descriptionTimer);
+    const pending = session.pendingDescription;
+    session.pendingDescription = undefined;
     if (!pending) return;
     await saving(async () =>
       unwrap(
         await api.PATCH("/api/projects/{project_id}", {
           params: { path: { project_id: pending.projectId } },
-          body: { instruction: pending.instruction },
+          body: { description: pending.description },
         }),
       ),
     );
@@ -645,7 +642,7 @@ export function createCore(set: SetState, get: GetState) {
     resetProjectState,
     flushViewport,
     flushName,
-    flushInstruction,
+    flushDescription,
     connectEdge,
     recordConnection,
     syncHistory,

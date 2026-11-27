@@ -196,102 +196,9 @@
         "description": "Which of a step's results go to later steps by themselves, as context\n(the decisions made so far); anything can still be used by mentioning\nit.",
         "enum": [
           "all",
-          "used",
           "none"
         ],
         "title": "Carry",
-        "type": "string"
-      },
-      "ChatMessage": {
-        "additionalProperties": false,
-        "description": "One message of a node's chat. An assistant message may carry a\n``proposal``: a complete new version of the node's text, which\n``applyProposal`` turns into a take.",
-        "properties": {
-          "applied_output_id": {
-            "anyOf": [
-              {
-                "examples": [
-                  "out_x0p2"
-                ],
-                "pattern": "^out_[A-Za-z0-9]+$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Applied Output Id"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "id": {
-            "pattern": "^msg_[A-Za-z0-9]+$",
-            "title": "Id",
-            "type": "string"
-          },
-          "node_id": {
-            "examples": [
-              "nod_a91x"
-            ],
-            "pattern": "^nod_[A-Za-z0-9]+$",
-            "title": "Node Id",
-            "type": "string"
-          },
-          "proposal": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Proposal"
-          },
-          "role": {
-            "$ref": "#/components/schemas/ChatRole"
-          },
-          "text": {
-            "title": "Text",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "node_id",
-          "role",
-          "text",
-          "proposal",
-          "applied_output_id",
-          "created_at"
-        ],
-        "title": "ChatMessage",
-        "type": "object"
-      },
-      "ChatRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "text": {
-            "maxLength": 20000,
-            "minLength": 1,
-            "title": "Text",
-            "type": "string"
-          }
-        },
-        "required": [
-          "text"
-        ],
-        "title": "ChatRequest",
-        "type": "object"
-      },
-      "ChatRole": {
-        "enum": [
-          "user",
-          "assistant"
-        ],
-        "title": "ChatRole",
         "type": "string"
       },
       "Collection": {
@@ -309,16 +216,6 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
-          },
-          "direct_image": {
-            "default": false,
-            "title": "Direct Image",
-            "type": "boolean"
-          },
-          "direct_video": {
-            "default": false,
-            "title": "Direct Video",
-            "type": "boolean"
           },
           "id": {
             "examples": [
@@ -378,8 +275,6 @@
           "your_role",
           "owner_email",
           "updated_by_email",
-          "direct_image",
-          "direct_video",
           "no_daily_limit",
           "created_at",
           "updated_at"
@@ -546,16 +441,6 @@
             "title": "Created At",
             "type": "string"
           },
-          "direct_image": {
-            "default": false,
-            "title": "Direct Image",
-            "type": "boolean"
-          },
-          "direct_video": {
-            "default": false,
-            "title": "Direct Video",
-            "type": "boolean"
-          },
           "id": {
             "examples": [
               "col_k2m9"
@@ -624,8 +509,6 @@
           "your_role",
           "owner_email",
           "updated_by_email",
-          "direct_image",
-          "direct_video",
           "no_daily_limit",
           "created_at",
           "updated_at",
@@ -639,28 +522,6 @@
         "additionalProperties": false,
         "description": "Partial update; ``version`` is the one you last read.",
         "properties": {
-          "direct_image": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Direct Image"
-          },
-          "direct_video": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Direct Video"
-          },
           "instruction": {
             "anyOf": [
               {
@@ -2071,15 +1932,9 @@
             "title": "Created At",
             "type": "string"
           },
-          "direct_image": {
-            "default": false,
-            "title": "Direct Image",
-            "type": "boolean"
-          },
-          "direct_video": {
-            "default": false,
-            "title": "Direct Video",
-            "type": "boolean"
+          "description": {
+            "title": "Description",
+            "type": "string"
           },
           "id": {
             "examples": [
@@ -2087,10 +1942,6 @@
             ],
             "pattern": "^prj_[A-Za-z0-9]+$",
             "title": "Id",
-            "type": "string"
-          },
-          "instruction": {
-            "title": "Instruction",
             "type": "string"
           },
           "name": {
@@ -2114,11 +1965,9 @@
           "collection_id",
           "name",
           "viewport",
-          "instruction",
+          "description",
           "collection_instruction",
           "workflow",
-          "direct_image",
-          "direct_video",
           "created_at",
           "updated_at"
         ],
@@ -2128,7 +1977,7 @@
       "ProjectCreate": {
         "additionalProperties": false,
         "properties": {
-          "instruction": {
+          "description": {
             "anyOf": [
               {
                 "maxLength": 20000,
@@ -2138,7 +1987,7 @@
                 "type": "null"
               }
             ],
-            "title": "Instruction"
+            "title": "Description"
           },
           "name": {
             "default": "Untitled",
@@ -2289,15 +2138,9 @@
             "title": "Created At",
             "type": "string"
           },
-          "direct_image": {
-            "default": false,
-            "title": "Direct Image",
-            "type": "boolean"
-          },
-          "direct_video": {
-            "default": false,
-            "title": "Direct Video",
-            "type": "boolean"
+          "description": {
+            "title": "Description",
+            "type": "string"
           },
           "editing_by": {
             "anyOf": [
@@ -2322,10 +2165,6 @@
             "default": 0,
             "title": "Image Count",
             "type": "integer"
-          },
-          "instruction": {
-            "title": "Instruction",
-            "type": "string"
           },
           "name": {
             "title": "Name",
@@ -2363,11 +2202,9 @@
           "collection_id",
           "name",
           "viewport",
-          "instruction",
+          "description",
           "collection_instruction",
           "workflow",
-          "direct_image",
-          "direct_video",
           "created_at",
           "updated_at",
           "node_count",
@@ -2384,7 +2221,7 @@
         "additionalProperties": false,
         "description": "Partial update: omitted fields are left as they are.",
         "properties": {
-          "instruction": {
+          "description": {
             "anyOf": [
               {
                 "maxLength": 20000,
@@ -2394,7 +2231,7 @@
                 "type": "null"
               }
             ],
-            "title": "Instruction"
+            "title": "Description"
           },
           "name": {
             "anyOf": [
@@ -2981,7 +2818,7 @@
         "properties": {
           "carry": {
             "$ref": "#/components/schemas/Carry",
-            "default": "all"
+            "default": "none"
           },
           "count": {
             "anyOf": [
@@ -3109,69 +2946,6 @@
         "summary": "Get Asset Content",
         "tags": [
           "assets"
-        ]
-      }
-    },
-    "/api/chat/{message_id}/apply": {
-      "post": {
-        "description": "Turn an answer's proposal into a take of its node (selected).",
-        "operationId": "applyProposal",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "message_id",
-            "required": true,
-            "schema": {
-              "title": "Message Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Output"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not Found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          }
-        },
-        "summary": "Apply Proposal",
-        "tags": [
-          "workflow"
         ]
       }
     },
@@ -3565,7 +3339,7 @@
         ]
       },
       "patch": {
-        "description": "Rename it, change its instruction, or turn generating directly\n(``direct_image`` / ``direct_video``) on or off. 409 ``edit_conflict``\nif someone saved since ``version``. Only admins may change\n``no_daily_limit`` (403 ``forbidden``).",
+        "description": "Rename it or change its instruction. 409 ``edit_conflict`` if\nsomeone saved since ``version``. Only admins may change\n``no_daily_limit`` (403 ``forbidden``).",
         "operationId": "updateCollection",
         "parameters": [
           {
@@ -5122,7 +4896,7 @@
     },
     "/api/nodes/{node_id}/ai-edit": {
       "post": {
-        "description": "Suggest an edit of one node's prompt, changed only as ``instruction``\nasks (\"a dog, not a cat\": \"a cat surfing\" becomes \"a dog surfing\").\nNothing is saved or generated: the answer is applied by the client.\n\nFor a workflow text node (no prompt; its result is its text) it's the\nresult that is edited, applied as a new take. A video's length comes\nback too (kept unless asked to change). The model sees what a step run\nwould: the instructions, the step, what earlier steps settled on and\nthe nodes the text mentions. 409 ``not_generatable`` for an uploaded\nnode; 502 if the model fails.",
+        "description": "Suggest an edit of one node's prompt, changed only as ``instruction``\nasks (\"a dog, not a cat\": \"a cat surfing\" becomes \"a dog surfing\").\nNothing is saved or generated: the answer is applied by the client.\n\nFor a workflow text node (its prompt only made its result) it's the\nresult that is edited, applied as a new take; so too for a text node\nwith a result and no prompt. A video's length comes\nback too (kept unless asked to change). The model sees what a step run\nwould: the instructions, the step, what earlier steps settled on and\nthe nodes the text mentions. 409 ``not_generatable`` for an uploaded\nnode; 502 if the model fails.",
         "operationId": "editWithAi",
         "parameters": [
           {
@@ -5222,176 +4996,6 @@
           }
         },
         "summary": "Edit With Ai",
-        "tags": [
-          "workflow"
-        ]
-      }
-    },
-    "/api/nodes/{node_id}/chat": {
-      "get": {
-        "description": "The node's chat, oldest first.",
-        "operationId": "listChat",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "node_id",
-            "required": true,
-            "schema": {
-              "examples": [
-                "nod_a91x"
-              ],
-              "pattern": "^nod_[A-Za-z0-9]+$",
-              "title": "Node Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ChatMessage"
-                  },
-                  "title": "Response Listchat",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not Found"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          }
-        },
-        "summary": "List Chat",
-        "tags": [
-          "workflow"
-        ]
-      },
-      "post": {
-        "description": "Ask the model about a text node; returns your message and its answer.\n\nThe model sees the project instruction (for a workflow node, and its\nstep), the current version and the chat so far. When it suggests a new\nversion, the answer's ``proposal`` holds it whole; ``applyProposal``\nturns it into a take. Nothing is saved if the model fails (502).",
-        "operationId": "sendChat",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "node_id",
-            "required": true,
-            "schema": {
-              "examples": [
-                "nod_a91x"
-              ],
-              "pattern": "^nod_[A-Za-z0-9]+$",
-              "title": "Node Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ChatRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ChatMessage"
-                  },
-                  "title": "Response Sendchat",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not Found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Too Many Requests"
-          },
-          "502": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Bad Gateway"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          }
-        },
-        "summary": "Send Chat",
         "tags": [
           "workflow"
         ]
@@ -6725,7 +6329,7 @@
     },
     "/api/projects/{project_id}/workflow/steps/{step_key}/run": {
       "post": {
-        "description": "Start running a step; returns the graph with the run ``running``.\n\nIt finishes in the background: poll ``getProjectGraph`` until the step's\nrun is ``done`` (its nodes replaced) or ``failed`` (``error`` says why;\nthe old nodes are untouched). 409 if the step is already running.\n\nThe prompt, the instructions, what earlier steps settled on and the\nnodes the prompt mentions (by ID) go to a text model, which writes\n``count`` results (a text step: its nodes' text) or prompts (an image or\nvideo step: one node each, with the mentioned nodes as references, and\nfor a video its length in seconds). Image and video nodes are only\nfilled in: ``generateStep`` then generates them -- unless the\ncollection generates that kind directly (``Collection.direct_image`` /\n``direct_video``): then the run generates them itself once they're\nfilled in (and fails, with the nodes in place, if that's refused).",
+        "description": "Start running a step; returns the graph with the run ``running``.\n\nIt finishes in the background: poll ``getProjectGraph`` until the step's\nrun is ``done`` (its nodes replaced) or ``failed`` (``error`` says why;\nthe old nodes are untouched). 409 if the step is already running.\n\nThe prompt, the instructions, what earlier steps settled on and the\nnodes the prompt mentions (by ID) go to a text model, which writes\n``count`` results (a text step: its nodes' text) or prompts (an image or\nvideo step: one node each, referring to the mentioned nodes it uses,\nand for a video its length in seconds). Image and video nodes are only\nfilled in: ``generateStep`` then generates them.",
         "operationId": "runStep",
         "parameters": [
           {

@@ -1,6 +1,7 @@
 import {
   Background,
   BackgroundVariant,
+  ControlButton,
   Controls,
   MiniMap,
   ReactFlow,
@@ -10,9 +11,10 @@ import {
   type EdgeTypes,
   type FinalConnectionState,
   type NodeTypes,
+  type Viewport,
 } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
-import { TERMINAL_JOB_STATUSES } from "../api/types";
+import { isActive } from "../api/types";
 import {
   useCanvas,
   type ConnectFrom,
@@ -28,6 +30,24 @@ import { MATERIAL_MIME, Sidebar } from "./Sidebar";
 import { useT, type Key, type T } from "../i18n";
 
 const nodeTypes: NodeTypes = { gen: GenNode };
+
+/** The two drag tools, in the controls. */
+const TOOLS = [
+  {
+    id: "hand",
+    label: "tool_hand",
+    path: "M5.5 8V3.8a1 1 0 0 1 2 0V7.5M7.5 7V2.8a1 1 0 0 1 2 0V7.5M9.5 7.2V3.8a1 1 0 0 1 2 0v5.4c0 2.7-1.7 4.8-4.3 4.8-1.7 0-2.6-.8-3.5-2.1L2.4 9.2a1 1 0 0 1 1.6-1.2l1.5 1.8",
+  },
+  {
+    id: "select",
+    label: "tool_select",
+    path: "M3.5 2.5 12 8.2l-3.9.7 2.2 4.3-1.6.8-2.2-4.3-3 2.6z",
+  },
+] as const;
+
+// Where each project's canvas was last looked at, for coming back to it
+// (from the basic view); the saved one applies on a fresh load.
+const lastViews = new Map<string, Viewport>();
 const edgeTypes: EdgeTypes = { ref: RefEdge };
 
 // Node geometry, matching styles.css ("nodes: an output square over a prompt
@@ -102,7 +122,6 @@ export function Canvas() {
   const commitPositions = useCanvas((s) => s.commitPositions);
   const flowEdges = useCanvas((s) => s.flowEdges);
   const jobs = useCanvas((s) => s.jobs);
-  const notice = useCanvas((s) => s.notice);
   const onEdgesChange = useCanvas((s) => s.onFlowEdgesChange);
   const canConnect = useCanvas((s) => s.canConnect);
   const connect = useCanvas((s) => s.connect);
@@ -156,6 +175,38 @@ export function Canvas() {
   };
   const flow = useReactFlow();
   const wrapper = useRef<HTMLDivElement>(null);
+  const tool = useView((s) => s.tool);
+  const setTool = useView((s) => s.setTool);
+  // Holding Space with the select tool: dragging moves the view, as with the
+  // hand tool (React Flow's own pan key still lets its selection take the
+  // drag). Not while typing, or on a button reached by keyboard, where Space
+  // does its own thing; a button merely clicked doesn't keep it.
+  const [spaceHeld, setSpaceHeld] = useState(false);
+  useEffect(() => {
+    const ownSpace = (e: KeyboardEvent) =>
+      e.target instanceof Element &&
+      Boolean(
+        e.target.closest("input, textarea, select, [contenteditable='true']") ||
+          e.target.closest("button")?.matches(":focus-visible"),
+      );
+    const down = (e: KeyboardEvent) => {
+      if (e.code !== "Space" || ownSpace(e)) return;
+      e.preventDefault(); // not a page scroll or a button press
+      setSpaceHeld(true);
+    };
+    const up = (e: KeyboardEvent) => e.code === "Space" && setSpaceHeld(false);
+    const release = () => setSpaceHeld(false);
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    window.addEventListener("blur", release);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", release);
+    };
+  }, []);
+  const dragSelects = tool === "select" && !spaceHeld;
+
   // Re-renders only when the zoom crosses FAR_ZOOM.
   const far = useStore((s) => s.transform[2] < FAR_ZOOM);
   // While the view moves, the browser scales what it has already drawn
@@ -215,21 +266,30 @@ export function Canvas() {
     void addConnectedNode(shape, at, from);
   };
 
-  // ⌘Z / Ctrl+Z undo; ⌘⇧Z / Ctrl+Shift+Z / Ctrl+Y redo. Inside a text box
-  // the browser's own text undo applies instead.
+  // Keys, outside text boxes (where the browser's own handling applies):
+  // V / H pick the select or hand tool; ⌘A / Ctrl+A selects every node and
+  // Esc clears the selection. (Undo and redo: ProjectBar.)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const el = e.target as HTMLElement | null;
-      if (el?.closest("input, textarea, select, [contenteditable='true']")) return;
-      if (useCanvas.getState().lock.status !== "editing") return;
-      if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+      const el = e.target;
+      if (el instanceof Element && el.closest("input, textarea, select, [contenteditable='true']"))
+        return;
       const key = e.key.toLowerCase();
-      if (key === "z") {
-        e.preventDefault();
-        void (e.shiftKey ? useCanvas.getState().redo() : useCanvas.getState().undo());
-      } else if (key === "y" && e.ctrlKey && !e.metaKey) {
-        e.preventDefault();
-        void useCanvas.getState().redo();
+      const command = e.metaKey || e.ctrlKey;
+      if (!command && !e.altKey && !e.shiftKey && (key === "v" || key === "h")) {
+        useView.getState().setTool(key === "v" ? "select" : "hand");
+        return;
+      }
+      if (key === "escape" || (command && !e.altKey && !e.shiftKey && key === "a")) {
+        const select = key === "a";
+        if (select) e.preventDefault();
+        const { flowNodes, flowEdges, onFlowNodesChange, onFlowEdgesChange } =
+          useCanvas.getState();
+        onFlowNodesChange(flowNodes.map((n) => ({ id: n.id, type: "select", selected: select })));
+        if (!select) {
+          onFlowEdgesChange(flowEdges.map((ed) => ({ id: ed.id, type: "select", selected: false })));
+        }
+        return;
       }
     };
     window.addEventListener("keydown", onKey);
@@ -271,8 +331,7 @@ export function Canvas() {
   const edges = useMemo(
     () =>
       flowEdges.map((edge) => {
-        const job = jobs[edge.target];
-        const busy = job !== undefined && !TERMINAL_JOB_STATUSES.includes(job.status);
+        const busy = isActive(jobs[edge.target]);
         const hidden = !showLinks;
         const base = (edge.className ?? "").replace(/\s*edge--active/g, "");
         const active = focus.has(edge.source) || focus.has(edge.target);
@@ -324,15 +383,22 @@ export function Canvas() {
             removed.map((e) => e.id),
           )
         }
-        onMoveEnd={(_, viewport) => saveViewport(viewport)}
+        onMoveEnd={(_, viewport) => {
+          if (project) lastViews.set(project.id, viewport);
+          saveViewport(viewport);
+        }}
         onDoubleClick={onDoubleClick}
-        defaultViewport={project?.viewport ?? { x: 0, y: 0, zoom: 1 }}
+        defaultViewport={
+          (project && lastViews.get(project.id)) ?? project?.viewport ?? { x: 0, y: 0, zoom: 1 }
+        }
         zoomOnDoubleClick={false}
-        // Dragging on empty canvas selects (nodes it touches, and the
-        // connections between them). The view moves only through the map in
-        // the bottom-right corner; the wheel and the +/- buttons still zoom.
-        selectionOnDrag
-        panOnDrag={false}
+        // The hand tool: dragging on empty canvas moves the view (Shift-click
+        // adds to the selection). The select tool: dragging selects; Space-drag,
+        // or the middle or right button, moves the view. The wheel (and a
+        // pinch) zooms, over nodes too (see the "nowheel" classes in src/node).
+        panOnDrag={dragSelects ? [1, 2] : true}
+        selectionOnDrag={dragSelects}
+        panActivationKeyCode={null}
         panOnScroll={false}
         autoPanOnNodeDrag={false}
         autoPanOnConnect={false}
@@ -348,18 +414,28 @@ export function Canvas() {
         proOptions={{ hideAttribution: true }}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1.4} />
-        <Controls showInteractive={false} />
+        <Controls showInteractive={false}>
+          {TOOLS.map(({ id, label, path }) => (
+            <ControlButton
+              key={id}
+              className={`canvas__tool${tool === id ? " is-active" : ""}`}
+              onClick={() => setTool(id)}
+              title={t(label)}
+              aria-label={t(label)}
+              aria-pressed={tool === id}
+            >
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d={path} />
+              </svg>
+            </ControlButton>
+          ))}
+        </Controls>
         <MiniMap
           pannable
           zoomable
           className="canvas__map"
           ariaLabel={t("map_aria")}
         />
-        {notice && (
-          <div className={`canvas__notice canvas__notice--${notice.tone}`} role="status">
-            {notice.text}
-          </div>
-        )}
         {!readOnly && (selectedNodeIds.length > 0 || selectedEdgeIds.length > 0) && (
           <div className="selection-bar" role="status" aria-label={t("selection_aria")}>
             <span>{selectionLabel(selectedNodeIds.length, selectedEdgeIds.length, t)}</span>
@@ -367,7 +443,7 @@ export function Canvas() {
         )}
         {!readOnly && flowNodes.length > 0 && selectedNodeIds.length === 0 && selectedEdgeIds.length === 0 && (
           <div className="canvas__hint">
-            {t("canvas_hint")}
+            {t(tool === "hand" ? "canvas_hint_hand" : "canvas_hint_select")}
           </div>
         )}
         {!readOnly && flowNodes.length === 0 && (

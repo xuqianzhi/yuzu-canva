@@ -28,7 +28,6 @@ export type Material = S["Material"];
 
 export type WorkflowDefinition = S["WorkflowDefinition"];
 export type WorkflowStep = S["WorkflowStep"];
-export type ChatMessage = S["ChatMessage"];
 export type AiEdit = S["AiEdit"];
 export type StepRun = S["StepRun"];
 export type StepEntry = S["StepEntry"];
@@ -73,6 +72,11 @@ export type ErrorResponse = S["ErrorResponse"];
 
 
 export const TERMINAL_JOB_STATUSES: readonly JobStatus[] = ["succeeded", "failed", "canceled"];
+
+/** Whether a job is still queued or running. */
+export function isActive(job: Job | undefined): boolean {
+  return job !== undefined && !TERMINAL_JOB_STATUSES.includes(job.status);
+}
 
 /** What name uniqueness compares: case- and spacing-insensitive. */
 export function nameKey(name: string): string {
@@ -154,9 +158,22 @@ export function mentionedIds(text: string, ids: Record<string, string>): string[
   return [...new Set(findMentions(text, ids).map((m) => m.nodeId))];
 }
 
+// By the nodes object, which the store replaces on every change: each prompt
+// box and card asks for the same map.
+const idMaps = new WeakMap<Record<string, Node>, Record<string, string>>();
+
 /** Every live node's ID -> node id. */
 export function idMap(nodes: Record<string, Node>): Record<string, string> {
-  const map: Record<string, string> = {};
-  for (const node of Object.values(nodes)) if (node.name) map[node.name] = node.id;
+  let map = idMaps.get(nodes);
+  if (!map) {
+    map = {};
+    for (const node of Object.values(nodes)) if (node.name) map[node.name] = node.id;
+    idMaps.set(nodes, map);
+  }
   return map;
+}
+
+/** What a node is called: its ID, else its number in its step. */
+export function nodeLabel(node: Node): string {
+  return node.name ?? `#${node.workflow_item ?? ""}`;
 }

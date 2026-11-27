@@ -1,7 +1,7 @@
 """OpenAI text: Chat Completions, optionally with a JSON-schema answer.
 
 ``TextModel`` is the small interface the rest of the backend uses (the
-text job generator and the node chat); ``OpenAITextModel`` implements it
+text job generator and AI edits); ``OpenAITextModel`` implements it
 over ``POST /chat/completions``. Reference images go along as data URLs
 (compressed like every reference, see ``RefFile.load``).
 """
@@ -9,7 +9,6 @@ over ``POST /chat/completions``. Reference images go along as data URLs
 from __future__ import annotations
 
 import base64
-import json
 from typing import Any, Protocol
 
 import httpx
@@ -140,12 +139,3 @@ def _error_message(response: httpx.Response) -> str:
     except (ValueError, KeyError, TypeError):
         pass
     return response.text[:300] or response.reason_phrase
-
-
-def parse_chat_answer(answer: str) -> tuple[str, Any]:
-    """(reply, proposal) from a chat answer's JSON."""
-    try:
-        data = json.loads(answer)
-        return str(data["reply"]), data.get("proposal")
-    except (ValueError, KeyError, TypeError) as exc:
-        raise ProviderError("OpenAI's answer was not in the expected shape") from exc

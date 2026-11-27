@@ -52,42 +52,36 @@ project: each has a required, unique name, and `createProject` turns every
 one into an uploaded node (named after it, with its own copy of the file),
 down the left side of the new canvas.
 
-**Instructions** are plain text (up to 20,000 characters). There is one
-global instruction (`/global-instruction`, empty until set), and every
-project has its own `instruction`: `createProject` copies the global one
-unless the body gives one, and `updateProject` edits it. Changing the
-global instruction never touches existing projects. Workflow text steps
-include the project's instruction in what the model is told.
+**Instructions** are plain text (up to 20,000 characters): a collection's
+`instruction`, shared by every project in it, and each project's own
+`description` (`updateProject`). Workflow steps and AI edits tell the model
+both.
 
 **Language** (`/settings`, `language`: `en` or `zh`, default `en`): the
 app's language. The backend words every prompt it writes in it: workflow
-step instructions and headings, chat framing, plain text nodes' system
+step instructions and headings, AI edit framing, plain text nodes' system
 prompt, and how OpenAI prompts name reference images
 ("image 1" / "图片1"); each job records it (`job.input.language`). Workflow
 definitions carry their labels, help and step prompts in every language
 (`Localized`: `{"en": …, "zh": …}`); readers fall back to English.
 
-**Workflows** (`contract/workflow.py`): a **template**
-(`/workflow-templates`) is a name and a list of steps, each a `key`, a
-`name` (the user's text, never translated), a node `kind` and an `output`
-use: `independent` (nodes get IDs "<key>_<n>"; later prompts use them by
-mentioning the IDs) or `one_to_one` (no IDs; node *i* feeds node *i* of the
-next step through a workflow edge; not allowed on the last step). A project
-copies a template when created (`workflow_template_id`, else the default)
-into `project.workflow`.
+**Workflows** (`contract/workflow.py`): each collection has some
+(`/collections/{id}/workflows`), one active, which its projects run on. A
+workflow is a name and a list of steps, each a `key`, a `name` (the user's
+text, never translated), a node `kind`, a `description`, a default `count`
+and a `carry`: `all` (every later step is given its results) or `none`
+(only the ones a prompt mentions).
 
-`runStep` runs a step with a `prompt` and a `count` (1-20; ignored after a
-one-to-one step, which sets it). With the project instruction and the nodes
-the prompt mentions (text quoted, images sent to the model), a text model
-writes exactly that many items (strict JSON schema, one retry): a text
-step's nodes' takes, or an image or video step's prompts (each keeps the
-prompt's mentions, so those nodes are its references), queued at once.
-After a one-to-one step: media fed by text uses each text as its prompt
-(no model call; the prompt is optional extra direction), media fed by media
-uses the prompt for each with its input as reference, and text writes one
-result per input. Running again replaces the step's nodes; `graph.runs`
-keeps each step's last prompt and count. Workflow nodes can't be deleted or
-retyped, and one-to-one nodes can't be given an ID (409 `workflow_locked`).
+`runStep` runs a step with a `prompt` (optional) and a `count`. With the
+instructions, what earlier steps carry and the nodes the prompt mentions
+(text quoted, images sent to the model), a text model writes exactly that
+many items (strict JSON schema, one retry): a text step's nodes' takes (each
+node's prompt being what would make it), or an image or video step's
+prompts, each referring to the mentioned nodes it uses. Image and video
+nodes are only filled in; `generateStep` queues them. `completeStep` fills a
+step with results of your own. Running again replaces the step's nodes;
+`graph.runs` keeps each step's last prompt and count. Workflow nodes can't
+be deleted or retyped (409 `workflow_locked`).
 
 Deleting a node or edge is soft: it disappears from every response but is
 kept (with its takes and files) so `restore` can undo it. Anything deleted
@@ -99,7 +93,7 @@ more than a day ago is erased when the API starts.
 |---|---|---|
 | GET | `/health` | liveness |
 | GET, POST | `/projects` | list / create |
-| GET, PATCH, DELETE | `/projects/{id}` | whole graph / rename, viewport, instruction / delete |
+| GET, PATCH, DELETE | `/projects/{id}` | whole graph / rename, viewport, description / delete |
 | POST | `/projects/{id}/nodes` | create node |
 | PATCH, DELETE | `/nodes/{id}` | edit / delete node |
 | GET | `/nodes/{id}/outputs` | takes, newest first |
@@ -113,15 +107,12 @@ more than a day ago is erased when the API starts.
 | GET, POST | `/global-assets` | list / upload (multipart `file` + `name`) global assets |
 | PATCH, DELETE | `/global-assets/{id}` | rename / delete a global asset |
 | GET | `/global-assets/{id}/content` | the file |
-| GET, PUT | `/global-instruction` | read / replace the global instruction |
 | GET, PUT | `/settings` | the app's language (`en`, `zh`) |
-| GET, POST | `/workflow-templates` | list / create workflow templates |
-| PUT, DELETE | `/workflow-templates/{id}` | replace (version + 1) / delete (not the default) |
-| POST | `/workflow-templates/{id}/default` | make it the default for new projects |
+| GET, POST | `/collections/{id}/workflows` | a collection's workflows / add one |
+| PUT, DELETE | `/workflows/{id}` | replace (version + 1) / delete (not the active one) |
+| POST | `/workflows/{id}/activate` | make it the one the collection's projects run on |
 | POST | `/projects/{id}/workflow/steps/{key}/run` | run a step with a prompt and a count (returns the graph) |
 | POST | `/nodes/{id}/takes` | a hand-written text take |
-| GET, POST | `/nodes/{id}/chat` | a text node's chat / ask (returns your message and the answer) |
-| POST | `/chat/{message_id}/apply` | turn an answer's proposal into a take |
 | GET | `/jobs/{id}` | job status |
 | POST | `/jobs/{id}/cancel` | cancel |
 | GET | `/assets/{id}/content` | media bytes |

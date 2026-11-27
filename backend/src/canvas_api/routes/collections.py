@@ -78,9 +78,8 @@ def update_collection(
     user: UserDep,
     settings: SettingsDep,
 ) -> Collection:
-    """Rename it, change its instruction, or turn generating directly
-    (``direct_image`` / ``direct_video``) on or off. 409 ``edit_conflict``
-    if someone saved since ``version``. Only admins may change
+    """Rename it or change its instruction. 409 ``edit_conflict`` if
+    someone saved since ``version``. Only admins may change
     ``no_daily_limit`` (403 ``forbidden``)."""
     if body.no_daily_limit is not None and not is_admin(settings, user.email):
         raise ApiError(403, ErrorCode.forbidden, "only an admin can change the daily limit")

@@ -151,11 +151,22 @@ class FakeTextModel:
         if name == "run":
             shape = spec.schema["properties"]["items"]
             texts = [f"Result {n}: {last[-80:]}" for n in range(1, shape["maxItems"] + 1)]
-            if "seconds" in shape["items"].get("properties", {}):
-                # Videos: a length each (5 s, 6 s, ...).
-                items = [{"content": t, "seconds": 4 + n} for n, t in enumerate(texts, 1)]
-                return json.dumps({"items": items})
-            return json.dumps({"items": texts})
+            fields = shape["items"].get("properties", {})
+            if not fields:
+                return json.dumps({"items": texts})
+            # Prompts naming references: each says it uses all of them.
+            ids = re.findall(r'<reference id="([^"]+)"', last)
+            items = []
+            for n, content in enumerate(texts, 1):
+                item: dict = {"content": content}
+                if "uses" in fields:
+                    item["uses"] = ids
+                if "seconds" in fields:  # videos: 5 s, 6 s, ...
+                    item["seconds"] = 4 + n
+                if "prompt" in fields:  # text results: the prompt that makes each
+                    item["prompt"] = f"Prompt {n}: {last[-60:]}"
+                items.append(item)
+            return json.dumps({"items": items})
         if name == "edit":
             # The current text, marked as edited (a video keeps a length of 8 s).
             found = re.search(r"<current>\n?(.*?)\n?</current>", last, re.S)
@@ -163,10 +174,4 @@ class FakeTextModel:
             if "seconds" in spec.schema["properties"]:
                 answer["seconds"] = 8
             return json.dumps(answer)
-        if name == "chat":
-            reply = {
-                "reply": "Here is a revised version.",
-                "proposal": f"Revised: {last[-200:]}",
-            }
-            return json.dumps(reply)
         return f"[fake text] {last[-300:]}"

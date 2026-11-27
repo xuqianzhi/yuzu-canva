@@ -79,7 +79,6 @@ _IN_COLLECTION = {
     "edge_id": "edge",
     "job_id": "job",
     "material_id": "material",
-    "message_id": "message",
     "workflow_id": "workflow",
 }
 

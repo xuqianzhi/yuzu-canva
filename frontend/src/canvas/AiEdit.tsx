@@ -1,20 +1,21 @@
-// "Edit with AI" on one node: say what to change ("a dog, not a cat") and
+// "Edit prompt with AI" on one node: say what to change ("a dog, not a cat") and
 // the AI rewrites the prompt with only that changed. The suggestion shows
 // first (the changed words marked); Apply saves it like typing would (so
 // Undo takes it back). Nothing is generated. A workflow text node has no
 // prompt: its result is edited instead, and applied as a new take.
-import { useState, type KeyboardEvent } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
 import type { AiEdit } from "../api/types";
 import { useT } from "../i18n";
+import { useChosenOutput } from "../node/NodePreview";
 import { useCanvas } from "../store/canvas";
 
 export function AiEditButton({ open, onClick }: { open: boolean; onClick: () => void }) {
   const t = useT();
   return (
     <button
-      className={`round-button round-button--ghost${open ? " is-active" : ""}`}
+      className={`round-button round-button--ghost tip${open ? " is-active" : ""}`}
       onClick={onClick}
-      title={t("ai_edit_title")}
+      data-tip={t("ai_edit_title")}
       aria-label={t("ai_edit_title")}
       aria-expanded={open}
     >
@@ -32,14 +33,13 @@ export function AiEditBox({ nodeId, onClose }: { nodeId: string; onClose: () => 
   const setPrompt = useCanvas((s) => s.setPrompt);
   const setParams = useCanvas((s) => s.setParams);
   const addTake = useCanvas((s) => s.addTake);
-  const current = useCanvas((s) => {
-    const id = s.nodes[nodeId]?.selected_output_id;
-    return id ? (s.outputs[id]?.text ?? "") : "";
-  });
+  const current = useChosenOutput(nodeId)?.text ?? "";
   const [instruction, setInstruction] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<AiEdit | null>(null);
+  // One Apply at a time: a double click must not add two versions.
+  const applying = useRef(false);
   if (!node) return null;
   const params = node.params;
   const before = result?.target === "text" ? current : node.prompt;
@@ -63,7 +63,10 @@ export function AiEditBox({ nodeId, onClose }: { nodeId: string; onClose: () => 
   const apply = async () => {
     if (!result) return;
     if (result.target === "text") {
+      if (applying.current) return;
+      applying.current = true;
       const failed = await addTake(nodeId, result.text);
+      applying.current = false;
       if (failed) return setError(failed);
     } else {
       setPrompt(nodeId, result.text);
@@ -78,7 +81,7 @@ export function AiEditBox({ nodeId, onClose }: { nodeId: string; onClose: () => 
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       void ask();
-    } else if (e.key === "Escape") {
+    } else if (e.key === "Escape" && !e.nativeEvent.isComposing) {
       onClose();
     }
   };

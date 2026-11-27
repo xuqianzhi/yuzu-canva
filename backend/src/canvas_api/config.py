@@ -32,7 +32,7 @@ class Limits:
     videos_per_day: int = 10
     # Jobs queued or running at once (more are refused, not queued).
     active_jobs: int = 30
-    # Text-model calls (running a step, chat) per minute.
+    # Text-model calls (running a step, an AI edit) per minute.
     text_per_minute: int = 10
 
 
@@ -57,7 +57,7 @@ class Settings:
     seedance_http_timeout_s: float = 900
     # Replace real providers with offline fakes (for UI work).
     fake_generators: bool = False
-    # Text steps and node chat.
+    # Text steps and AI edits.
     openai_text_model: str = "gpt-5-mini"
 
     # --- data -------------------------------------------------------------------

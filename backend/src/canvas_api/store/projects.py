@@ -40,7 +40,6 @@ class ProjectsMixin:
         rows = self._all(
             f"""
             SELECT p.*, w.definition AS workflow, c.instruction AS collection_instruction,
-              c.direct_image, c.direct_video,
               (SELECT COUNT(*) FROM nodes n WHERE n.project_id = p.id AND {LIVE_N})
                 AS node_count,
               (SELECT COUNT(*) FROM {LIVE_ASSETS} AND a.kind = 'image') AS image_count,
@@ -95,10 +94,10 @@ class ProjectsMixin:
                 ).fetchone()
                 if collection is None:
                     raise _not_found("collection", collection_id)
-                instruction = body.instruction or ""
+                description = body.description or ""
                 db.execute(
                     "INSERT INTO projects (id, collection_id, name, viewport, created_at,"
-                    " updated_at, instruction) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    " updated_at, description) VALUES (?, ?, ?, ?, ?, ?, ?)",
                     (
                         project_id,
                         collection_id,
@@ -106,7 +105,7 @@ class ProjectsMixin:
                         Viewport().model_dump_json(),
                         ts,
                         ts,
-                        instruction,
+                        description,
                     ),
                 )
                 rows = db.execute(
@@ -139,12 +138,12 @@ class ProjectsMixin:
         project = self.get_project(project_id)
         name = body.name if body.name is not None else project.name
         viewport = body.viewport or project.viewport
-        instruction = body.instruction if body.instruction is not None else project.instruction
+        description = body.description if body.description is not None else project.description
         with self._tx() as db:
             db.execute(
-                "UPDATE projects SET name = ?, viewport = ?, instruction = ?, updated_at = ?"
+                "UPDATE projects SET name = ?, viewport = ?, description = ?, updated_at = ?"
                 " WHERE id = ?",
-                (name, viewport.model_dump_json(), instruction, _ts(now()), project_id),
+                (name, viewport.model_dump_json(), description, _ts(now()), project_id),
             )
         return self.get_project(project_id)
 

@@ -341,6 +341,28 @@ ALTER TABLE collections ADD COLUMN no_daily_limit BOOLEAN NOT NULL DEFAULT FALSE
     """
 ALTER TABLE nodes ADD COLUMN edited BOOLEAN NOT NULL DEFAULT FALSE;
 """,
+    # 12: the "only the ones used" carry is gone: such steps now pass nothing
+    # unless mentioned. A step saved without a carry kept everything; it says
+    # so now, since a missing carry means "none" from here on.
+    """
+UPDATE collection_workflows SET definition = jsonb_set(
+    definition::jsonb,
+    '{steps}',
+    (SELECT jsonb_agg(
+         CASE WHEN step->>'carry' = 'used' THEN step || '{"carry": "none"}'::jsonb
+              WHEN step->'carry' IS NULL THEN step || '{"carry": "all"}'::jsonb
+              ELSE step END
+         ORDER BY n)
+     FROM jsonb_array_elements(definition::jsonb->'steps') WITH ORDINALITY AS t(step, n))
+)::text
+WHERE jsonb_path_exists(
+    definition::jsonb, '$.steps[*] ? (@.carry == "used" || !exists(@.carry))'
+);
+""",
+    # 13: a project's instruction is its description ("Describe this video").
+    """
+ALTER TABLE projects RENAME COLUMN instruction TO description;
+""",
 ]
 
 # Row-level security with no policies on every table: Supabase's public Data

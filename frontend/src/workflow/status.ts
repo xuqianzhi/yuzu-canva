@@ -2,9 +2,6 @@
 // nodes. A step is "done" once it has been run and all its nodes have an
 // output; nothing here is stored.
 import {
-  idMap,
-  mentionedIds,
-  type Edge,
   type Node,
   type StepRun,
   type WorkflowDefinition,
@@ -69,31 +66,18 @@ export function currentStep(views: StepView[]): StepView | undefined {
 
 /**
  * What a run of step `key` is given by itself from earlier steps (mirrors
- * the backend's Store.carried_forward): each earlier step's results that
- * have an output -- all of them, none, or for a step that carries only
- * what's used, those used (a link's source, or mentioned in another step's run
- * prompt). Returned as the nodes, in order.
+ * the backend's Store.carried_forward): the results with an output of each
+ * earlier step that carries all. Returned as the nodes, in order.
  */
 export function carriedForward(
   workflow: WorkflowDefinition,
   nodes: Record<string, Node>,
-  edges: Edge[],
-  runs: Record<string, StepRun>,
   key: string,
 ): Node[] {
   const index = workflow.steps.findIndex((s) => s.key === key);
   if (index < 0) return [];
-  const ids = idMap(nodes);
-  const used = new Set(edges.map((e) => e.source_node_id));
-  for (const run of Object.values(runs)) {
-    for (const id of mentionedIds(run.prompt, ids)) {
-      if (nodes[id]?.workflow_step !== run.step) used.add(id);
-    }
-  }
-  return workflow.steps.slice(0, index).flatMap((step) => {
-    if (step.carry === "none") return [];
-    return stepNodes(nodes, step.key).filter(
-      (n) => n.selected_output_id && (step.carry !== "used" || used.has(n.id)),
-    );
-  });
+  return workflow.steps
+    .slice(0, index)
+    .filter((step) => step.carry === "all")
+    .flatMap((step) => stepNodes(nodes, step.key).filter((n) => n.selected_output_id));
 }

@@ -1,5 +1,6 @@
 import { ReactFlowProvider } from "@xyflow/react";
 import { useEffect } from "react";
+import { BasicView } from "./basic/BasicView";
 import { Canvas } from "./canvas/Canvas";
 import { LockBanner } from "./canvas/LockBanner";
 import { ProjectBar } from "./canvas/ProjectBar";
@@ -7,6 +8,7 @@ import { HomePage } from "./pages/HomePage";
 import { SignInGate } from "./pages/SignIn";
 import { collectionHref, homeHref, syncProject, useRoute } from "./router";
 import { useCanvas } from "./store/canvas";
+import { useShownView } from "./projectView";
 import { loadLanguage, useT } from "./i18n";
 import { StepPanel } from "./workflow/StepPanel";
 import { WorkflowBar } from "./workflow/WorkflowBar";
@@ -39,6 +41,7 @@ function ProjectPage() {
   const load = useCanvas((s) => s.load);
   const project = useCanvas((s) => s.project);
   const readOnly = useCanvas((s) => s.lock.status !== "editing");
+  const basic = useShownView() === "basic";
 
   return (
     <ReactFlowProvider>
@@ -59,13 +62,20 @@ function ProjectPage() {
           ) : (
             <>
               <LockBanner />
-              {/* View-only while someone else edits: every control inside
-                  is disabled (the server refuses changes anyway). */}
-              <fieldset className="readonly-fence" disabled={readOnly}>
-                {/* Remount per project so the saved viewport applies. */}
-                <Canvas key={project.id} />
-                <StepPanel />
-              </fieldset>
+              {basic ? (
+                // Fences off its own editing controls: moving between steps
+                // stays usable while view-only.
+                <BasicView />
+              ) : (
+                // View-only while someone else edits: every control inside
+                // is disabled (the server refuses changes anyway).
+                <fieldset className="readonly-fence" disabled={readOnly}>
+                  {/* Remount per project so the saved viewport applies. */}
+                  <Canvas key={project.id} />
+                  <StepPanel />
+                </fieldset>
+              )}
+              <Notice />
               <KeepOpenNotice />
             </>
           )}
@@ -83,6 +93,17 @@ function KeepOpenNotice() {
   return (
     <div className="keep-open" role="status">
       <span className="spinner" /> {t("keep_open")}
+    </div>
+  );
+}
+
+/** A passing message about the project (an error, or what Clean up did). */
+function Notice() {
+  const notice = useCanvas((s) => s.notice);
+  if (!notice) return null;
+  return (
+    <div className={`toast toast--${notice.tone}`} role="status">
+      {notice.text}
     </div>
   );
 }
